@@ -5,8 +5,8 @@ import IndexName = DocumentClient.IndexName;
 import Key = DocumentClient.Key;
 import QueryInput = DocumentClient.QueryInput;
 import AttributeMap = DocumentClient.AttributeMap;
-import { FilterExpressions, KeyExpressions } from "./parsers";
 import { Conditions, KeyConditions } from "./dynamoTypes";
+import { FilterExpressions, KeyExpressions, ProjectionAttrs } from "./parsers";
 
 
 export type QueryOptions<T> = {
@@ -15,7 +15,7 @@ export type QueryOptions<T> = {
     limit?: number,
     sort?: 'asc' | 'desc',
     projection?: Extract<keyof T, string>[],
-    offsetKey?: Key;
+    offsetKey?: Partial<T>;
 };
 
 
@@ -41,7 +41,6 @@ async function recursiveQuery<T>(documentClient: DocumentClient, queryInput: Que
     const queryOutput = await documentClient.query(queryInput).promise();
     const queryResults = queryOutput?.Items?.map(transform) ?? [];
     const queryResultLength = queryResults.length;
-    console.log(`results found: ${queryResultLength}:  ${queryOutput?.Count}`)
     if (queryOutput.LastEvaluatedKey && queryInput.Limit && queryResultLength > 0 && queryResultLength < queryInput.Limit) {
         return await recursiveQuery(documentClient, {
             ...queryInput,
@@ -74,6 +73,13 @@ function queryInputFrom<T>(tableName: string, key: KeyConditions<T>, options: Qu
         Object.assign(queryInput.ExpressionAttributeValues, filterParser.expressionAttributeValues);
         queryInput.FilterExpression = filterParser.expression;
     }
+
+    if (options.projection) {
+        const projectionAttrs = new ProjectionAttrs.Parser(options.projection);
+        Object.assign(queryInput.ExpressionAttributeNames, projectionAttrs.expressionAttributeNames);
+        queryInput.ProjectionExpression = projectionAttrs.projectionAttrs;
+    }
+
     if (options.sort) {
         queryInput.ScanIndexForward = options.sort === 'asc';
     }
@@ -83,11 +89,3 @@ function queryInputFrom<T>(tableName: string, key: KeyConditions<T>, options: Qu
     }
     return queryInput;
 }
-
-declare module 'aws-sdk/clients/dynamodb' {
-    interface DocumentClient {
-        typedQuery: typeof query;
-    }
-}
-
-DocumentClient.prototype.typedQuery = query;

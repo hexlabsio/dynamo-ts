@@ -1,8 +1,13 @@
 
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { AWSError, Request } from "aws-sdk";
 
 import ExpressionAttributeValueMap = DocumentClient.ExpressionAttributeValueMap;
 import AttributeValue = DocumentClient.AttributeValue;
+
+import QueryInput = DocumentClient.QueryInput;
+import QueryOutput = DocumentClient.QueryOutput;
+import { query } from "../src/client";
 
 export function expectAttributeValueKV<T>(attributeValues: ExpressionAttributeValueMap, lookupValue: T): [string, AttributeValue] {
     const kv = find(attributeValues, (k, v) => v === lookupValue);
@@ -23,3 +28,29 @@ export function fold<T, R>(obj: { [key: string]: T; }, init: R, f: (acc: R, k: s
     );
     return outObj;
 }
+
+export function partialAs<T>(pt: Partial<T>): T {
+    return pt as T;
+};
+
+//mock utils
+export function ddbMock(queryFn: jest.Mock): DocumentClient {
+    return partialAs<DocumentClient>({
+        query: queryFn,
+        get: jest.fn(),
+        put: jest.fn(),
+        update: jest.fn(),
+        batchWrite: jest.fn(),
+        queryExtra: query
+    });
+}
+
+export const success: <T> (response: T) => Request<T, AWSError> = <T>(response: T) => ({ promise: async () => response }) as Request<T, AWSError>;
+
+export const mockDDBquery: (query: QueryInput) => Request<QueryOutput, AWSError> = query => {
+    return success({
+        Count: 0,
+        Items: [],
+        ScannedCount: 0
+    });
+};
