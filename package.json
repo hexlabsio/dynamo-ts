@@ -1,5 +1,5 @@
 {
-  "name": "typescript-template",
+  "name": "ddb-extras",
   "sideEfects": false,
   "version": "1.0.0",
   "main": "dist/index.js",
