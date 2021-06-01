@@ -1,10 +1,14 @@
 {
-  "name": "ddb-extras",
+  "name": "@hexlabsio/ddb-extras",
   "sideEfects": false,
   "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
+    "dist"
+  ],
+  "exclude": [
+    "node_modules",
     "dist"
   ],
   "scripts": {
