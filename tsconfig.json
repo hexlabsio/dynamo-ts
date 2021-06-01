@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+    "baseUrl": ".",
+    "outDir": "./dist",
+    "noUnusedLocals": true,
+    "allowSyntheticDefaultImports": false,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "allowJs": true,
+    "moduleResolution": "node",
+    "target": "ESNext",
+    "pretty": true,
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*"
+  ]
+}
