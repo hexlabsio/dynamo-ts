@@ -3,8 +3,12 @@
   "sideEfects": false,
   "version": "1.0.0",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "webpack",
+    "build": "tsc --project tsconfig.json",
     "prepare": "husky install",
     "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit",
     "lint": "eslint **/*.ts"
@@ -42,11 +46,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hexlabsio/typescript-template.git"
+    "url": "git+https://github.com/hexlabsio/ddb-extras.git"
   },
   "author": "hexlabs",
   "bugs": {
-    "url": "https://github.com/hexlabsio/typescript-template/issues"
+    "url": "https://github.com/hexlabsio/ddb-extras/issues"
   },
   "husky": {
     "hooks": {
@@ -67,12 +71,13 @@
       "js"
     ]
   },
-  "homepage": "https://github.com/hexlabsio/typescript-template#readme",
+  "homepage": "https://github.com/hexlabsio/ddb-extras#readme",
   "devDependencies": {
     "@types/jest": "^26.0.23",
     "@types/node": "^15.6.1",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
+    "aws-sdk": "^2.918.0",
     "eslint": "^7.27.0",
     "eslint-plugin-jest": "^24.3.6",
     "husky": "^6.0.0",

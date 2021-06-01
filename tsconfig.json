@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "src",
     "baseUrl": ".",
     "outDir": "./dist",
     "noUnusedLocals": true,
+    "declaration": true,
     "allowSyntheticDefaultImports": false,
     "noImplicitAny": true,
     "noImplicitThis": true,
@@ -12,14 +13,14 @@
     "strictFunctionTypes": true,
     "allowJs": true,
     "moduleResolution": "node",
-    "target": "ESNext",
+    "module": "commonjs",
+    "target": "ES2019",
     "pretty": true,
-    "inlineSourceMap": true,
-    "inlineSources": true,
+    "inlineSourceMap": false,
+    "inlineSources": false,
     "esModuleInterop": true
   },
   "include": [
-    "src/**/*",
-    "test/**/*"
+    "src/**/*"
   ]
 }
