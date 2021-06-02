@@ -1,25 +1,26 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import * as crypto from "crypto";
-import { 
-    AndGroup, 
-    ArrayCompareExpression, 
-    ArrayConditionExpressionInfo, 
-    arrayOperatorValues, 
-    ConditionMap, 
-    ExpressionInfo, 
-    FilterExpression, 
-    OrGroup, 
-    RangeCompareExpression, 
-    RangeConditionExpressionInfo, 
-    rangeOperatorValues, 
-    SimpleConditionExpressionInfo, 
-    SimpleExpression, 
-    SingleCompareExpression, 
-    SingleConditionExpressionInfo 
+import {
+    AndGroup,
+    ArrayCompareExpression,
+    ArrayConditionExpressionInfo,
+    arrayOperatorValues,
+    ConditionMap,
+    ExpressionInfo,
+    FilterExpression,
+    NotGroup,
+    OrGroup,
+    RangeCompareExpression,
+    RangeConditionExpressionInfo,
+    rangeOperatorValues,
+    SimpleConditionExpressionInfo,
+    SimpleExpression,
+    SingleCompareExpression,
+    SingleConditionExpressionInfo
 } from "../dynamoTypes";
 
 import ExpressionAttributeValueMap = DocumentClient.ExpressionAttributeValueMap;
-import ExpressionAttributeNameMap = DocumentClient.ExpressionAttributeNameMap
+import ExpressionAttributeNameMap = DocumentClient.ExpressionAttributeNameMap;
 
 export function id(): string { return crypto.randomBytes(7).toString('hex'); }
 export const toName = (key: string): string => `#${key}`;
@@ -32,10 +33,14 @@ export function map<T, U>(conditionMap: ConditionMap<T>, f: (t: T) => U): Condit
         return { $and: andCondition.$and.map(c => map(c, f)) };
     }
     const orCondition = conditionMap as OrGroup<T>;
-    if(orCondition.$or) {
+    if (orCondition.$or) {
         return { $or: orCondition.$or.map(c => map(c, f)) };
-    } 
-    return f(conditionMap as T)
+    }
+    const notCondition = conditionMap as NotGroup<T>;
+    if (notCondition.$not) {
+        return { $not: map(notCondition.$not, f) };
+    }
+    return f(conditionMap as T);
 }
 
 export function mapKeyCondition<T, U>(keyConditionMap: T | AndGroup<T>, f: (t: T) => U): U | AndGroup<U> {
@@ -43,39 +48,47 @@ export function mapKeyCondition<T, U>(keyConditionMap: T | AndGroup<T>, f: (t: T
     if (andCondition.$and) {
         return { $and: andCondition.$and.map(c => map(c, f)) };
     }
-    return f(keyConditionMap as T)
+    return f(keyConditionMap as T);
 }
 
 function reduce<T, U, R extends Record<string, U>>(conditionMap: ConditionMap<T>, f: (t: T) => R): R {
     const andCondition = conditionMap as AndGroup<T>;
     if (andCondition.$and) {
-        return andCondition.$and.map(c => reduce(c, f)).reduce((acc, elem)=> ({...acc, ...elem}), {} as R)
+        return andCondition.$and.map(c => reduce(c, f)).reduce((acc, elem) => ({ ...acc, ...elem }), {} as R);
     }
     const orCondition = conditionMap as OrGroup<T>;
-    if(orCondition.$or) {
-        return orCondition.$or.map(c => reduce(c, f)).reduce((acc, elem)=> ({...acc, ...elem}), {} as R)
-    } 
-    return f(conditionMap as T)
+    if (orCondition.$or) {
+        return orCondition.$or.map(c => reduce(c, f)).reduce((acc, elem) => ({ ...acc, ...elem }), {} as R);
+    }
+    const notCondition = conditionMap as NotGroup<T>;
+    if (notCondition.$not) {
+        return reduce(notCondition.$not, f);
+    }
+    return f(conditionMap as T);
 }
 
 export function expression<T>(conditionMap: ConditionMap<T>, f: (t: T) => string): string {
     const andCondition = conditionMap as AndGroup<T>;
     if (andCondition.$and) {
-        return andCondition.$and.map(c => `(${expression(c, f)})`).join(" AND ")
+        return andCondition.$and.map(c => `(${expression(c, f)})`).join(" AND ");
     }
     const orCondition = conditionMap as OrGroup<T>;
-    if(orCondition.$or) {
-        return orCondition.$or.map(c => `(${expression(c, f)})`).join(" OR ")
-    } 
-    const condition = conditionMap as T
-    return f(condition)
+    if (orCondition.$or) {
+        return orCondition.$or.map(c => `(${expression(c, f)})`).join(" OR ");
+    }
+    const notCondition = conditionMap as NotGroup<T>;
+    if (notCondition.$not) {
+        return `NOT (${expression(notCondition.$not, f)})`;
+    }
+    const condition = conditionMap as T;
+    return f(condition);
 }
 export function expressionAttributeNamesFrom<T>(expressionInfo: ExpressionInfo<T>): ExpressionAttributeNameMap {
-    return reduce(expressionInfo, expr => ({ [toName(expr.key)]: expr.key, }))
+    return reduce(expressionInfo, expr => ({ [toName(expr.key)]: expr.key, }));
 }
 
 export function expressionAttributeValuesFrom<T>(expressionInfo: ExpressionInfo<T>): ExpressionAttributeValueMap {
-    return reduce(expressionInfo, simpleExpressionAttributeValueMap)
+    return reduce(expressionInfo, simpleExpressionAttributeValueMap);
 }
 
 export function isRangeCompareExpression<T>(keyExpressions: SimpleExpression<T>): keyExpressions is RangeCompareExpression<T> {

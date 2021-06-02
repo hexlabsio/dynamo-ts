@@ -32,7 +32,7 @@ describe('filter parser', () => {
     });
 
     it('handles begins_with expressions', () => {
-        const lookupValue = 'aaa'
+        const lookupValue = 'aaa';
         const filterParser = new Parser<Foo>({ key: 'bop', comparison: ['begins_with', lookupValue] });
         expect(filterParser.expressionAttributeNames).toEqual({ '#bop': 'bop' });
 
@@ -59,21 +59,36 @@ describe('filter parser', () => {
 
         expect(filterParser.expression).toEqual(`(#bar = ${eqKey}) AND (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey})`);
     });
-    
-    it('handles AND OR expressions', () => {
+
+    it('handles NOT expressions', () => {
+        const [lowerRange, upperRange] = [0, 100];
+        const filterParser = new Parser<Foo>({
+            $not: { key: 'baz', comparison: ['between', lowerRange, upperRange] }
+        });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#baz': 'baz' });
+
+        const [upperRangeKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, upperRange);
+        const [lowerRangeKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, lowerRange);
+
+        expect(filterParser.expression).toEqual(`NOT (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey})`);
+    });
+
+    it('handles AND OR NOT expressions', () => {
         const eqLookup = 123;
         const beginsWithLookup = 'aaa';
         const [lowerRange, upperRange] = [0, 100];
         const filterParser = new Parser<Foo>({
-            $or: 
-            [{$and: [
-                { key: 'bar', comparison: ['=', eqLookup] },
-                { key: 'baz', comparison: ['between', lowerRange, upperRange] },
-            ]},
-            { key: 'bop', comparison: ['begins_with', beginsWithLookup] } 
-        ]
+            $or:
+                [{
+                    $and: [
+                        { key: 'bar', comparison: ['=', eqLookup] },
+                        { $not: { key: 'baz', comparison: ['between', lowerRange, upperRange] } },
+                    ]
+                },
+                { key: 'bop', comparison: ['begins_with', beginsWithLookup] }
+                ]
         });
-        expect(filterParser.expressionAttributeNames).toEqual({ '#bar': 'bar', '#baz': 'baz', '#bop' : 'bop' });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#bar': 'bar', '#baz': 'baz', '#bop': 'bop' });
 
         const [eqKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, eqLookup);
         const [beginsKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, beginsWithLookup);
@@ -81,7 +96,7 @@ describe('filter parser', () => {
         const [lowerRangeKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, lowerRange);
         const [upperRangeKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, upperRange);
 
-        expect(filterParser.expression).toEqual(`((#bar = ${eqKey}) AND (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey})) OR (begins_with(#bop, ${beginsKey}))`);
+        expect(filterParser.expression).toEqual(`((#bar = ${eqKey}) AND (NOT (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey}))) OR (begins_with(#bop, ${beginsKey}))`);
     });
 });
 

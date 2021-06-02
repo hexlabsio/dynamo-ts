@@ -76,7 +76,11 @@ export type OrGroup<T> = {
     $or: ConditionMap<T>[];
 };
 
-export type ConditionGroup<T> = AndGroup<T> | OrGroup<T>;
+export type NotGroup<T> = {
+    $not: ConditionMap<T>;
+};
+
+export type ConditionGroup<T> = AndGroup<T> | OrGroup<T> | NotGroup<T>;
 
 export type ConditionMap<T> = T | ConditionGroup<T>;
 

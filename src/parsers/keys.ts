@@ -19,6 +19,22 @@ import {
 import ExpressionAttributeNameMap = DocumentClient.ExpressionAttributeNameMap;
 import ExpressionAttributeValueMap = DocumentClient.ExpressionAttributeValueMap;
 
+/**
+ * From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.KeyConditionExpressions
+ * You must specify the partition key name and value as an equality condition.
+ * You can optionally provide a second condition for the sort key (if present). The sort key condition must use one of the following comparison operators:
+ * 
+ *     a = b — true if the attribute a is equal to the value b
+ *     a < b — true if a is less than b
+ *     a <= b — true if a is less than or equal to b
+ *     a > b — true if a is greater than b
+ *     a >= b — true if a is greater than or equal to b
+ *     a BETWEEN b AND c — true if a is greater than or equal to b, and less than or equal to c.
+ * 
+ * The following function is also supported:
+ *     begins_with (a, substr)— true if the value of attribute a begins with a particular substring.
+ * 
+ */
 export class Parser<T> {
   private keyExpressionInfo: KeyExpressionInfo<T>;
 

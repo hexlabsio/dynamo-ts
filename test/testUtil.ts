@@ -1,4 +1,3 @@
-
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { AWSError, Request } from "aws-sdk";
 
@@ -31,7 +30,7 @@ export function fold<T, R>(obj: { [key: string]: T; }, init: R, f: (acc: R, k: s
 
 export function partialAs<T>(pt: Partial<T>): T {
     return pt as T;
-};
+}
 
 //mock utils
 export function ddbMock(queryFn: jest.Mock): DocumentClient {
@@ -47,7 +46,7 @@ export function ddbMock(queryFn: jest.Mock): DocumentClient {
 
 export const success: <T> (response: T) => Request<T, AWSError> = <T>(response: T) => ({ promise: async () => response }) as Request<T, AWSError>;
 
-export const mockDDBquery: (query: QueryInput) => Request<QueryOutput, AWSError> = query => {
+export const mockDDBquery: (query: QueryInput) => Request<QueryOutput, AWSError> = () => {
     return success({
         Count: 0,
         Items: [],

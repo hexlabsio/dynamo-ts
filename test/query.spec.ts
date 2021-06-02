@@ -68,7 +68,7 @@ describe('client query', () => {
         const capturedParam = captureParamAs<DocumentClient.QueryInput>(docQuerySpy, queryMockFn);
 
         expect(capturedParam.ExpressionAttributeNames!).toEqual({ '#bar': 'bar', '#bop': 'bop', '#baz': 'baz' });
-        expect(capturedParam.ExpressionAttributeValues).toBeDefined;
+        expect(capturedParam.ExpressionAttributeValues).toBeDefined();
         const [eqKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, eqLookup);
         const [beginsKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, beginsWithLookup);
 
@@ -175,7 +175,7 @@ describe('client query', () => {
         expect(capturedParam.ProjectionExpression!).toBe('#bop, #baz');
 
 
-        expect(capturedParam.ExpressionAttributeValues).toBeDefined;
+        expect(capturedParam.ExpressionAttributeValues).toBeDefined();
         // key expression assertions
         const [eqKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, 'a');
         expect(capturedParam.KeyConditionExpression).toEqual(`begins_with(#bar, ${eqKey})`);

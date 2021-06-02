@@ -37,7 +37,6 @@ export async function query<T>(
 async function recursiveQuery<T>(documentClient: DocumentClient, queryInput: QueryInput,
     transform: (attributeMap: AttributeMap) => T,
     results: T[] = []): Promise<QueryResult<T>> {
-    console.log(`query input: ${JSON.stringify(queryInput, null, 2)}`);
     const queryOutput = await documentClient.query(queryInput).promise();
     const queryResults = queryOutput?.Items?.map(transform) ?? [];
     const queryResultLength = queryResults.length;
