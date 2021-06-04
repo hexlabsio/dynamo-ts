@@ -9,6 +9,7 @@ import {
     ExpressionInfo,
     FilterExpression,
     NotGroup,
+    Operator,
     OrGroup,
     RangeCompareExpression,
     RangeConditionExpressionInfo,
@@ -92,11 +93,11 @@ export function expressionAttributeValuesFrom<T>(expressionInfo: ExpressionInfo<
 }
 
 export function isRangeCompareExpression<T>(keyExpressions: SimpleExpression<T>): keyExpressions is RangeCompareExpression<T> {
-    return rangeOperatorValues.includes(keyExpressions.comparison[0]);
+    return (rangeOperatorValues as readonly Operator[]).includes(keyExpressions.comparison[0]);
 }
 
 export function isArrayCompareExpression<T>(filterExpressions: FilterExpression<T>): filterExpressions is ArrayCompareExpression<T> {
-    return arrayOperatorValues.includes(filterExpressions.comparison[0]);
+    return (arrayOperatorValues  as readonly Operator[]).includes(filterExpressions.comparison[0]);
 }
 
 export function rangeConditionExpressionInfo<T>(rangeCompareExpression: RangeCompareExpression<T>): RangeConditionExpressionInfo<T> {

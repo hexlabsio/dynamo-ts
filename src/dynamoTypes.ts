@@ -1,11 +1,14 @@
-export type RangeOperator = 'between';
-export type ArrayOperator = 'in';
-export type SingleOperator = '=' | '<=' | '<' | '>=' | '>' | 'begins_with';
-export type Operator = SingleOperator | RangeOperator | ArrayOperator;
-export const rangeOperatorValues: Operator[] = ['between'];
-export const arrayOperatorValues: Operator[] = ['in'];
-export const singleOperatorValues: Operator[] = ['=', '<=', '<', '>=', '>', 'begins_with'];
 
+export type Operator = SingleOperator | RangeOperator | ArrayOperator;
+export type TupleType<T extends readonly any[]> = T extends readonly [infer HEAD] ? HEAD : (T extends readonly [infer HEAD, ...infer TAIL] ? HEAD | TupleType<TAIL> : never);
+
+export const rangeOperatorValues = ['between'] as const;
+export const arrayOperatorValues = ['in'] as const;
+export const singleOperatorValues = ['=', '<=', '<', '>=', '>', 'begins_with'] as const;
+
+export type RangeOperator = TupleType<typeof rangeOperatorValues>
+export type ArrayOperator = TupleType<typeof arrayOperatorValues>;
+export type SingleOperator = TupleType<typeof singleOperatorValues>;
 export type SingleComparison<T, U extends T[keyof T]> = [SingleOperator, U];
 export type RangeComparison<T, U extends T[keyof T]> = [RangeOperator, U, U];
 export type ArrayComparison<T, U extends T[keyof T]> = [ArrayOperator, U[]];
