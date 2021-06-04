@@ -54,7 +54,7 @@ async function recursiveQuery<T>(documentClient: DocumentClient, queryInput: Que
     }
 }
 
-function queryInputFrom<T>(tableName: string, key: KeyConditions<T>, options: QueryOptions<T>): QueryInput {
+export function queryInputFrom<T>(tableName: string, key: KeyConditions<T>, options: QueryOptions<T>): QueryInput {
     const keyParser = new KeyExpressions.Parser(key);
     const queryInput: QueryInput = {
         TableName: tableName,

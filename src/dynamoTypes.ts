@@ -1,7 +1,8 @@
 
-export type Operator = SingleOperator | RangeOperator | ArrayOperator;
+export type Operator = SingleOperator | RangeOperator | ArrayOperator | AttrCheckOperator;
 export type TupleType<T extends readonly any[]> = T extends readonly [infer HEAD] ? HEAD : (T extends readonly [infer HEAD, ...infer TAIL] ? HEAD | TupleType<TAIL> : never);
 
+export const attributeCheckValues = ['attribute_exists', 'attribute_not_exists'] as const;
 export const rangeOperatorValues = ['between'] as const;
 export const arrayOperatorValues = ['in'] as const;
 export const singleOperatorValues = ['=', '<=', '<', '>=', '>', 'begins_with'] as const;
@@ -9,6 +10,7 @@ export const singleOperatorValues = ['=', '<=', '<', '>=', '>', 'begins_with'] a
 export type RangeOperator = TupleType<typeof rangeOperatorValues>
 export type ArrayOperator = TupleType<typeof arrayOperatorValues>;
 export type SingleOperator = TupleType<typeof singleOperatorValues>;
+export type AttrCheckOperator = TupleType<typeof attributeCheckValues>;
 export type SingleComparison<T, U extends T[keyof T]> = [SingleOperator, U];
 export type RangeComparison<T, U extends T[keyof T]> = [RangeOperator, U, U];
 export type ArrayComparison<T, U extends T[keyof T]> = [ArrayOperator, U[]];
@@ -26,14 +28,20 @@ export type ArrayCompareExpression<T> = {
     comparison: ArrayComparison<T, T[keyof T]>;
 };
 
+export type AttributeCheckExpression<T> = {
+    key: Extract<keyof T, string>,
+    comparison: AttrCheckOperator;
+};
+
 export type AndCompareExpression<T> = AndGroup<SimpleExpression<T>>;
 export type OrCompareExpression<T> = OrGroup<SimpleExpression<T>>;
 export type KeyExpression<T> = RangeCompareExpression<T> | SingleCompareExpression<T>;
-export type FilterExpression<T> = RangeCompareExpression<T> | SingleCompareExpression<T> | ArrayCompareExpression<T>;
-export type SimpleExpression<T> = RangeCompareExpression<T> | SingleCompareExpression<T> | ArrayCompareExpression<T>;
+export type AttrValueCompareExpression<T> = RangeCompareExpression<T> | SingleCompareExpression<T> | ArrayCompareExpression<T>;
+export type SimpleExpression<T> = AttrValueCompareExpression<T> | AttributeCheckExpression<T>;
+export type FilterExpression<T> = SimpleExpression<T>;
 
 
-type ExpressionInfoTag = { tag: 'single' | 'range' | 'array'; };
+type ExpressionInfoTag = { tag: 'single' | 'range' | 'array' | 'attrCheck'; };
 
 type id = string;
 type ID<T> = [id, T[keyof T]];
@@ -67,9 +75,15 @@ export type ArrayConditionExpressionInfo<T> = ExpressionInfoTag & {
     idValueKeys: ArrayIdValues<T>;
 };
 
+export type AttributeCheckExpressionInfo<T> = ExpressionInfoTag & {
+    key: Extract<keyof T, string>,
+    tag: 'attrCheck',
+    operator: AttrCheckOperator
+};
+
 export type KeyConditionExpressionInfo<T> = SingleConditionExpressionInfo<T> | RangeConditionExpressionInfo<T>;
-export type FilterConditionExpressionInfo<T> = SingleConditionExpressionInfo<T> | RangeConditionExpressionInfo<T> | ArrayConditionExpressionInfo<T>;
-export type SimpleConditionExpressionInfo<T> = SingleConditionExpressionInfo<T> | RangeConditionExpressionInfo<T> | ArrayConditionExpressionInfo<T>;
+export type SimpleConditionExpressionInfo<T> = SingleConditionExpressionInfo<T> | RangeConditionExpressionInfo<T> | ArrayConditionExpressionInfo<T> | AttributeCheckExpressionInfo<T>;
+export type FilterConditionExpressionInfo<T> = SimpleConditionExpressionInfo<T>;
 
 export type AndGroup<T> = {
     $and: ConditionMap<T>[];

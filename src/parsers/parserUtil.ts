@@ -5,9 +5,12 @@ import {
     ArrayCompareExpression,
     ArrayConditionExpressionInfo,
     arrayOperatorValues,
+    AttributeCheckExpression,
+    AttributeCheckExpressionInfo,
+    attributeCheckValues,
+    AttrValueCompareExpression,
     ConditionMap,
     ExpressionInfo,
-    FilterExpression,
     NotGroup,
     Operator,
     OrGroup,
@@ -92,12 +95,24 @@ export function expressionAttributeValuesFrom<T>(expressionInfo: ExpressionInfo<
     return reduce(expressionInfo, simpleExpressionAttributeValueMap);
 }
 
-export function isRangeCompareExpression<T>(keyExpressions: SimpleExpression<T>): keyExpressions is RangeCompareExpression<T> {
-    return (rangeOperatorValues as readonly Operator[]).includes(keyExpressions.comparison[0]);
+export function isAttrCheckExpression<T>(simpleExpression: SimpleExpression<T>): simpleExpression is AttributeCheckExpression<T> {
+    return typeof simpleExpression.comparison === 'string' && (attributeCheckValues as readonly string[]).includes(simpleExpression.comparison);
 }
 
-export function isArrayCompareExpression<T>(filterExpressions: FilterExpression<T>): filterExpressions is ArrayCompareExpression<T> {
-    return (arrayOperatorValues  as readonly Operator[]).includes(filterExpressions.comparison[0]);
+export function isRangeCompareExpression<T>(attrValueCompareExpression: AttrValueCompareExpression<T>): attrValueCompareExpression is RangeCompareExpression<T> {
+    return (rangeOperatorValues as readonly Operator[]).includes(attrValueCompareExpression.comparison[0]);
+}
+
+export function isArrayCompareExpression<T>(attrValueCompareExpression: AttrValueCompareExpression<T>): attrValueCompareExpression is ArrayCompareExpression<T> {
+    return (arrayOperatorValues  as readonly Operator[]).includes(attrValueCompareExpression.comparison[0]);
+}
+
+export function attributeCheckExpressionInfo<T>(attributeCheckExpression: AttributeCheckExpression<T>): AttributeCheckExpressionInfo<T> {
+    return {
+        tag: 'attrCheck',
+        key: attributeCheckExpression.key,
+        operator: attributeCheckExpression.comparison,
+    };
 }
 
 export function rangeConditionExpressionInfo<T>(rangeCompareExpression: RangeCompareExpression<T>): RangeConditionExpressionInfo<T> {
@@ -128,7 +143,9 @@ export function arrayConditionExpressionInfo<T>(rangeCompareExpression: ArrayCom
 }
 
 export function simpleConditionExpressionInfo<T>(compareExpression: SimpleExpression<T>): SimpleConditionExpressionInfo<T> {
-    if (isRangeCompareExpression(compareExpression)) {
+    if (isAttrCheckExpression(compareExpression)) {
+        return attributeCheckExpressionInfo(compareExpression);
+    } else if (isRangeCompareExpression(compareExpression)) {
         return rangeConditionExpressionInfo(compareExpression);
     } else if (isArrayCompareExpression(compareExpression)) {
         return arrayConditionExpressionInfo(compareExpression);
@@ -164,6 +181,10 @@ export function arrayConditionExpression<T>(arrayConditionExpressionInfo: ArrayC
     }
 }
 
+export function attrCheckExpression<T>(attributeCheckExpressionInfo: AttributeCheckExpressionInfo<T>): string {
+    return `${attributeCheckExpressionInfo.operator}(${toName(attributeCheckExpressionInfo.key)})`;
+}
+
 export function simpleConditionExpression<T>(simpleConditionExpressionInfo: SimpleConditionExpressionInfo<T>): string {
     switch (simpleConditionExpressionInfo.tag) {
         case 'range':
@@ -172,6 +193,8 @@ export function simpleConditionExpression<T>(simpleConditionExpressionInfo: Simp
             return singleConditionExpression(simpleConditionExpressionInfo);
         case 'array':
             return arrayConditionExpression(simpleConditionExpressionInfo);
+        case 'attrCheck':
+            return attrCheckExpression(simpleConditionExpressionInfo);    
     }
 }
 
@@ -204,5 +227,7 @@ export function simpleExpressionAttributeValueMap<T>(simpleConditionExpressionIn
             return singleExpressionAttributeValueMap(simpleConditionExpressionInfo);
         case 'array':
             return arrayExpressionAttributeValueMap(simpleConditionExpressionInfo);
+        case 'attrCheck':
+            return {};
     }
 }

@@ -152,6 +152,7 @@ describe('client query', () => {
                     $or:
                         [{
                             $and: [
+                                { key: 'bop', comparison: 'attribute_exists' },
                                 { key: 'bar', comparison: ['=', eqLookup] },
                                 { key: 'baz', comparison: ['between', lowerRange, upperRange] },
                             ]
@@ -187,9 +188,14 @@ describe('client query', () => {
         const [lowerRangeKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, lowerRange);
         const [upperRangeKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, upperRange);
 
-        expect(capturedParam.FilterExpression).toEqual(`((#bar = ${eqfilterKey}) AND (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey})) OR (begins_with(#bop, ${beginsKey}))`);
+        expect(capturedParam.FilterExpression).toEqual(
+            '((attribute_exists(#bop)) AND ' +
+            `(#bar = ${eqfilterKey}) AND ` +
+            `(#baz BETWEEN ${lowerRangeKey} AND ` +
+            `${upperRangeKey})) ` +
+            `OR (begins_with(#bop, ${beginsKey}))`);
 
-        
+
 
     });
 });

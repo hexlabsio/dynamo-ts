@@ -41,6 +41,18 @@ describe('filter parser', () => {
         expect(filterParser.expression).toEqual(`begins_with(#bop, ${attrKey})`);
     });
 
+    it('handles attribute_exists expressions', () => {
+        const filterParser = new Parser<Foo>({ key: 'bop', comparison: 'attribute_exists' });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#bop': 'bop' });
+        expect(filterParser.expression).toEqual(`attribute_exists(#bop)`);
+    });
+
+    it('handles attribute_not_exists expressions', () => {
+        const filterParser = new Parser<Foo>({ key: 'bop', comparison: 'attribute_not_exists' });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#bop': 'bop' });
+        expect(filterParser.expression).toEqual(`attribute_not_exists(#bop)`);
+    });
+
     it('handles AND expressions', () => {
         const eqLookup = 123;
         const [lowerRange, upperRange] = [0, 100];

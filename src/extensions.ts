@@ -1,11 +1,11 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
-import { query } from "./client";
+import * as client  from "./client";
 
 declare module 'aws-sdk/clients/dynamodb' {
     interface DocumentClient {
-        queryExtra: typeof query;
+        queryExtra: typeof client.query;
     }
 }
 
-DocumentClient.prototype.queryExtra = query;
+DocumentClient.prototype.queryExtra = client.query;
 
