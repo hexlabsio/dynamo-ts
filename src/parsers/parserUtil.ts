@@ -175,7 +175,7 @@ export function arrayConditionExpression<T>(arrayConditionExpressionInfo: ArrayC
     if (arrayConditionExpressionInfo.operator === 'in') {
         // `begins_with(#${k}, :${k})`
         const ids = arrayConditionExpressionInfo.idValueKeys.map(([id]) => toValue(id)).join(",");
-        return `${toName(arrayConditionExpressionInfo.key)} IN (${ids}))`;
+        return `${toName(arrayConditionExpressionInfo.key)} IN (${ids})`;
     } else {
         return "";
     }

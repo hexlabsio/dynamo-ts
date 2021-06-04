@@ -31,6 +31,18 @@ describe('filter parser', () => {
         expect(filterParser.expression).toEqual(`#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey}`);
     });
 
+    it('handles IN expressions', () => {
+        const [n1, n2, n3] = [0, 100, 200];
+        const filterParser = new Parser<Foo>({ key: 'baz', comparison: ['in', [n1, n2, n3]] });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#baz': 'baz' });
+
+        const [n1Key] = expectAttributeValueKV(filterParser.expressionAttributeValues, n1);
+        const [n2Key] = expectAttributeValueKV(filterParser.expressionAttributeValues, n2);
+        const [n3Key] = expectAttributeValueKV(filterParser.expressionAttributeValues, n3);
+
+        expect(filterParser.expression).toEqual(`#baz IN (${n1Key},${n2Key},${n3Key})`);
+    });
+
     it('handles begins_with expressions', () => {
         const lookupValue = 'aaa';
         const filterParser = new Parser<Foo>({ key: 'bop', comparison: ['begins_with', lookupValue] });
