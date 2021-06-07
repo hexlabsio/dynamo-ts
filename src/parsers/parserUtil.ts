@@ -177,7 +177,7 @@ export function singleConditionExpression<T>(singleConditionExpressionInfo: Sing
     } 
     else {
         const [id] = singleConditionExpressionInfo.idValueKeys;
-        return `${toName(singleConditionExpressionInfo.key)} = ${toValue(id)}`;
+        return `${toName(singleConditionExpressionInfo.key)} ${singleConditionExpressionInfo.operator} ${toValue(id)}`;
     }
 }
 

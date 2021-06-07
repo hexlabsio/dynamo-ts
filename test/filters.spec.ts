@@ -9,15 +9,20 @@ describe('filter parser', () => {
         bop: string;
     };
 
-    it('handles simple expressions', () => {
+    it('handles simple eq expressions', () => {
         const lookupValue = '123';
         const filterParser = new Parser<Foo>({ key: 'bar', comparison: ['=', lookupValue] });
         expect(filterParser.expressionAttributeNames).toEqual({ '#bar': 'bar' });
-
         const [attrKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, lookupValue);
-
         expect(filterParser.expression).toEqual(`#bar = ${attrKey}`);
+    });
 
+    it('handles simple neq expressions', () => {
+        const notLookupValue = '123';
+        const filterParser = new Parser<Foo>({ key: 'bar', comparison: ['<>', notLookupValue] });
+        expect(filterParser.expressionAttributeNames).toEqual({ '#bar': 'bar' });
+        const [attrKey] = expectAttributeValueKV(filterParser.expressionAttributeValues, notLookupValue);
+        expect(filterParser.expression).toEqual(`#bar <> ${attrKey}`);
     });
 
     it('handles range expressions', () => {

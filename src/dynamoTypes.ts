@@ -6,7 +6,7 @@ export const attributeCheckValues = ['attribute_exists', 'attribute_not_exists']
 export const rangeOperatorValues = ['between'] as const;
 export const arrayOperatorValues = ['in'] as const;
 export const keySingleOperatorValues = ['=', '<=', '<', '>=', '>', 'begins_with'] as const;
-export const singleOperatorValues = [...keySingleOperatorValues, 'contains'] as const;
+export const singleOperatorValues = [...keySingleOperatorValues, '<>', 'contains'] as const;
 
 export type RangeOperator = TupleType<typeof rangeOperatorValues>
 export type ArrayOperator = TupleType<typeof arrayOperatorValues>;
