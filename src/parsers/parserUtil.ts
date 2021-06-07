@@ -11,6 +11,8 @@ import {
     AttrValueCompareExpression,
     ConditionMap,
     ExpressionInfo,
+    KeySingleCompareExpression,
+    KeySingleConditionExpressionInfo,
     NotGroup,
     Operator,
     OrGroup,
@@ -124,7 +126,15 @@ export function rangeConditionExpressionInfo<T>(rangeCompareExpression: RangeCom
     };
 }
 
-export function singleConditionExpressionInfo<T>(singleCompareExpression: SingleCompareExpression<T>): SingleConditionExpressionInfo<T> {
+export function singleConditionExpressionInfo<T>(singleCompareExpression: SingleCompareExpression<T> | KeySingleCompareExpression<T>): SingleConditionExpressionInfo<T> {
+    return {
+        tag: 'single',
+        key: singleCompareExpression.key,
+        operator: singleCompareExpression.comparison[0],
+        idValueKeys: [id(), singleCompareExpression.comparison[1]]
+    };
+}
+export function keySingleConditionExpressionInfo<T>(singleCompareExpression: KeySingleCompareExpression<T>): KeySingleConditionExpressionInfo<T> {
     return {
         tag: 'single',
         key: singleCompareExpression.key,
@@ -161,11 +171,11 @@ export function rangeConditionExpression<T>(rangeConditionExpressionInfo: RangeC
 }
 
 export function singleConditionExpression<T>(singleConditionExpressionInfo: SingleConditionExpressionInfo<T>): string {
-    if (singleConditionExpressionInfo.operator === 'begins_with') {
-        // `begins_with(#${k}, :${k})`
+    if (['begins_with', 'contains'].includes(singleConditionExpressionInfo.operator)) {
         const [id] = singleConditionExpressionInfo.idValueKeys;
-        return `begins_with(${toName(singleConditionExpressionInfo.key)}, ${toValue(id)})`;
-    } else {
+        return `${singleConditionExpressionInfo.operator}(${toName(singleConditionExpressionInfo.key)}, ${toValue(id)})`;
+    } 
+    else {
         const [id] = singleConditionExpressionInfo.idValueKeys;
         return `${toName(singleConditionExpressionInfo.key)} = ${toValue(id)}`;
     }

@@ -12,8 +12,8 @@ import {
   expressionAttributeNamesFrom,
   isRangeCompareExpression,
   rangeConditionExpressionInfo,
-  singleConditionExpressionInfo, 
-  mapKeyCondition
+  mapKeyCondition,
+  keySingleConditionExpressionInfo
 } from "./parserUtil";
 
 import ExpressionAttributeNameMap = DocumentClient.ExpressionAttributeNameMap;
@@ -58,7 +58,7 @@ export class Parser<T> {
     if (isRangeCompareExpression(compareExpression)) {
       return rangeConditionExpressionInfo(compareExpression);
     } else {
-      return singleConditionExpressionInfo(compareExpression);
+      return keySingleConditionExpressionInfo(compareExpression);
     }
   }
   toString(): string {
