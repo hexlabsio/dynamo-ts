@@ -40,7 +40,7 @@ async function recursiveQuery<T>(documentClient: DocumentClient, queryInput: Que
     const queryOutput = await documentClient.query(queryInput).promise();
     const queryResults = queryOutput?.Items?.map(transform) ?? [];
     const queryResultLength = queryResults.length;
-    if (queryOutput.LastEvaluatedKey && queryInput.Limit && queryResultLength > 0 && queryResultLength < queryInput.Limit) {
+    if (queryOutput.LastEvaluatedKey && queryInput.Limit && queryResultLength < queryInput.Limit) {
         return await recursiveQuery(documentClient, {
             ...queryInput,
             Limit: queryInput.Limit - queryResultLength,
