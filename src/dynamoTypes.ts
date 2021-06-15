@@ -1,3 +1,8 @@
+import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+
+import IndexName = DocumentClient.IndexName;
+import Key = DocumentClient.Key;
+
 export type Operator =
   | SingleOperator
   | RangeOperator
@@ -182,6 +187,20 @@ export type KeyConditions<T> =
 export type KeyExpressionInfo<T> =
   | KeyConditionExpressionInfo<T>
   | AndGroup<KeyConditionExpressionInfo<T>>;
+
+export type QueryOptions<T> = {
+  filters?: Conditions<T, keyof T>;
+  index?: IndexName;
+  limit?: number;
+  sort?: 'asc' | 'desc';
+  projection?: Extract<keyof T, string>[];
+  offsetKey?: Partial<T>;
+};
+
+export type QueryResult<T> = {
+  items: T[];
+  offsetKey?: Key;
+};
 
 export type UnionType<T extends readonly any[]> = T[number];
 export type TupleInferred<A extends unknown[]> = ((

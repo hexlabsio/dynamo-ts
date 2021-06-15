@@ -1,5 +1,5 @@
 import { ddbMock, expectAttributeValueKV, mockDDBquery } from './testUtil';
-import '../src/extensions';
+import { DDBClient } from '../src';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import { MutableConditionBuilder } from '../src/builders/conditionBuilders';
 
@@ -17,7 +17,9 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>('table', {
+    const ddbClient = new DDBClient(documentClient);
+
+    await ddbClient.query<Foo>('table', {
       key: 'bar',
       comparison: ['begins_with', 'a'],
     });
@@ -43,8 +45,9 @@ describe('client query', () => {
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
+    const ddbClient = new DDBClient(documentClient);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       { projection: ['bop', 'baz'] },
@@ -73,7 +76,9 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    const ddbClient = new DDBClient(documentClient);
+
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       {
@@ -128,11 +133,12 @@ describe('client query', () => {
   it('should map index name', async () => {
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
+    const ddbClient = new DDBClient(documentClient);
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       { index: 'Foo-IDX' },
@@ -149,11 +155,12 @@ describe('client query', () => {
   it('should map sort asc', async () => {
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
+    const ddbClient = new DDBClient(documentClient);
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       { sort: 'asc' },
@@ -170,11 +177,12 @@ describe('client query', () => {
   it('should map sort desc', async () => {
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
+    const ddbClient = new DDBClient(documentClient);
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       { sort: 'desc' },
@@ -191,11 +199,12 @@ describe('client query', () => {
   it('should map offsetKey', async () => {
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
+    const ddbClient = new DDBClient(documentClient);
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       { offsetKey: { baz: 1, bar: 'z' } },
@@ -219,11 +228,12 @@ describe('client query', () => {
 
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
+    const ddbClient = new DDBClient(documentClient);
     const docQuerySpy = jest
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await documentClient.queryExtra<Foo>(
+    await ddbClient.query<Foo>(
       'table',
       { key: 'bar', comparison: ['begins_with', 'a'] },
       {
@@ -317,11 +327,12 @@ it('should accept multiple options using builders', async () => {
 
   const queryMockFn = jest.fn();
   const documentClient = ddbMock(queryMockFn);
+  const ddbClient = new DDBClient(documentClient);
   const docQuerySpy = jest
     .spyOn(documentClient, 'query')
     .mockImplementation(mockDDBquery);
 
-  await documentClient.queryExtra<Fop>(
+  await ddbClient.query<Fop>(
     'table',
     { key: 'bar', comparison: ['begins_with', 'a'] },
     {

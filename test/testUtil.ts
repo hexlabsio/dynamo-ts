@@ -6,7 +6,6 @@ import AttributeValue = DocumentClient.AttributeValue;
 
 import QueryInput = DocumentClient.QueryInput;
 import QueryOutput = DocumentClient.QueryOutput;
-import { query } from '../src/client';
 
 export function expectAttributeValueKV<T>(
   attributeValues: ExpressionAttributeValueMap,
@@ -48,7 +47,6 @@ export function ddbMock(queryFn: jest.Mock): DocumentClient {
     put: jest.fn(),
     update: jest.fn(),
     batchWrite: jest.fn(),
-    queryExtra: query,
   });
 }
 

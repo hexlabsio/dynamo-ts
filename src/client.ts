@@ -1,71 +1,126 @@
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 
-import IndexName = DocumentClient.IndexName;
-import Key = DocumentClient.Key;
 import QueryInput = DocumentClient.QueryInput;
 import AttributeMap = DocumentClient.AttributeMap;
-import { Conditions, KeyConditions } from './dynamoTypes';
+import { KeyConditions, QueryOptions, QueryResult } from './dynamoTypes';
 import { FilterExpressions, KeyExpressions, ProjectionAttrs } from './parsers';
+import { PromiseResult } from 'aws-sdk/lib/request';
+import { AWSError } from 'aws-sdk/lib/error';
 
-export type QueryOptions<T> = {
-  filters?: Conditions<T, keyof T>;
-  index?: IndexName;
-  limit?: number;
-  sort?: 'asc' | 'desc';
-  projection?: Extract<keyof T, string>[];
-  offsetKey?: Partial<T>;
-};
+export class DDBClient {
+  constructor(readonly documentClient: DocumentClient) {}
 
-export type QueryResult<T> = {
-  items: T[];
-  offsetKey?: Key;
-};
+  async query<T>(
+    tableName: string,
+    key: KeyConditions<T>,
+    options: QueryOptions<T> = {},
+    transform: (attributeMap: AttributeMap) => T = (attributeMap) =>
+      attributeMap as T,
+  ): Promise<QueryResult<T>> {
+    const queryInput = queryInputFrom(tableName, key, options);
+    return await this.recursiveQuery(queryInput, transform);
+  }
 
-export async function query<T>(
-  this: DocumentClient,
-  tableName: string,
-  key: KeyConditions<T>,
-  options: QueryOptions<T> = {},
-  transform: (attributeMap: AttributeMap) => T = (attributeMap) =>
-    attributeMap as T,
-): Promise<QueryResult<T>> {
-  const queryInput = queryInputFrom(tableName, key, options);
-  return await recursiveQuery(this, queryInput, transform);
-}
+  private async recursiveQuery<T>(
+    queryInput: QueryInput,
+    transform: (attributeMap: AttributeMap) => T,
+    results: T[] = [],
+  ): Promise<QueryResult<T>> {
+    const queryOutput = await this.documentClient.query(queryInput).promise();
+    const queryResults = queryOutput?.Items?.map(transform) ?? [];
+    const queryResultLength = queryResults.length;
+    if (
+      queryOutput.LastEvaluatedKey &&
+      queryInput.Limit &&
+      queryResultLength < queryInput.Limit
+    ) {
+      return await this.recursiveQuery(
+        {
+          ...queryInput,
+          Limit: queryInput.Limit - queryResultLength,
+          ExclusiveStartKey: queryOutput.LastEvaluatedKey,
+        },
+        transform,
+        [...results, ...queryResults],
+      );
+    } else {
+      return {
+        items: [...results, ...queryResults],
+        offsetKey: queryOutput.LastEvaluatedKey,
+      };
+    }
+  }
 
-async function recursiveQuery<T>(
-  documentClient: DocumentClient,
-  queryInput: QueryInput,
-  transform: (attributeMap: AttributeMap) => T,
-  results: T[] = [],
-): Promise<QueryResult<T>> {
-  const queryOutput = await documentClient.query(queryInput).promise();
-  const queryResults = queryOutput?.Items?.map(transform) ?? [];
-  const queryResultLength = queryResults.length;
-  if (
-    queryOutput.LastEvaluatedKey &&
-    queryInput.Limit &&
-    queryResultLength < queryInput.Limit
-  ) {
-    return await recursiveQuery(
-      documentClient,
-      {
-        ...queryInput,
-        Limit: queryInput.Limit - queryResultLength,
-        ExclusiveStartKey: queryOutput.LastEvaluatedKey,
-      },
-      transform,
-      [...results, ...queryResults],
-    );
-  } else {
-    return {
-      items: [...results, ...queryResults],
-      offsetKey: queryOutput.LastEvaluatedKey,
-    };
+  batchGet(
+    params: DocumentClient.BatchGetItemInput,
+  ): Promise<PromiseResult<DocumentClient.BatchGetItemOutput, AWSError>> {
+    return this.documentClient.batchGet(params).promise();
+  }
+
+  batchWrite(
+    params: DocumentClient.BatchWriteItemInput,
+  ): Promise<PromiseResult<DocumentClient.BatchWriteItemOutput, AWSError>> {
+    return this.documentClient.batchWrite(params).promise();
+  }
+
+  delete(
+    params: DocumentClient.DeleteItemInput,
+  ): Promise<PromiseResult<DocumentClient.DeleteItemOutput, AWSError>> {
+    return this.documentClient.delete(params).promise();
+  }
+  /**
+   * Returns a set of attributes for the item with the given primary key by delegating to AWS.DynamoDB.getItem().
+   */
+  get(
+    params: DocumentClient.GetItemInput,
+  ): Promise<PromiseResult<DocumentClient.GetItemOutput, AWSError>> {
+    return this.documentClient.get(params).promise();
+  }
+  /**
+   * Creates a new item, or replaces an old item with a new item by delegating to AWS.DynamoDB.putItem().
+   */
+  put(
+    params: DocumentClient.PutItemInput,
+  ): Promise<PromiseResult<DocumentClient.PutItemOutput, AWSError>> {
+    return this.documentClient.put(params).promise();
+  }
+  /**
+   * Returns one or more items and item attributes by accessing every item in a table or a secondary index.
+   */
+  scan(
+    params: DocumentClient.ScanInput,
+  ): Promise<PromiseResult<DocumentClient.ScanOutput, AWSError>> {
+    return this.documentClient.scan(params).promise();
+  }
+  /**
+   * Edits an existing item's attributes, or adds a new item to the table if it does not already exist by delegating to AWS.DynamoDB.updateItem().
+   */
+  update(
+    params: DocumentClient.UpdateItemInput,
+  ): Promise<PromiseResult<DocumentClient.UpdateItemOutput, AWSError>> {
+    return this.documentClient.update(params).promise();
+  }
+
+  /**
+   * Atomically retrieves multiple items from one or more tables (but not from indexes) in a single account and region.
+   */
+  transactGet(
+    params: DocumentClient.TransactGetItemsInput,
+  ): Promise<PromiseResult<DocumentClient.TransactGetItemsOutput, AWSError>> {
+    return this.documentClient.transactGet(params).promise();
+  }
+
+  /**
+   * Synchronous write operation that groups up to 10 action requests
+   */
+  transactWrite(
+    params: DocumentClient.TransactWriteItemsInput,
+  ): Promise<PromiseResult<DocumentClient.TransactWriteItemsOutput, AWSError>> {
+    return this.documentClient.transactWrite(params).promise();
   }
 }
 
-export function queryInputFrom<T>(
+function queryInputFrom<T>(
   tableName: string,
   key: KeyConditions<T>,
   options: QueryOptions<T>,
