@@ -208,4 +208,6 @@ export type TupleInferred<A extends unknown[]> = ((
 ) => unknown) extends (...tail: infer TT) => unknown
   ? TT
   : [];
-export type ConditionGroupTag = 'and' | 'or' | 'not';
+export type AndOrGroupTag = 'and' | 'or';
+export type NotTag = 'not';
+export type GroupTag = AndOrGroupTag | NotTag;
