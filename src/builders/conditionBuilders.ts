@@ -7,7 +7,7 @@ import {
   NotTag,
 } from 'src/dynamoTypes';
 
-interface ConditionBuilder<T> {
+export interface ConditionBuilder<T> {
   tag: GroupTag;
   build(): ConditionGroup<SimpleExpression<T, keyof T>>;
 }

@@ -1,7 +1,8 @@
 import { ddbMock, expectAttributeValueKV, mockDDBquery } from './testUtil';
 import { DDBClient } from '../src';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
-import { and, not, or } from '../src/builders/conditionBuilders';
+import { and, or } from '../src/builders/conditionBuilders';
+import { queryFrom } from '../src/builders/queryBuilder';
 
 type Foo = {
   bar: string;
@@ -9,7 +10,7 @@ type Foo = {
   bop: string;
 };
 
-describe('client query', () => {
+describe('client query builder', () => {
   it('should accept key params', async () => {
     const queryMockFn = jest.fn();
     const documentClient = ddbMock(queryMockFn);
@@ -19,10 +20,12 @@ describe('client query', () => {
 
     const ddbClient = new DDBClient(documentClient);
 
-    await ddbClient.query<Foo>('table', {
-      key: 'bar',
-      comparison: ['begins_with', 'a'],
-    });
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }),
+    );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
       docQuerySpy,
@@ -47,10 +50,11 @@ describe('client query', () => {
       .mockImplementation(mockDDBquery);
     const ddbClient = new DDBClient(documentClient);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      { projection: ['bop', 'baz'] },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).projection('bop', 'baz'),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -67,7 +71,7 @@ describe('client query', () => {
   });
 
   it('should accept filter options', async () => {
-    const eqLookup = 123;
+    const eqLookup = '123';
     const beginsWithLookup = 'aaa';
     const [lowerRange, upperRange] = [0, 100];
     const queryMockFn = jest.fn();
@@ -78,22 +82,22 @@ describe('client query', () => {
 
     const ddbClient = new DDBClient(documentClient);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      {
-        filters: {
-          $or: [
-            {
-              $and: [
-                { key: 'bar', comparison: ['=', eqLookup] },
-                { key: 'baz', comparison: ['between', lowerRange, upperRange] },
-              ],
-            },
-            { key: 'bop', comparison: ['begins_with', beginsWithLookup] },
-          ],
-        },
-      },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).filters(
+        or<Foo>()
+          .add(
+            and<Foo>()
+              .add({ key: 'bar', comparison: ['=', eqLookup] })
+              .add({
+                key: 'baz',
+                comparison: ['between', lowerRange, upperRange],
+              }),
+          )
+          .add({ key: 'bop', comparison: ['begins_with', beginsWithLookup] }),
+      ),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -138,10 +142,11 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      { index: 'Foo-IDX' },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).index('Foo-IDX'),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -160,10 +165,11 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      { sort: 'asc' },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).sort('asc'),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -182,10 +188,11 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      { sort: 'desc' },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).sort('desc'),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -204,10 +211,11 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      { offsetKey: { baz: 1, bar: 'z' } },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      }).offset({ baz: 1, bar: 'z' }),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -222,7 +230,7 @@ describe('client query', () => {
   });
 
   it('should accept multiple options', async () => {
-    const eqLookup = 123;
+    const eqLookup = '123';
     const beginsWithLookup = 'aaa';
     const [lowerRange, upperRange] = [0, 100];
 
@@ -233,28 +241,29 @@ describe('client query', () => {
       .spyOn(documentClient, 'query')
       .mockImplementation(mockDDBquery);
 
-    await ddbClient.query<Foo>(
-      'table',
-      { key: 'bar', comparison: ['begins_with', 'a'] },
-      {
-        projection: ['bop', 'baz'],
-        filters: {
-          $or: [
-            {
-              $and: [
-                { key: 'bop', comparison: 'attribute_exists' },
-                { key: 'bar', comparison: ['=', eqLookup] },
-                { key: 'baz', comparison: ['between', lowerRange, upperRange] },
-              ],
-            },
-            { key: 'bop', comparison: ['begins_with', beginsWithLookup] },
-          ],
-        },
-        index: 'Foo-IDX',
-        sort: 'desc',
-        limit: 10,
-        offsetKey: { baz: 1, bar: 'z' },
-      },
+    await ddbClient.queryBuild<Foo>(
+      queryFrom<Foo>('table', {
+        key: 'bar',
+        comparison: ['begins_with', 'a'],
+      })
+        .projection('bop', 'baz')
+        .filters(
+          or<Foo>()
+            .add(
+              and<Foo>()
+                .add({ key: 'bop', comparison: 'attribute_exists' })
+                .add({ key: 'bar', comparison: ['=', eqLookup] })
+                .add({
+                  key: 'baz',
+                  comparison: ['between', lowerRange, upperRange],
+                }),
+            )
+            .add({ key: 'bop', comparison: ['begins_with', beginsWithLookup] }),
+        )
+        .index('Foo-IDX')
+        .sort('desc')
+        .limit(10)
+        .offset({ baz: 1, bar: 'z' }),
     );
 
     const capturedParam = captureParamAs<DocumentClient.QueryInput>(
@@ -313,106 +322,6 @@ describe('client query', () => {
         `OR (begins_with(#bop, ${beginsKey}))`,
     );
   });
-});
-
-it('should accept multiple options using builders', async () => {
-  type Fop = {
-    bar: string;
-    baz: number;
-    bop: string;
-  };
-  const eqLookup = '123';
-  const beginsWithLookup = 'aaa';
-  const [lowerRange, upperRange] = [0, 100];
-
-  const queryMockFn = jest.fn();
-  const documentClient = ddbMock(queryMockFn);
-  const ddbClient = new DDBClient(documentClient);
-  const docQuerySpy = jest
-    .spyOn(documentClient, 'query')
-    .mockImplementation(mockDDBquery);
-
-  await ddbClient.query<Fop>(
-    'table',
-    { key: 'bar', comparison: ['begins_with', 'a'] },
-    {
-      projection: ['bop', 'baz'],
-      filters: or<Fop>()
-        .add(
-          and<Fop>()
-            .add({ key: 'bop', comparison: 'attribute_exists' })
-            .add({ key: 'bar', comparison: ['=', eqLookup] })
-            .add({
-              key: 'baz',
-              comparison: ['between', lowerRange, upperRange],
-            }),
-        )
-        .add(
-          not<Fop>().add({
-            key: 'bop',
-            comparison: ['begins_with', beginsWithLookup],
-          }),
-        )
-        .build(),
-      index: 'Foo-IDX',
-      sort: 'desc',
-      limit: 10,
-      offsetKey: { baz: 1, bar: 'z' },
-    },
-  );
-
-  const capturedParam = captureParamAs<DocumentClient.QueryInput>(
-    docQuerySpy,
-    queryMockFn,
-  );
-
-  expect(capturedParam.ExclusiveStartKey!).toStrictEqual({ baz: 1, bar: 'z' });
-  expect(capturedParam.ExpressionAttributeNames!).toStrictEqual({
-    '#bar': 'bar',
-    '#baz': 'baz',
-    '#bop': 'bop',
-  });
-  expect(capturedParam.Limit!).toBe(10);
-  expect(capturedParam.IndexName!).toBe('Foo-IDX');
-  expect(capturedParam.ScanIndexForward!).toBe(false);
-  expect(capturedParam.ProjectionExpression!).toBe('#bop, #baz');
-
-  expect(capturedParam.ExpressionAttributeValues).toBeDefined();
-  // key expression assertions
-  const [eqKey] = expectAttributeValueKV(
-    capturedParam.ExpressionAttributeValues!,
-    'a',
-  );
-  expect(capturedParam.KeyConditionExpression).toEqual(
-    `begins_with(#bar, ${eqKey})`,
-  );
-
-  // filter expression assertions
-  const [eqfilterKey] = expectAttributeValueKV(
-    capturedParam.ExpressionAttributeValues!,
-    eqLookup,
-  );
-  const [beginsKey] = expectAttributeValueKV(
-    capturedParam.ExpressionAttributeValues!,
-    beginsWithLookup,
-  );
-
-  const [lowerRangeKey] = expectAttributeValueKV(
-    capturedParam.ExpressionAttributeValues!,
-    lowerRange,
-  );
-  const [upperRangeKey] = expectAttributeValueKV(
-    capturedParam.ExpressionAttributeValues!,
-    upperRange,
-  );
-
-  expect(capturedParam.FilterExpression).toEqual(
-    '((attribute_exists(#bop)) AND ' +
-      `(#bar = ${eqfilterKey}) AND ` +
-      `(#baz BETWEEN ${lowerRangeKey} AND ` +
-      `${upperRangeKey})) ` +
-      `OR (NOT (begins_with(#bop, ${beginsKey})))`,
-  );
 });
 
 function captureParamAs<U>(spy: jest.SpyInstance, mockFn: jest.Mock): U {
