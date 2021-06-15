@@ -1,7 +1,7 @@
 import { ddbMock, expectAttributeValueKV, mockDDBquery } from './testUtil';
 import { DDBClient } from '../src';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
-import { MutableConditionBuilder } from '../src/builders/conditionBuilders';
+import { and, or } from '../src/builders/conditionBuilders';
 
 type Foo = {
   bar: string;
@@ -337,9 +337,9 @@ it('should accept multiple options using builders', async () => {
     { key: 'bar', comparison: ['begins_with', 'a'] },
     {
       projection: ['bop', 'baz'],
-      filters: MutableConditionBuilder.or<Fop>()
+      filters: or<Fop>()
         .add(
-          MutableConditionBuilder.and<Fop>()
+          and<Fop>()
             .add({ key: 'bop', comparison: 'attribute_exists' })
             .add({ key: 'bar', comparison: ['=', eqLookup] })
             .add({
