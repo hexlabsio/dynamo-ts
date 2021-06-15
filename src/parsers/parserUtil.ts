@@ -97,19 +97,19 @@ export function expressionAttributeValuesFrom<T>(expressionInfo: ExpressionInfo<
     return reduce(expressionInfo, simpleExpressionAttributeValueMap);
 }
 
-export function isAttrCheckExpression<T>(simpleExpression: SimpleExpression<T>): simpleExpression is AttributeCheckExpression<T> {
+export function isAttrCheckExpression<T, U extends keyof T>(simpleExpression: SimpleExpression<T, U>): simpleExpression is AttributeCheckExpression<T, U> {
     return typeof simpleExpression.comparison === 'string' && (attributeCheckValues as readonly string[]).includes(simpleExpression.comparison);
 }
 
-export function isRangeCompareExpression<T>(attrValueCompareExpression: AttrValueCompareExpression<T>): attrValueCompareExpression is RangeCompareExpression<T> {
+export function isRangeCompareExpression<T, U extends keyof T>(attrValueCompareExpression: AttrValueCompareExpression<T, U>): attrValueCompareExpression is RangeCompareExpression<T, U> {
     return (rangeOperatorValues as readonly Operator[]).includes(attrValueCompareExpression.comparison[0]);
 }
 
-export function isArrayCompareExpression<T>(attrValueCompareExpression: AttrValueCompareExpression<T>): attrValueCompareExpression is ArrayCompareExpression<T> {
+export function isArrayCompareExpression<T, U extends keyof T>(attrValueCompareExpression: AttrValueCompareExpression<T, U>): attrValueCompareExpression is ArrayCompareExpression<T, U> {
     return (arrayOperatorValues  as readonly Operator[]).includes(attrValueCompareExpression.comparison[0]);
 }
 
-export function attributeCheckExpressionInfo<T>(attributeCheckExpression: AttributeCheckExpression<T>): AttributeCheckExpressionInfo<T> {
+export function attributeCheckExpressionInfo<T, U extends keyof T>(attributeCheckExpression: AttributeCheckExpression<T, U>): AttributeCheckExpressionInfo<T> {
     return {
         tag: 'attrCheck',
         key: attributeCheckExpression.key,
@@ -117,7 +117,7 @@ export function attributeCheckExpressionInfo<T>(attributeCheckExpression: Attrib
     };
 }
 
-export function rangeConditionExpressionInfo<T>(rangeCompareExpression: RangeCompareExpression<T>): RangeConditionExpressionInfo<T> {
+export function rangeConditionExpressionInfo<T, U extends keyof T>(rangeCompareExpression: RangeCompareExpression<T, U>): RangeConditionExpressionInfo<T> {
     return {
         tag: 'range',
         key: rangeCompareExpression.key,
@@ -126,7 +126,7 @@ export function rangeConditionExpressionInfo<T>(rangeCompareExpression: RangeCom
     };
 }
 
-export function singleConditionExpressionInfo<T>(singleCompareExpression: SingleCompareExpression<T> | KeySingleCompareExpression<T>): SingleConditionExpressionInfo<T> {
+export function singleConditionExpressionInfo<T, U extends keyof T>(singleCompareExpression: SingleCompareExpression<T, U> | KeySingleCompareExpression<T, U>): SingleConditionExpressionInfo<T> {
     return {
         tag: 'single',
         key: singleCompareExpression.key,
@@ -134,7 +134,7 @@ export function singleConditionExpressionInfo<T>(singleCompareExpression: Single
         idValueKeys: [id(), singleCompareExpression.comparison[1]]
     };
 }
-export function keySingleConditionExpressionInfo<T>(singleCompareExpression: KeySingleCompareExpression<T>): KeySingleConditionExpressionInfo<T> {
+export function keySingleConditionExpressionInfo<T, U extends keyof T>(singleCompareExpression: KeySingleCompareExpression<T, U>): KeySingleConditionExpressionInfo<T> {
     return {
         tag: 'single',
         key: singleCompareExpression.key,
@@ -143,7 +143,7 @@ export function keySingleConditionExpressionInfo<T>(singleCompareExpression: Key
     };
 }
 
-export function arrayConditionExpressionInfo<T>(rangeCompareExpression: ArrayCompareExpression<T>): ArrayConditionExpressionInfo<T> {
+export function arrayConditionExpressionInfo<T, U extends keyof T>(rangeCompareExpression: ArrayCompareExpression<T, U>): ArrayConditionExpressionInfo<T> {
     return {
         tag: 'array',
         key: rangeCompareExpression.key,
@@ -152,7 +152,7 @@ export function arrayConditionExpressionInfo<T>(rangeCompareExpression: ArrayCom
     };
 }
 
-export function simpleConditionExpressionInfo<T>(compareExpression: SimpleExpression<T>): SimpleConditionExpressionInfo<T> {
+export function simpleConditionExpressionInfo<T, U extends keyof T>(compareExpression: SimpleExpression<T, U>): SimpleConditionExpressionInfo<T> {
     if (isAttrCheckExpression(compareExpression)) {
         return attributeCheckExpressionInfo(compareExpression);
     } else if (isRangeCompareExpression(compareExpression)) {

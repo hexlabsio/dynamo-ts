@@ -10,7 +10,7 @@ import { FilterExpressions, KeyExpressions, ProjectionAttrs } from "./parsers";
 
 
 export type QueryOptions<T> = {
-    filters?: Conditions<T>,
+    filters?: Conditions<T, keyof T>,
     index?: IndexName,
     limit?: number,
     sort?: 'asc' | 'desc',

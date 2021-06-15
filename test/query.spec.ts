@@ -2,6 +2,7 @@
 import { ddbMock, expectAttributeValueKV, mockDDBquery } from "./testUtil";
 import '../src/extensions';
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { MutableConditionBuilder } from "../src/builders/conditionBuilders";
 
 
 type Foo = {
@@ -198,6 +199,71 @@ describe('client query', () => {
 
 
     });
+});
+
+
+it('should accept multiple options using builders', async () => {
+
+    type Fop = {
+        bar: string,
+        baz: number,
+        bop: string;
+    };
+    const eqLookup = '123';
+    const beginsWithLookup = 'aaa';
+    const [lowerRange, upperRange] = [0, 100];
+
+
+    const queryMockFn = jest.fn();
+    const documentClient = ddbMock(queryMockFn);
+    const docQuerySpy = jest.spyOn(documentClient, "query").mockImplementation(mockDDBquery);
+
+    await documentClient.queryExtra<Fop>('table',
+        { key: 'bar', comparison: ['begins_with', 'a'] },
+        {
+            projection: ['bop', 'baz'],
+            filters: MutableConditionBuilder.or<Fop>()
+                    .add(MutableConditionBuilder.and<Fop>()
+                        .add({ key: 'bop', comparison: 'attribute_exists' })
+                        .add({ key: 'bar', comparison: ['=', eqLookup] })
+                        .add({ key: 'baz', comparison: ['between', lowerRange, upperRange] }))
+                    .add({ key: 'bop', comparison: ['begins_with', beginsWithLookup] }).build()
+            ,
+            index: 'Foo-IDX',
+            sort: 'desc',
+            limit: 10,
+            offsetKey: { baz: 1, bar: 'z' }
+        });
+
+    const capturedParam = captureParamAs<DocumentClient.QueryInput>(docQuerySpy, queryMockFn);
+
+    expect(capturedParam.ExclusiveStartKey!).toStrictEqual({ baz: 1, bar: 'z' });
+    expect(capturedParam.ExpressionAttributeNames!).toStrictEqual({ "#bar": "bar", "#baz": "baz", "#bop": "bop" });
+    expect(capturedParam.Limit!).toBe(10);
+    expect(capturedParam.IndexName!).toBe('Foo-IDX');
+    expect(capturedParam.ScanIndexForward!).toBe(false);
+    expect(capturedParam.ProjectionExpression!).toBe('#bop, #baz');
+
+
+    expect(capturedParam.ExpressionAttributeValues).toBeDefined();
+    // key expression assertions
+    const [eqKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, 'a');
+    expect(capturedParam.KeyConditionExpression).toEqual(`begins_with(#bar, ${eqKey})`);
+
+    // filter expression assertions
+    const [eqfilterKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, eqLookup);
+    const [beginsKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, beginsWithLookup);
+
+    const [lowerRangeKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, lowerRange);
+    const [upperRangeKey] = expectAttributeValueKV(capturedParam.ExpressionAttributeValues!, upperRange);
+
+    expect(capturedParam.FilterExpression).toEqual(
+        '((attribute_exists(#bop)) AND ' +
+        `(#bar = ${eqfilterKey}) AND ` +
+        `(#baz BETWEEN ${lowerRangeKey} AND ` +
+        `${upperRangeKey})) ` +
+        `OR (begins_with(#bop, ${beginsKey}))`);
+
 });
 
 function captureParamAs<U>(spy: jest.SpyInstance, mockFn: jest.Mock): U {

@@ -8,43 +8,43 @@ export const arrayOperatorValues = ['in'] as const;
 export const keySingleOperatorValues = ['=', '<=', '<', '>=', '>', 'begins_with'] as const;
 export const singleOperatorValues = [...keySingleOperatorValues, '<>', 'contains'] as const;
 
-export type RangeOperator = TupleType<typeof rangeOperatorValues>
+export type RangeOperator = TupleType<typeof rangeOperatorValues>;
 export type ArrayOperator = TupleType<typeof arrayOperatorValues>;
 export type SingleOperator = TupleType<typeof singleOperatorValues>;
 export type KeySingleOperator = TupleType<typeof keySingleOperatorValues>;
 export type AttrCheckOperator = TupleType<typeof attributeCheckValues>;
-export type KeySingleComparison<T, U extends T[keyof T]> = [KeySingleOperator, U];
-export type SingleComparison<T, U extends T[keyof T]> = [SingleOperator, U];
-export type RangeComparison<T, U extends T[keyof T]> = [RangeOperator, U, U];
-export type ArrayComparison<T, U extends T[keyof T]> = [ArrayOperator, U[]];
+export type KeySingleComparison<U> = [KeySingleOperator, U];
+export type SingleComparison<U> = [SingleOperator, U];
+export type RangeComparison<U> = [RangeOperator, U, U];
+export type ArrayComparison<U> = [ArrayOperator, U[]];
 
 
-export type CompareExpression<T, C extends 
-    RangeComparison<T, T[keyof T]> |
-    SingleComparison<T, T[keyof T]> |
-    KeySingleComparison<T, T[keyof T]> |
-    ArrayComparison<T, T[keyof T]> |
+type CompareExpression<T, U extends keyof T, C extends
+    RangeComparison<T[U]> |
+    SingleComparison<T[U]> |
+    KeySingleComparison<T[U]> |
+    ArrayComparison<T[U]> |
     AttrCheckOperator
-> = {
-    key: Extract<keyof T, string>,
-    comparison:  C
-}
+    > = {
+        key: Extract<U, string>,
+        comparison: C;
+    };
 
-export type RangeCompareExpression<T> = CompareExpression<T, RangeComparison<T, T[keyof T]>>;
-export type SingleCompareExpression<T> = CompareExpression<T, SingleComparison<T, T[keyof T]>>;
-export type KeySingleCompareExpression<T> = CompareExpression<T, KeySingleComparison<T, T[keyof T]>>;
-export type ArrayCompareExpression<T> = CompareExpression<T, ArrayComparison<T, T[keyof T]>>;
-export type AttributeCheckExpression<T> = CompareExpression<T, AttrCheckOperator>;
+export type RangeCompareExpression<T, U extends keyof T> = CompareExpression<T, U, RangeComparison<T[U]>>;
+export type SingleCompareExpression<T, U extends keyof T> = CompareExpression<T, U, SingleComparison<T[U]>>;
+export type KeySingleCompareExpression<T, U extends keyof T> = CompareExpression<T, U, KeySingleComparison<T[U]>>;
+export type ArrayCompareExpression<T, U extends keyof T> = CompareExpression<T, U, ArrayComparison<T[U]>>;
+export type AttributeCheckExpression<T, U extends keyof T> = CompareExpression<T, U, AttrCheckOperator>;
 
-export type KeyCompareExpression<T> = CompareExpression<T, RangeComparison<T, T[keyof T]> | KeySingleComparison<T, T[keyof T]>>;
+export type KeyCompareExpression<T, U extends keyof T> = CompareExpression<T, U, RangeComparison<T[U]> | KeySingleComparison<T[U]>>;
 
 
-export type AndCompareExpression<T> = AndGroup<SimpleExpression<T>>;
-export type OrCompareExpression<T> = OrGroup<SimpleExpression<T>>;
-export type KeyExpression<T> = RangeCompareExpression<T> | KeySingleCompareExpression<T>;
-export type AttrValueCompareExpression<T> = RangeCompareExpression<T> | SingleCompareExpression<T> | ArrayCompareExpression<T> | KeyExpression<T>;
-export type SimpleExpression<T> = AttrValueCompareExpression<T> | AttributeCheckExpression<T>;
-export type FilterExpression<T> = SimpleExpression<T>;
+export type AndCompareExpression<T> = AndGroup<SimpleExpression<T, keyof T>>;
+export type OrCompareExpression<T> = OrGroup<SimpleExpression<T, keyof T>>;
+export type KeyExpression<T, U extends keyof T> = RangeCompareExpression<T, U> | KeySingleCompareExpression<T, U>;
+export type AttrValueCompareExpression<T, U extends keyof T> = RangeCompareExpression<T, U> | SingleCompareExpression<T, U> | ArrayCompareExpression<T, U> | KeyExpression<T, U>;
+export type SimpleExpression<T, U extends keyof T> = AttrValueCompareExpression<T, U> | AttributeCheckExpression<T, U>;
+export type FilterExpression<T, U extends keyof T> = SimpleExpression<T, U>;
 
 
 type ExpressionInfoTag = { tag: 'single' | 'range' | 'array' | 'attrCheck'; };
@@ -90,7 +90,7 @@ export type ArrayConditionExpressionInfo<T> = ExpressionInfoTag & {
 export type AttributeCheckExpressionInfo<T> = ExpressionInfoTag & {
     key: Extract<keyof T, string>,
     tag: 'attrCheck',
-    operator: AttrCheckOperator
+    operator: AttrCheckOperator;
 };
 
 export type KeyConditionExpressionInfo<T> = KeySingleConditionExpressionInfo<T> | RangeConditionExpressionInfo<T>;
@@ -113,7 +113,12 @@ export type ConditionGroup<T> = AndGroup<T> | OrGroup<T> | NotGroup<T>;
 
 export type ConditionMap<T> = T | ConditionGroup<T>;
 
-export type Conditions<T> = ConditionMap<SimpleExpression<T>>;
+export type Conditions<T, U extends keyof T> = ConditionMap<SimpleExpression<T, U>>;
 export type ExpressionInfo<T> = ConditionMap<SimpleConditionExpressionInfo<T>>;
-export type KeyConditions<T> = KeyExpression<T> | AndGroup<KeyExpression<T>>;
+export type KeyConditions<T> = KeyExpression<T, keyof T> | AndGroup<KeyExpression<T, keyof T>>;
 export type KeyExpressionInfo<T> = KeyConditionExpressionInfo<T> | AndGroup<KeyConditionExpressionInfo<T>>;
+
+
+export type UnionType<T extends readonly any[]> = T[number];
+export type TupleInferred<A extends unknown[]> = ((...a: A) => unknown) extends ((...tail: infer TT) => unknown) ? TT : [];
+export type ConditionGroupTag = 'and' | 'or' | 'not';

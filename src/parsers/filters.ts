@@ -17,7 +17,7 @@ import ExpressionAttributeValueMap = DocumentClient.ExpressionAttributeValueMap;
 export class Parser<T> {
   private expressionInfo: ExpressionInfo<T>;
 
-  constructor(condition: Conditions<T>) {
+  constructor(condition: Conditions<T, keyof T>) {
     this.expressionInfo = map(condition, simpleConditionExpressionInfo)
   }
 

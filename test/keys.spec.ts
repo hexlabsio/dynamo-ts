@@ -48,6 +48,6 @@ describe('key parser', () => {
         const [upperRangeKey] = expectAttributeValueKV(keyParser.expressionAttributeValues, upperRange);
 
         expect(keyParser.expression).toEqual(`(#bar = ${eqKey}) AND (#baz BETWEEN ${lowerRangeKey} AND ${upperRangeKey})`);
-    });
+    }); 
 });
 

@@ -54,7 +54,7 @@ export class Parser<T> {
     return expression(this.keyExpressionInfo, simpleConditionExpression);
   }
 
-  keyConditionExpressionInfo<T>(compareExpression: KeyExpression<T>): KeyConditionExpressionInfo<T> {
+  keyConditionExpressionInfo<T, U extends keyof T>(compareExpression: KeyExpression<T, U>): KeyConditionExpressionInfo<T> {
     if (isRangeCompareExpression(compareExpression)) {
       return rangeConditionExpressionInfo(compareExpression);
     } else {
