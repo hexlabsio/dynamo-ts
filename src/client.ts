@@ -6,7 +6,6 @@ import { KeyConditions, QueryOptions, QueryResult } from './dynamoTypes';
 import { FilterExpressions, KeyExpressions, ProjectionAttrs } from './parsers';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { AWSError } from 'aws-sdk/lib/error';
-import { QueryBuilder } from './builders/queryBuilder';
 
 export class DDBClient {
   constructor(readonly documentClient: DocumentClient) {}
@@ -20,12 +19,6 @@ export class DDBClient {
   ): Promise<QueryResult<T>> {
     const queryInput = queryInputFrom(tableName, key, options);
     return await this.recursiveQuery(queryInput, transform);
-  }
-
-  async queryBuild<T>(queryBuilder: QueryBuilder<T>): Promise<QueryResult<T>> {
-    const { tableName, keyConditions, transform, ...queryOptions } =
-      queryBuilder.build();
-    return await this.query(tableName, keyConditions, queryOptions, transform);
   }
 
   private async recursiveQuery<T>(
