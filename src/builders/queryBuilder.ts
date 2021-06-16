@@ -1,5 +1,11 @@
 import { DocumentClient, IndexName } from 'aws-sdk/clients/dynamodb';
-import { Conditions, KeyConditions, QueryOptions } from 'src/dynamoTypes';
+import { DDBClient } from 'src/client';
+import {
+  Conditions,
+  KeyConditions,
+  QueryOptions,
+  QueryResult,
+} from 'src/dynamoTypes';
 import { ConditionBuilder } from './conditionBuilders';
 import AttributeMap = DocumentClient.AttributeMap;
 
@@ -20,6 +26,7 @@ class MutableQueryBuilder<T> implements QueryBuilder<T> {
   private _transform: (attributeMap: AttributeMap) => T = (attributeMap) =>
     attributeMap as T;
   constructor(
+    private readonly ddbClient: DDBClient,
     private readonly tableName: string,
     private readonly keyConditions: KeyConditions<T>,
   ) {}
@@ -79,11 +86,28 @@ class MutableQueryBuilder<T> implements QueryBuilder<T> {
       offsetKey: this._offsetKey,
     };
   }
+
+  async fetch(): Promise<QueryResult<T>> {
+    return await this.ddbClient.query(
+      this.tableName,
+      this.keyConditions,
+      {
+        filters: this._filters,
+        index: this._indexName,
+        limit: this._limit,
+        sort: this._sort,
+        projection: this._projection,
+        offsetKey: this._offsetKey,
+      },
+      this._transform,
+    );
+  }
 }
 
 export function queryFrom<T>(
+  this: DDBClient,
   tableName: string,
   keyConditions: KeyConditions<T>,
 ): MutableQueryBuilder<T> {
-  return new MutableQueryBuilder<T>(tableName, keyConditions);
+  return new MutableQueryBuilder<T>(this, tableName, keyConditions);
 }
