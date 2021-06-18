@@ -120,7 +120,7 @@ export class DDBClient {
   }
 }
 
-function queryInputFrom<T>(
+export function queryInputFrom<T>(
   tableName: string,
   key: KeyConditions<T>,
   options: QueryOptions<T>,
