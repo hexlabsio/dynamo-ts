@@ -1,5 +1,5 @@
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
-
+import QueryResult = DocumentClient.Qer
 import IndexName = DocumentClient.IndexName;
 import Key = DocumentClient.Key;
 
@@ -187,7 +187,7 @@ export type KeyConditions<T> =
 export type KeyExpressionInfo<T> =
   | KeyConditionExpressionInfo<T>
   | AndGroup<KeyConditionExpressionInfo<T>>;
-
+  
 export type QueryOptions<T> = {
   filters?: Conditions<T, keyof T>;
   index?: IndexName;
@@ -202,12 +202,6 @@ export type QueryResult<T> = {
   offsetKey?: Key;
 };
 
-export type UnionType<T extends readonly any[]> = T[number];
-export type TupleInferred<A extends unknown[]> = ((
-  ...a: A
-) => unknown) extends (...tail: infer TT) => unknown
-  ? TT
-  : [];
 export type AndOrGroupTag = 'and' | 'or';
 export type NotTag = 'not';
 export type GroupTag = AndOrGroupTag | NotTag;
