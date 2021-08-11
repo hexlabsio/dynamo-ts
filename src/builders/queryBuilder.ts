@@ -16,7 +16,7 @@ export interface QueryBuilder<T> {
     transform: (attributeMap: AttributeMap) => T;
   } & QueryOptions<T>;
 }
-class MutableQueryBuilder<T> implements QueryBuilder<T> {
+export class MutableQueryBuilder<T> implements QueryBuilder<T> {
   private _filters?: Conditions<T, keyof T>;
   private _indexName?: IndexName;
   private _limit?: number;
