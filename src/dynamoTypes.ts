@@ -1,5 +1,4 @@
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
-import QueryResult = DocumentClient.Qer
 import IndexName = DocumentClient.IndexName;
 import Key = DocumentClient.Key;
 
