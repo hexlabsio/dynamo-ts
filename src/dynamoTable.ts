@@ -311,9 +311,3 @@ export class DynamoTable<D extends DynamoEntryDefinition, T extends DynamoEntry<
 function nameFor(name: string): string {
   return crypto.createHash('md5').update(name).digest('hex');
 }
-
-const table = DynamoTable.build('klouds-events-1-dev', new DynamoDB.DocumentClient({region: 'eu-west-1'}), {definition: {namespace: 'string', eventHash: 'string', component: 'string'}, hashKey: 'namespace', rangeKey: 'eventHash'});
-(async () => {
-  const result = await table.scan('eyJldmVudEhhc2giOiIwMGZhNDQ3Yy0xYzBmLTRiMWMtYjUwYS1kYjQyNzZiMDgxZmYiLCJuYW1lc3BhY2UiOiJLbG91ZHMuaW8ifQ==');
-  console.log(result);
-})()
