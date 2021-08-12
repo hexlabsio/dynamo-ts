@@ -1,4 +1,4 @@
-import {DynamoEntryDefinition, DynamoObjectDefinition, TableEntryDefinition} from './dynamoTable';
+import {DynamoObjectDefinition, TableEntryDefinition} from './dynamoTable';
 
 export * from './dynamoTable';
 
