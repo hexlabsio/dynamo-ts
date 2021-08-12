@@ -67,10 +67,10 @@ type TypeFor<T extends DynamoType> = T extends 'string'
   : T extends 'null'
   ? null
   : T extends DynamoEntryDefinition
-  ? DynamoEntry<T>
+  ? { [K in keyof T]: DynamoEntry<T>[K] }
   : never;
 
-type DynamoEntry<T extends DynamoEntryDefinition> = {
+export type DynamoEntry<T extends DynamoEntryDefinition> = {
   [K in keyof T]: TypeFor<T[K]>;
 };
 
@@ -271,6 +271,19 @@ class Wrapper {
   }
 }
 
+export interface TableDefinition<
+  D extends DynamoEntryDefinition,
+  T extends DynamoEntry<D>,
+  H extends keyof D,
+  R extends keyof D | null = null,
+  G extends Record<
+    string,
+    { hashKey: keyof D; rangeKey?: keyof D }
+    > | null = null
+  > {
+  
+}
+
 export interface DynamoTableIndex<
   T,
   H extends keyof T,
@@ -307,28 +320,30 @@ export interface DynamoTableIndex<
 
 export class DynamoTable<
   D extends DynamoEntryDefinition,
-  T extends DynamoEntry<D>,
-  H extends keyof T,
-  R extends keyof T | null = null,
+  H extends keyof D,
+  R extends keyof D | null = null,
   G extends Record<
     string,
     { hashKey: keyof D; rangeKey?: keyof D }
   > | null = null,
-> {
-  private constructor(
+> implements TableDefinition<D, DynamoEntry<D>, H, R, G>{
+  
+  public readonly tableEntry: { [K in keyof D]: DynamoEntry<D>[K] } = undefined as any;
+  
+  protected constructor(
     protected readonly table: string,
-    protected readonly indexName: string | undefined,
     protected readonly dynamo: DynamoDB.DocumentClient,
     private readonly definition: D,
     private readonly hashKey: H,
     private readonly rangeKey?: R,
     private readonly indexes?: G,
+    protected readonly indexName?: string,
   ) {}
 
   async get(
-    key: { [K in R extends string ? H | R : H]: T[K] },
+    key: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] },
     extras: Omit<GetItemInput, 'TableName' | 'Key'> = {},
-  ): Promise<T | undefined> {
+  ): Promise<DynamoEntry<D> | undefined> {
     const result = await this.dynamo
       .get({
         TableName: this.table,
@@ -337,27 +352,27 @@ export class DynamoTable<
         ...extras,
       })
       .promise();
-    return result.Item as T | undefined;
+    return result.Item as DynamoEntry<D> | undefined;
   }
 
-  async put(item: T): Promise<T> {
+  async put(item: DynamoEntry<D>): Promise<DynamoEntry<D>> {
     await this.dynamo.put({ TableName: this.table, Item: item }).promise();
     return item;
   }
 
   async delete(
-    key: { [K in R extends string ? H | R : H]: T[K] },
+    key: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] },
   ): Promise<void> {
     await this.dynamo.delete({ TableName: this.table, Key: key }).promise();
   }
 
   async update(
-    key: { [K in R extends string ? H | R : H]: T[K] },
-    updates: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
+    key: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] },
+    updates: Partial<Omit<DynamoEntry<D>, R extends string ? H | R : H>>,
+    increment?: keyof Omit<DynamoEntry<D>, R extends string ? H | R : H>,
     start?: unknown,
     extras?: Partial<UpdateItemInput>,
-  ): Promise<T | undefined> {
+  ): Promise<DynamoEntry<D> | undefined> {
     const result = await this.dynamo
       .update({
         TableName: this.table,
@@ -366,10 +381,10 @@ export class DynamoTable<
         ...(extras ?? {}),
       })
       .promise();
-    return result.Attributes as T | undefined;
+    return result.Attributes as DynamoEntry<D> | undefined;
   }
 
-  async scan(next?: string): Promise<{ member: T[]; next?: string }> {
+  async scan(next?: string): Promise<{ member: DynamoEntry<D>[]; next?: string }> {
     const result = await this.dynamo
       .scan({
         TableName: this.table,
@@ -384,7 +399,7 @@ export class DynamoTable<
       })
       .promise();
     return {
-      member: (result.Items ?? []) as T[],
+      member: (result.Items ?? []) as DynamoEntry<D>[],
       next: result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
             'base64',
@@ -397,7 +412,7 @@ export class DynamoTable<
     index: K,
   ): G extends {}
     ? DynamoTableIndex<
-        T,
+        DynamoEntry<D>,
         G[K]['hashKey'],
         G[K]['rangeKey'] extends string ? G[K]['rangeKey'] : null
       >
@@ -405,24 +420,25 @@ export class DynamoTable<
     const indexDef = this.indexes![index];
     return new DynamoTable(
       this.table,
-      index as string,
       this.dynamo,
       this.definition,
       indexDef.hashKey,
       indexDef.rangeKey,
+      undefined,
+      index as string,
     ) as any;
   }
 
-  async query<P extends (keyof T)[] | null = null>(
-    queryParameters: { [K in H]: T[K] } &
+  async query<P extends (keyof DynamoEntry<D>)[] | null = null>(
+    queryParameters: { [K in H]: DynamoEntry<D>[K] } &
       (R extends string
-        ? { [K in R]?: (sortKey: KeyComparisonBuilder<T[R]>) => any }
+        ? { [K in R]?: (sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>) => any }
         : {}) & {
         filter?: (
           compare: () => ComparisonBuilder<
-            Omit<T, R extends string ? H | R : H>
+            Omit<DynamoEntry<D>, R extends string ? H | R : H>
           >,
-        ) => CompareWrapperOperator<Omit<T, R extends string ? H | R : H>>;
+        ) => CompareWrapperOperator<Omit<DynamoEntry<D>, R extends string ? H | R : H>>;
       } & { projection?: P; next?: string } & {
         dynamo?: Omit<
           QueryInput,
@@ -436,9 +452,9 @@ export class DynamoTable<
       },
   ): Promise<{
     next?: string;
-    member: P extends (keyof T)[]
-      ? { [K in R extends string ? P[number] | H | R : P[number] | H]: T[K] }[]
-      : { [K in keyof T]: T[K] }[];
+    member: P extends (keyof DynamoEntry<D>)[]
+      ? { [K in R extends string ? P[number] | H | R : P[number] | H]: DynamoEntry<D>[K] }[]
+      : { [K in keyof DynamoEntry<D>]: DynamoEntry<D>[K] }[];
   }> {
     const keyPart = this.keyPart(queryParameters);
     const filterPart = this.filterPart(queryParameters);
@@ -481,7 +497,7 @@ export class DynamoTable<
     console.log(queryInput);
     const result = await this.dynamo.query(queryInput).promise();
     return {
-      member: (result.Items ?? []) as T[],
+      member: (result.Items ?? []) as DynamoEntry<D>[],
       next: result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
             'base64',
@@ -491,9 +507,9 @@ export class DynamoTable<
   }
 
   private keyPart(
-    query: { [K in H]: T[K] } &
+    query: { [K in H]: DynamoEntry<D>[K] } &
       (R extends string
-        ? { [K in R]?: (sortKey: KeyComparisonBuilder<T[R]>) => any }
+        ? { [K in R]?: (sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>) => any }
         : {}),
   ): Pick<
     QueryInput,
@@ -526,8 +542,8 @@ export class DynamoTable<
 
   private filterPart(query: {
     filter?: (
-      compare: () => ComparisonBuilder<Omit<T, R extends string ? H | R : H>>,
-    ) => CompareWrapperOperator<Omit<T, R extends string ? H | R : H>>;
+      compare: () => ComparisonBuilder<Omit<DynamoEntry<D>, R extends string ? H | R : H>>,
+    ) => CompareWrapperOperator<Omit<DynamoEntry<D>, R extends string ? H | R : H>>;
   }): Pick<
     QueryInput,
     | 'FilterExpression'
@@ -551,8 +567,8 @@ export class DynamoTable<
   }
 
   private updateExpression(
-    properties: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
+    properties: Partial<Omit<DynamoEntry<D>, R extends string ? H | R : H>>,
+    increment?: keyof Omit<DynamoEntry<D>, R extends string ? H | R : H>,
     start?: unknown,
   ): {
     UpdateExpression: string;
@@ -608,15 +624,15 @@ export class DynamoTable<
     table: string,
     dynamo: DynamoDB.DocumentClient,
     definition: { definition: D; hashKey: H; rangeKey?: R; indexes?: G },
-  ): DynamoTable<D, DynamoEntry<D>, H, R, G> {
-    return new DynamoTable<D, DynamoEntry<D>, H, R, G>(
+  ): DynamoTable<D, H, R, G> {
+    return new DynamoTable<D, H, R, G>(
       table,
-      undefined,
       dynamo,
       definition.definition,
       definition.hashKey,
       definition.rangeKey,
       definition.indexes,
+      undefined,
     );
   }
 }
