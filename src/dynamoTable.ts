@@ -381,12 +381,18 @@ export class DynamoTable<
     key: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] },
     extras: Omit<GetItemInput, 'TableName' | 'Key'> = {},
   ): Promise<DynamoEntry<D> | undefined> {
+    const actualProjection =  Object.keys(this.definition) as string[];
+    const projectionNameMappings = actualProjection.reduce(
+      (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
+      {},
+    );
     const result = await this.dynamo
       .get({
         TableName: this.table,
         Key: key,
-        ProjectionExpression: Object.keys(this.definition).join(','),
+        ProjectionExpression: extras.ProjectionExpression ?? Object.keys(projectionNameMappings).join(','),
         ...extras,
+        ExpressionAttributeNames: {...(extras.ExpressionAttributeNames ?? {}), ...projectionNameMappings}
       })
       .promise();
     return result.Item as DynamoEntry<D> | undefined;
