@@ -50,15 +50,15 @@ type Operation<T, V> = {
   in(a: V, b: V[]): CompareWrapperOperator<T>;
 };
 
-type DynamoType =
+export type DynamoType =
   | 'string'
   | 'number'
   | 'boolean'
   | 'null'
   | DynamoEntryDefinition;
-type DynamoEntryDefinition = { [key: string]: DynamoType };
+export type DynamoEntryDefinition = { [key: string]: DynamoType };
 
-type TypeFor<T extends DynamoType> = T extends 'string'
+export type TypeFor<T extends DynamoType> = T extends 'string'
   ? string
   : T extends 'number'
   ? number
@@ -623,7 +623,7 @@ export class DynamoTable<
   >(
     table: string,
     dynamo: DynamoDB.DocumentClient,
-    definition: { definition: D; hashKey: H; rangeKey?: R; indexes?: G },
+    definition: TableEntryDefinition<D, H, R, G>,
   ): DynamoTable<D, H, R, G> {
     return new DynamoTable<D, H, R, G>(
       table,
@@ -640,3 +640,13 @@ export class DynamoTable<
 function nameFor(name: string): string {
   return crypto.createHash('md5').update(name).digest('hex');
 }
+
+export type TableEntryDefinition<
+  D extends DynamoEntryDefinition,
+  H extends keyof D,
+  R extends keyof D | null = null,
+  G extends Record<
+    string,
+    { hashKey: keyof D; rangeKey?: keyof D }
+    > | null = null,
+  > = { definition: D; hashKey: H; rangeKey?: R; indexes?: G }
