@@ -515,7 +515,6 @@ export class DynamoTable<
           }
         : {}),
     };
-    console.log(queryInput);
     const result = await this.dynamo.query(queryInput).promise();
     return {
       member: (result.Items ?? []) as DynamoEntry<D>[],
