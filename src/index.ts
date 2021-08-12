@@ -1,4 +1,4 @@
-import {DynamoEntryDefinition, TableEntryDefinition} from "./dynamoTable";
+import { DynamoEntryDefinition, TableEntryDefinition } from './dynamoTable';
 
 export * from './dynamoTable';
 
@@ -9,9 +9,9 @@ export function defineTable<
   G extends Record<
     string,
     { hashKey: keyof D; rangeKey?: keyof D }
-    > | null = null,
-  >(
+  > | null = null,
+>(
   definition: TableEntryDefinition<D, H, R, G>,
 ): TableEntryDefinition<D, H, R, G> {
-  return definition
+  return definition;
 }

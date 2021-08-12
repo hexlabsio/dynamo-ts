@@ -10,6 +10,7 @@ type SimpleDynamoType =
   | 'string set'
   | 'number'
   | 'number set'
+  | 'binary set'
   | 'binary'
   | 'boolean'
   | 'null'
@@ -50,18 +51,25 @@ type Operation<T, V> = {
   in(a: V, b: V[]): CompareWrapperOperator<T>;
 };
 
-export type DynamoType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'null'
-  | DynamoEntryDefinition;
+export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
 export type DynamoEntryDefinition = { [key: string]: DynamoType };
 
 export type TypeFor<T extends DynamoType> = T extends 'string'
   ? string
+  : T extends 'string set'
+  ? string[]
   : T extends 'number'
   ? number
+  : T extends 'number set'
+  ? number[]
+  : T extends 'number'
+  ? Buffer
+  : T extends 'number set'
+  ? Buffer[]
+  : T extends 'list'
+  ? unknown[]
+  : T extends 'map'
+  ? Record<string, unknown>
   : T extends 'boolean'
   ? boolean
   : T extends 'null'
@@ -177,21 +185,23 @@ class ComparisonBuilderType<
       case 'string':
         return 'S';
       case 'string set':
-        return 'S';
+        return 'SS';
       case 'number':
-        return 'S';
+        return 'N';
       case 'number set':
-        return 'S';
+        return 'NS';
       case 'binary':
-        return 'S';
+        return 'B';
+      case 'binary set':
+        return 'BS';
       case 'boolean':
-        return 'S';
+        return 'BOOL';
       case 'null':
-        return 'S';
+        return 'NULL';
       case 'list':
-        return 'S';
+        return 'L';
       case 'map':
-        return 'S';
+        return 'M';
     }
   }
 
@@ -279,10 +289,8 @@ export interface TableDefinition<
   G extends Record<
     string,
     { hashKey: keyof D; rangeKey?: keyof D }
-    > | null = null
-  > {
-  
-}
+  > | null = null,
+> {}
 
 export interface DynamoTableIndex<
   T,
@@ -326,10 +334,11 @@ export class DynamoTable<
     string,
     { hashKey: keyof D; rangeKey?: keyof D }
   > | null = null,
-> implements TableDefinition<D, DynamoEntry<D>, H, R, G>{
-  
-  public readonly tableEntry: { [K in keyof D]: DynamoEntry<D>[K] } = undefined as any;
-  
+> implements TableDefinition<D, DynamoEntry<D>, H, R, G>
+{
+  public readonly tableEntry: { [K in keyof D]: DynamoEntry<D>[K] } =
+    undefined as any;
+
   protected constructor(
     protected readonly table: string,
     protected readonly dynamo: DynamoDB.DocumentClient,
@@ -384,7 +393,9 @@ export class DynamoTable<
     return result.Attributes as DynamoEntry<D> | undefined;
   }
 
-  async scan(next?: string): Promise<{ member: DynamoEntry<D>[]; next?: string }> {
+  async scan(
+    next?: string,
+  ): Promise<{ member: DynamoEntry<D>[]; next?: string }> {
     const result = await this.dynamo
       .scan({
         TableName: this.table,
@@ -432,13 +443,19 @@ export class DynamoTable<
   async query<P extends (keyof DynamoEntry<D>)[] | null = null>(
     queryParameters: { [K in H]: DynamoEntry<D>[K] } &
       (R extends string
-        ? { [K in R]?: (sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>) => any }
+        ? {
+            [K in R]?: (
+              sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>,
+            ) => any;
+          }
         : {}) & {
         filter?: (
           compare: () => ComparisonBuilder<
             Omit<DynamoEntry<D>, R extends string ? H | R : H>
           >,
-        ) => CompareWrapperOperator<Omit<DynamoEntry<D>, R extends string ? H | R : H>>;
+        ) => CompareWrapperOperator<
+          Omit<DynamoEntry<D>, R extends string ? H | R : H>
+        >;
       } & { projection?: P; next?: string } & {
         dynamo?: Omit<
           QueryInput,
@@ -453,7 +470,11 @@ export class DynamoTable<
   ): Promise<{
     next?: string;
     member: P extends (keyof DynamoEntry<D>)[]
-      ? { [K in R extends string ? P[number] | H | R : P[number] | H]: DynamoEntry<D>[K] }[]
+      ? {
+          [K in R extends string
+            ? P[number] | H | R
+            : P[number] | H]: DynamoEntry<D>[K];
+        }[]
       : { [K in keyof DynamoEntry<D>]: DynamoEntry<D>[K] }[];
   }> {
     const keyPart = this.keyPart(queryParameters);
@@ -509,7 +530,11 @@ export class DynamoTable<
   private keyPart(
     query: { [K in H]: DynamoEntry<D>[K] } &
       (R extends string
-        ? { [K in R]?: (sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>) => any }
+        ? {
+            [K in R]?: (
+              sortKey: KeyComparisonBuilder<DynamoEntry<D>[R]>,
+            ) => any;
+          }
         : {}),
   ): Pick<
     QueryInput,
@@ -542,8 +567,12 @@ export class DynamoTable<
 
   private filterPart(query: {
     filter?: (
-      compare: () => ComparisonBuilder<Omit<DynamoEntry<D>, R extends string ? H | R : H>>,
-    ) => CompareWrapperOperator<Omit<DynamoEntry<D>, R extends string ? H | R : H>>;
+      compare: () => ComparisonBuilder<
+        Omit<DynamoEntry<D>, R extends string ? H | R : H>
+      >,
+    ) => CompareWrapperOperator<
+      Omit<DynamoEntry<D>, R extends string ? H | R : H>
+    >;
   }): Pick<
     QueryInput,
     | 'FilterExpression'
@@ -648,5 +677,5 @@ export type TableEntryDefinition<
   G extends Record<
     string,
     { hashKey: keyof D; rangeKey?: keyof D }
-    > | null = null,
-  > = { definition: D; hashKey: H; rangeKey?: R; indexes?: G }
+  > | null = null,
+> = { definition: D; hashKey: H; rangeKey?: R; indexes?: G };
