@@ -424,10 +424,16 @@ export class DynamoTable<
   async scan(
     next?: string,
   ): Promise<{ member: DynamoEntry<D>[]; next?: string }> {
+    const actualProjection =  Object.keys(this.definition) as string[];
+    const projectionNameMappings = actualProjection.reduce(
+      (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
+      {},
+    );
     const result = await this.dynamo
       .scan({
         TableName: this.table,
-        ProjectionExpression: Object.keys(this.definition).join(','),
+        ExpressionAttributeNames: projectionNameMappings,
+        ProjectionExpression: Object.keys(projectionNameMappings).join(','),
         ...(next
           ? {
               ExclusiveStartKey: JSON.parse(
