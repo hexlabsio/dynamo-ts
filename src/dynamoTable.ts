@@ -15,7 +15,16 @@ type SimpleDynamoType =
   | 'boolean'
   | 'null'
   | 'list'
-  | 'map';
+  | 'map'
+  | 'string?'
+  | 'string set?'
+  | 'number?'
+  | 'number set?'
+  | 'binary set?'
+  | 'binary?'
+  | 'boolean?'
+  | 'list?'
+  | 'map?';
 
 type KeyComparisonBuilder<T> = {
   eq(value: T): void;
@@ -52,7 +61,7 @@ type Operation<T, V> = {
 };
 
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
-export type DynamoEntryDefinition = { [key: string]: DynamoType };
+export type DynamoEntryDefinition = {optional?: boolean, definition: { [key: string]: DynamoType } };
 
 export type TypeFor<T extends DynamoType> = T extends 'string'
   ? string
@@ -62,9 +71,9 @@ export type TypeFor<T extends DynamoType> = T extends 'string'
   ? number
   : T extends 'number set'
   ? number[]
-  : T extends 'number'
+  : T extends 'binary'
   ? Buffer
-  : T extends 'number set'
+  : T extends 'binary set'
   ? Buffer[]
   : T extends 'list'
   ? unknown[]
@@ -73,12 +82,30 @@ export type TypeFor<T extends DynamoType> = T extends 'string'
   : T extends 'boolean'
   ? boolean
   : T extends 'null'
-  ? null
+  ? null :
+  T extends 'string?'
+  ? string | undefined
+  : T extends 'string set?'
+  ? string[] | undefined
+  : T extends 'number?'
+  ? number | undefined
+  : T extends 'number set?'
+  ? number[] | undefined
+  : T extends 'binary?'
+  ? Buffer | undefined
+  : T extends 'binary set?'
+  ? Buffer[] | undefined
+  : T extends 'list?'
+  ? unknown[] | undefined
+  : T extends 'map?'
+  ? Record<string, unknown>
+  : T extends 'boolean'
+  ? boolean
   : T extends DynamoEntryDefinition
-  ? { [K in keyof T]: DynamoEntry<T>[K] }
+  ? (T['optional'] extends true ? { [K in keyof T['definition']]?: DynamoEntry<T['definition']>[K] } : { [K in keyof T['definition']]: DynamoEntry<T['definition']>[K] })
   : never;
 
-export type DynamoEntry<T extends DynamoEntryDefinition> = {
+export type DynamoEntry<T extends DynamoEntryDefinition['definition']> = {
   [K in keyof T]: TypeFor<T[K]>;
 };
 
@@ -164,7 +191,7 @@ class OperationType {
 }
 
 class ComparisonBuilderType<
-  D extends DynamoEntryDefinition,
+  D extends DynamoEntryDefinition['definition'],
   T extends DynamoEntry<D>,
 > {
   public wrapper = new Wrapper();
@@ -181,7 +208,8 @@ class ComparisonBuilderType<
     return this.wrapper.add({}, {}, `attribute_not_exists(${path})`);
   }
   private typeFor(type: SimpleDynamoType): string {
-    switch (type) {
+    const withoutOptional = type.endsWith('?') ? type.substring(0, type.length - 2) : type;
+    switch (withoutOptional) {
       case 'string':
         return 'S';
       case 'string set':
@@ -200,7 +228,7 @@ class ComparisonBuilderType<
         return 'NULL';
       case 'list':
         return 'L';
-      case 'map':
+      default:
         return 'M';
     }
   }
@@ -282,7 +310,7 @@ class Wrapper {
 }
 
 export interface TableDefinition<
-  D extends DynamoEntryDefinition,
+  D extends DynamoEntryDefinition['definition'],
   T extends DynamoEntry<D>,
   H extends keyof D,
   R extends keyof D | null = null,
@@ -327,7 +355,7 @@ export interface DynamoTableIndex<
 }
 
 export class DynamoTable<
-  D extends DynamoEntryDefinition,
+  D extends DynamoEntryDefinition['definition'],
   H extends keyof D,
   R extends keyof D | null = null,
   G extends Record<
@@ -641,7 +669,7 @@ export class DynamoTable<
   }
 
   static build<
-    D extends DynamoEntryDefinition,
+    D extends DynamoEntryDefinition['definition'],
     H extends keyof D,
     R extends keyof D | null = null,
     G extends Record<
@@ -670,7 +698,7 @@ function nameFor(name: string): string {
 }
 
 export type TableEntryDefinition<
-  D extends DynamoEntryDefinition,
+  D extends DynamoEntryDefinition['definition'],
   H extends keyof D,
   R extends keyof D | null = null,
   G extends Record<
