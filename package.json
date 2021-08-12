@@ -16,7 +16,7 @@
     "prepare": "husky install",
     "format": "prettier --single-quote --trailing-comma all --check './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "format:fix": "prettier --single-quote --trailing-comma all --write './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
-    "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit",
+    "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
     "lint": "eslint **/*.ts"
   },
   "eslintIgnore": [
