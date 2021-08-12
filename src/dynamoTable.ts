@@ -61,8 +61,9 @@ type Operation<T, V> = {
 };
 
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
-export type DynamoEntryDefinition = {optional?: boolean, definition: { [key: string]: DynamoType } };
-
+export type DynamoObjectDefinition = {optional?: boolean, object: { [key: string]: DynamoType } };
+export type DynamoArrayDefinition = {optional?: boolean, array: DynamoType };
+export type DynamoEntryDefinition = DynamoObjectDefinition | DynamoArrayDefinition;
 export type TypeFor<T extends DynamoType> = T extends 'string'
   ? string
   : T extends 'string set'
@@ -102,12 +103,15 @@ export type TypeFor<T extends DynamoType> = T extends 'string'
   : T extends 'boolean'
   ? boolean
   : T extends DynamoEntryDefinition
-  ? (T['optional'] extends true ? { [K in keyof T['definition']]?: DynamoEntry<T['definition']>[K] } : { [K in keyof T['definition']]: DynamoEntry<T['definition']>[K] })
+  ? (T['optional'] extends true ? (T extends {object: any} ? { [K in keyof T['object']]: DynamoAnyEntry<T['object']>[K] } : (T extends {array: any} ? DynamoAnyEntry<T['array']> : never)) | undefined : (T extends {object: any} ? { [K in keyof T['object']]: DynamoAnyEntry<T['object']>[K] } : (T extends {array: any} ? DynamoAnyEntry<T['array']> : never)))
   : never;
 
-export type DynamoEntry<T extends DynamoEntryDefinition['definition']> = {
+export type DynamoEntry<T extends DynamoObjectDefinition['object']> = {
   [K in keyof T]: TypeFor<T[K]>;
-};
+}
+export type DynamoAnyEntry<T extends DynamoArrayDefinition['array'] | DynamoObjectDefinition['object']> = T extends DynamoObjectDefinition['object'] ? {
+  [K in keyof T]: TypeFor<T[K]>;
+} : T extends DynamoArrayDefinition['array'] ? TypeFor<T>[] : never;
 
 class KeyOperation<T> {
   public wrapper = new Wrapper();
@@ -191,7 +195,7 @@ class OperationType {
 }
 
 class ComparisonBuilderType<
-  D extends DynamoEntryDefinition['definition'],
+  D extends DynamoObjectDefinition['object'],
   T extends DynamoEntry<D>,
 > {
   public wrapper = new Wrapper();
@@ -310,7 +314,7 @@ class Wrapper {
 }
 
 export interface TableDefinition<
-  D extends DynamoEntryDefinition['definition'],
+  D extends DynamoObjectDefinition['object'],
   T extends DynamoEntry<D>,
   H extends keyof D,
   R extends keyof D | null = null,
@@ -355,7 +359,7 @@ export interface DynamoTableIndex<
 }
 
 export class DynamoTable<
-  D extends DynamoEntryDefinition['definition'],
+  D extends DynamoObjectDefinition['object'],
   H extends keyof D,
   R extends keyof D | null = null,
   G extends Record<
@@ -364,7 +368,7 @@ export class DynamoTable<
   > | null = null,
 > implements TableDefinition<D, DynamoEntry<D>, H, R, G>
 {
-  public readonly tableEntry: { [K in keyof D]: DynamoEntry<D>[K] } =
+  public readonly tableEntry: DynamoEntry<D> =
     undefined as any;
 
   protected constructor(
@@ -681,7 +685,7 @@ export class DynamoTable<
   }
 
   static build<
-    D extends DynamoEntryDefinition['definition'],
+    D extends DynamoObjectDefinition['object'],
     H extends keyof D,
     R extends keyof D | null = null,
     G extends Record<
@@ -710,7 +714,7 @@ function nameFor(name: string): string {
 }
 
 export type TableEntryDefinition<
-  D extends DynamoEntryDefinition['definition'],
+  D extends DynamoObjectDefinition['object'],
   H extends keyof D,
   R extends keyof D | null = null,
   G extends Record<
