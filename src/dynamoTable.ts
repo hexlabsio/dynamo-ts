@@ -118,7 +118,7 @@ class KeyOperation<T> {
   public wrapper = new Wrapper();
   constructor(private readonly key: string) {}
 
-  private add(expression: (key: string) => string): (value: T) => void {
+  private add(expression: (key: string) => string): (value: T) => Wrapper {
     return (value) => {
       const mappedKey = nameFor(this.key);
       return this.wrapper.add(
@@ -135,6 +135,15 @@ class KeyOperation<T> {
   lte = this.add((key) => `#${key} <= :${key}`);
   gt = this.add((key) => `#${key} > :${key}`);
   gte = this.add((key) => `#${key} >= :${key}`);
+  
+  between(a: T, b: T): Wrapper {
+    const mappedKey = nameFor(this.key);
+    return this.wrapper.add(
+      { [`#${mappedKey}`]: this.key },
+      { [`:${mappedKey}1`]: a, [`:${mappedKey}2`]: b },
+      `#${mappedKey} BETWEEN :${mappedKey}1 AND :${mappedKey}2`
+    );
+  }
 }
 
 class OperationType {
@@ -592,6 +601,7 @@ export class DynamoTable<
           }
         : {}),
     };
+    console.log(queryInput)
     const result = await this.dynamo.query(queryInput).promise();
     return {
       member: (result.Items ?? []) as DynamoEntry<D>[],
