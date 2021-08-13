@@ -1,9 +1,10 @@
 import { DynamoDB } from 'aws-sdk';
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import {DocumentClient} from 'aws-sdk/lib/dynamodb/document_client';
 import * as crypto from 'crypto';
 import GetItemInput = DocumentClient.GetItemInput;
 import UpdateItemInput = DocumentClient.UpdateItemInput;
 import QueryInput = DocumentClient.QueryInput;
+import WriteRequests = DocumentClient.WriteRequests;
 
 type SimpleDynamoType =
   | 'string'
@@ -401,6 +402,38 @@ export class DynamoTable<
       .promise();
     return result.Item as DynamoEntry<D> | undefined;
   }
+  
+  async batchGet<P extends (keyof DynamoEntry<D>)[] | null = null>(keys: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] }[], projection?: P, consistent?: boolean)
+  : Promise<P extends (keyof DynamoEntry<D>)[]
+    ? { [K in R extends string ? P[number] | H | R : P[number] | H]: DynamoEntry<D>[K] }[]
+    : { [K in keyof DynamoEntry<D>]: DynamoEntry<D>[K] }[]>{
+    const actualProjection =  (projection ?? Object.keys(this.definition)) as string[];
+    const projectionNameMappings = actualProjection.reduce(
+      (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
+      {},
+    );
+    const result = await this.dynamo.batchGet({RequestItems: {[this.table]: {Keys: keys, ...(projection ? {ProjectionExpression: Object.keys(projectionNameMappings).join(',')} : {}), ...((consistent !== undefined) ? {ConsistentRead: consistent}: {})}}}).promise();
+    return result.Responses![this.table] as any;
+  }
+  
+  async directBatchWrite(writeRequest: WriteRequests): Promise<{ unprocessed?: WriteRequests }> {
+    const result = await this.dynamo.batchWrite({RequestItems: {[this.table]: writeRequest}}).promise();
+    return { unprocessed: result.UnprocessedItems?.[this.table] };
+  }
+  
+  batchWrite(operations: ({delete: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] }} | {put: DynamoEntry<D>})[]): Promise<{ unprocessed?: WriteRequests }> {
+    return this.directBatchWrite(operations.map(operation => {
+          return (operation as any).put ? {PutRequest: { Item: (operation as any).put }} : {Delete: { Key: (operation as any).delete }};
+    }));
+  }
+  
+  async batchPut(operations: DynamoEntry<D>[]): Promise<void> {
+    await this.batchWrite(operations.map(it =>({put: it})))
+  }
+  
+  async batchDelete(operations: { [K in R extends string ? H | R : H]: DynamoEntry<D>[K] }[]): Promise<void> {
+    await this.batchWrite(operations.map(it =>({delete: it})))
+  }
 
   async put(item: DynamoEntry<D>): Promise<DynamoEntry<D>> {
     await this.dynamo.put({ TableName: this.table, Item: item }).promise();
@@ -567,7 +600,7 @@ export class DynamoTable<
             'base64',
           )
         : undefined,
-    };
+    } as any;
   }
 
   private keyPart(
