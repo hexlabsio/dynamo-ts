@@ -688,6 +688,7 @@ export class DynamoTable<
     const props = properties as any;
     const validKeys = Object.keys(properties).filter((it) => !!props[it]);
     const removes = Object.keys(properties).filter((it) => !props[it]);
+    const hasInc = increment && validKeys.includes(increment as string);
     const updateExpression =
       `SET ${validKeys
         .map(
@@ -718,7 +719,7 @@ export class DynamoTable<
       UpdateExpression: updateExpression,
       ExpressionAttributeNames: names,
       ExpressionAttributeValues:
-        start !== undefined ? { ...values, [':start']: start } : values,
+        hasInc && start !== undefined ? { ...values, [':start']: start } : values,
     };
   }
 
