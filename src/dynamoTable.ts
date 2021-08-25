@@ -60,6 +60,7 @@ type Operation<T, V> = {
   between(a: V, b: V): CompareWrapperOperator<T>;
   in(a: V, b: V[]): CompareWrapperOperator<T>;
 };
+type incOrDec = '-'| '+';
 
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
 export type DynamoObjectDefinition = {optional?: boolean, object: { [key: string]: DynamoType } };
@@ -454,7 +455,7 @@ export class DynamoTable<
   async update(
     key: { [K in R extends string ? H | R : H]: T[K] },
     updates: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
+    incDec?: [keyof Omit<T, R extends string ? H | R : H>, incOrDec],
     start?: unknown,
     extras?: Partial<UpdateItemInput>,
   ): Promise<T | undefined> {
@@ -462,7 +463,7 @@ export class DynamoTable<
       .update({
         TableName: this.table,
         Key: key,
-        ...this.updateExpression(updates, increment, start),
+        ...this.updateExpression(updates, incDec, start),
         ...(extras ?? {}),
       })
       .promise();
@@ -678,7 +679,7 @@ export class DynamoTable<
 
   private updateExpression(
     properties: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
+    incDec?: [keyof Omit<T, R extends string ? H | R : H>, incOrDec],
     start?: unknown,
   ): {
     UpdateExpression: string;
@@ -688,22 +689,21 @@ export class DynamoTable<
     const props = properties as any;
     const validKeys = Object.keys(properties).filter((it) => !!props[it]);
     const removes = Object.keys(properties).filter((it) => !props[it]);
-    const hasInc = increment && validKeys.includes(increment as string);
+    const hasInc = incDec && validKeys.includes(incDec[0] as string);
     const updateExpression =
       `SET ${validKeys
         .map(
           (key) =>
-            `#${nameFor(key)} = ${
-              increment === key
-                ? `${
-                    start !== undefined
-                      ? `if_not_exists(${key}, :start)`
-                      : `#${nameFor(key)}`
-                  } + `
-                : ''
-            }:${nameFor(key)}`,
-        )
-        .join(', ')}` +
+          `#${nameFor(key)} = ${
+            incDec && incDec[0] === key
+              ? `${
+                  start !== undefined
+                    ? `if_not_exists(${key}, :start)`
+                    : `#${nameFor(key)}`
+                } ${incDec[1]} `
+              : ""
+          }:${nameFor(key)}`
+        ).join(', ')}` +
       (removes.length > 0
         ? ` REMOVE ${removes.map((key) => `#${nameFor(key)}`).join(', ')}`
         : '');
