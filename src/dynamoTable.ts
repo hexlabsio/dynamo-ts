@@ -389,26 +389,31 @@ export class DynamoTable<
 
   async get(
     key: { [K in R extends string ? H | R : H]: T[K] },
-    extras: Omit<GetItemInput, 'TableName' | 'Key'> = {},
+    extras: Omit<GetItemInput, 'TableName' | 'Key'> = {}, 
+    logStatement?: boolean
   ): Promise<T | undefined> {
     const actualProjection =  Object.keys(this.definition) as string[];
     const projectionNameMappings = actualProjection.reduce(
       (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
       {},
     );
+    const getInput = {
+      TableName: this.table,
+      Key: key,
+      ProjectionExpression: extras.ProjectionExpression ?? Object.keys(projectionNameMappings).join(','),
+      ...extras,
+      ExpressionAttributeNames: {...(extras.ExpressionAttributeNames ?? {}), ...projectionNameMappings}
+    }
+    if(logStatement) {
+      console.log(`getInput: ${JSON.stringify(getInput, null, 2)}`)
+    }
     const result = await this.dynamo
-      .get({
-        TableName: this.table,
-        Key: key,
-        ProjectionExpression: extras.ProjectionExpression ?? Object.keys(projectionNameMappings).join(','),
-        ...extras,
-        ExpressionAttributeNames: {...(extras.ExpressionAttributeNames ?? {}), ...projectionNameMappings}
-      })
+      .get(getInput)
       .promise();
     return result.Item as T | undefined;
   }
   
-  async batchGet<P extends (keyof T)[] | null = null>(keys: { [K in R extends string ? H | R : H]: T[K] }[], projection?: P, consistent?: boolean)
+  async batchGet<P extends (keyof T)[] | null = null>(keys: { [K in R extends string ? H | R : H]: T[K] }[], projection?: P, consistent?: boolean, logStatement?: boolean)
   : Promise<P extends (keyof T)[]
     ? { [K in R extends string ? P[number] | H | R : P[number] | H]: T[K] }[]
     : { [K in keyof T]: T[K] }[]>{
@@ -417,38 +422,55 @@ export class DynamoTable<
       (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
       {},
     );
-    const result = await this.dynamo.batchGet({RequestItems: {[this.table]: {Keys: keys, ...(projection ? {ProjectionExpression: Object.keys(projectionNameMappings).join(',')} : {}), ...((consistent !== undefined) ? {ConsistentRead: consistent}: {})}}}).promise();
+    const batchGetInput = {RequestItems: {[this.table]: {Keys: keys, ...(projection ? {ProjectionExpression: Object.keys(projectionNameMappings).join(',')} : {}), ...((consistent !== undefined) ? {ConsistentRead: consistent}: {})}}}
+    if(logStatement) {
+      console.log(`batchGetInput: ${JSON.stringify(batchGetInput, null, 2)}`)
+    }
+    const result = await this.dynamo.batchGet(batchGetInput).promise();
     return result.Responses![this.table] as any;
   }
   
-  async directBatchWrite(writeRequest: WriteRequests): Promise<{ unprocessed?: WriteRequests }> {
-    const result = await this.dynamo.batchWrite({RequestItems: {[this.table]: writeRequest}}).promise();
+  async directBatchWrite(writeRequest: WriteRequests, opType: string, logStatement?: boolean): Promise<{ unprocessed?: WriteRequests }> {
+    const batchWriteInput = {RequestItems: {[this.table]: writeRequest}}
+    if(logStatement) {
+      console.log(`${opType}: ${JSON.stringify(batchWriteInput, null, 2)}`)
+    }
+    const result = await this.dynamo.batchWrite(batchWriteInput).promise();
     return { unprocessed: result.UnprocessedItems?.[this.table] };
   }
   
-  batchWrite(operations: ({delete: { [K in R extends string ? H | R : H]: T[K] }} | {put: T})[]): Promise<{ unprocessed?: WriteRequests }> {
+  batchWrite(operations: ({delete: { [K in R extends string ? H | R : H]: T[K] }} | {put: T})[], opType: string, logStatement?: boolean): Promise<{ unprocessed?: WriteRequests }> {
     return this.directBatchWrite(operations.map(operation => {
           return (operation as any).put ? {PutRequest: { Item: (operation as any).put }} : {Delete: { Key: (operation as any).delete }};
-    }));
+    }), opType, logStatement);
   }
   
-  async batchPut(operations: T[]): Promise<void> {
-    await this.batchWrite(operations.map(it =>({put: it})))
+  async batchPut(operations: T[], logStatement?: boolean): Promise<void> {
+    await this.batchWrite(operations.map(it =>({put: it})), "batchPut", logStatement)
   }
   
-  async batchDelete(operations: { [K in R extends string ? H | R : H]: T[K] }[]): Promise<void> {
-    await this.batchWrite(operations.map(it =>({delete: it})))
+  async batchDelete(operations: { [K in R extends string ? H | R : H]: T[K] }[], logStatement?: boolean): Promise<void> {
+    await this.batchWrite(operations.map(it =>({delete: it})), "batchDelete", logStatement)
   }
 
-  async put(item: T): Promise<DynamoEntry<D>> {
-    await this.dynamo.put({ TableName: this.table, Item: item }).promise();
+  async put(item: T, logStatement?: boolean): Promise<DynamoEntry<D>> {
+    const putInput = { TableName: this.table, Item: item }
+    if(logStatement) {
+      console.log(`putInput: ${JSON.stringify(putInput, null, 2)}`)
+    }
+    await this.dynamo.put(putInput).promise();
     return item;
   }
 
   async delete(
     key: { [K in R extends string ? H | R : H]: T[K] },
+    logStatement?: boolean
   ): Promise<void> {
-    await this.dynamo.delete({ TableName: this.table, Key: key }).promise();
+    const deleteInput = { TableName: this.table, Key: key }
+    if(logStatement) {
+      console.log(`deleteInput: ${JSON.stringify(deleteInput, null, 2)}`)
+    }
+    await this.dynamo.delete(deleteInput).promise();
   }
 
   async update(
@@ -457,39 +479,49 @@ export class DynamoTable<
     increment?: keyof Omit<T, R extends string ? H | R : H>,
     start?: unknown,
     extras?: Partial<UpdateItemInput>,
+    logStatement?: boolean
   ): Promise<T | undefined> {
+    const updateInput = {
+      TableName: this.table,
+      Key: key,
+      ...this.updateExpression(updates, increment, start),
+      ...(extras ?? {}),
+    }
+    if(logStatement) {
+      console.log(`updateInput: ${JSON.stringify(updateInput, null, 2)}`)
+    }
     const result = await this.dynamo
-      .update({
-        TableName: this.table,
-        Key: key,
-        ...this.updateExpression(updates, increment, start),
-        ...(extras ?? {}),
-      })
+      .update(updateInput)
       .promise();
     return result.Attributes as T | undefined;
   }
 
   async scan(
     next?: string,
+    logStatement?: boolean
   ): Promise<{ member: T[]; next?: string }> {
     const actualProjection =  Object.keys(this.definition) as string[];
     const projectionNameMappings = actualProjection.reduce(
       (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
       {},
     );
+    const scanInput = {
+      TableName: this.table,
+      ExpressionAttributeNames: projectionNameMappings,
+      ProjectionExpression: Object.keys(projectionNameMappings).join(','),
+      ...(next
+        ? {
+            ExclusiveStartKey: JSON.parse(
+              Buffer.from(next, 'base64').toString('ascii'),
+            ),
+          }
+        : {}),
+    }
+    if(logStatement) {
+      console.log(`scanInput: ${JSON.stringify(scanInput, null, 2)}`)
+    }
     const result = await this.dynamo
-      .scan({
-        TableName: this.table,
-        ExpressionAttributeNames: projectionNameMappings,
-        ProjectionExpression: Object.keys(projectionNameMappings).join(','),
-        ...(next
-          ? {
-              ExclusiveStartKey: JSON.parse(
-                Buffer.from(next, 'base64').toString('ascii'),
-              ),
-            }
-          : {}),
-      })
+      .scan(scanInput)
       .promise();
     return {
       member: (result.Items ?? []) as T[],
@@ -549,7 +581,7 @@ export class DynamoTable<
           | 'ExclusiveStartKey'
         >;
       },
-  ): Promise<{
+  logStatement?: boolean): Promise<{
     next?: string;
     member: P extends (keyof T)[]
       ? {
@@ -597,6 +629,10 @@ export class DynamoTable<
           }
         : {}),
     };
+    if(logStatement) {
+      console.log(`queryInput: ${JSON.stringify(queryInput, null, 2)}`)
+    }
+
     const result = await this.dynamo.query(queryInput).promise();
     return {
       member: (result.Items ?? []) as T[],
