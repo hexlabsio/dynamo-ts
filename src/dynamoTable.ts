@@ -27,6 +27,11 @@ type SimpleDynamoType =
   | 'list?'
   | 'map?';
 
+type Increment<T, K extends keyof T> = {
+  key: K,
+  start?: T[K]
+}
+
 type KeyComparisonBuilder<T> = {
   eq(value: T): void;
   lt(value: T): void;
@@ -476,15 +481,14 @@ export class DynamoTable<
   async update(
     key: { [K in R extends string ? H | R : H]: T[K] },
     updates: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
-    start?: unknown,
+    increments?: Increment<Omit<T, R extends string ? H | R : H>, keyof Omit<T, R extends string ? H | R : H>>[],
     extras?: Partial<UpdateItemInput>,
     logStatement?: boolean
   ): Promise<T | undefined> {
     const updateInput = {
       TableName: this.table,
       Key: key,
-      ...this.updateExpression(updates, increment, start),
+      ...this.updateExpression(updates, increments),
       ...(extras ?? {}),
     }
     if(logStatement) {
@@ -714,8 +718,7 @@ export class DynamoTable<
 
   private updateExpression(
     properties: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: keyof Omit<T, R extends string ? H | R : H>,
-    start?: unknown,
+    increment?: Increment<Omit<T, R extends string ? H | R : H>, keyof Omit<T, R extends string ? H | R : H>>[],
   ): {
     UpdateExpression: string;
     ExpressionAttributeNames: Record<string, string>;
@@ -724,22 +727,13 @@ export class DynamoTable<
     const props = properties as any;
     const validKeys = Object.keys(properties).filter((it) => props[it] !== undefined);
     const removes = Object.keys(properties).filter((it) => props[it] === undefined);
-    const hasInc = increment && validKeys.includes(increment as string);
+    function update(key: string, name: string) {
+      const inc = (increment ?? []).find(it => it.key === key);
+      if(inc) return `#${name} = ` + (inc.start !== undefined ? `if_not_exists(#${name}, :${name}start)`: `#${name}`) + ` + :${name}`
+      return undefined;
+    }
     const updateExpression =
-      `SET ${validKeys
-        .map(
-          (key) =>
-            `#${nameFor(key)} = ${
-              increment === key
-                ? `${
-                    start !== undefined
-                      ? `if_not_exists(${key}, :start)`
-                      : `#${nameFor(key)}`
-                  } + `
-                : ''
-            }:${nameFor(key)}`,
-        )
-        .join(', ')}` +
+      `SET ${validKeys.map((key) => update(key, nameFor(key))).filter(it => !!it).join(', ')}` +
       (removes.length > 0
         ? ` REMOVE ${removes.map((key) => `#${nameFor(key)}`).join(', ')}`
         : '');
@@ -751,11 +745,12 @@ export class DynamoTable<
       (values, key) => ({ ...values, [`:${nameFor(key)}`]: props[key] }),
       {},
     );
+    const starts = (increment ?? []).filter(it => it.start !== undefined).reduce((acc, increment) =>
+      ({...acc, [`:${nameFor(increment.key as string)}start`]: increment.start}), {})
     return {
       UpdateExpression: updateExpression,
       ExpressionAttributeNames: names,
-      ExpressionAttributeValues:
-        hasInc && start !== undefined ? { ...values, [':start']: start } : values,
+      ExpressionAttributeValues: { ...values, ...starts }
     };
   }
 
