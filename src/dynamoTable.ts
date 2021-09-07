@@ -722,8 +722,8 @@ export class DynamoTable<
     ExpressionAttributeValues: Record<string, any>;
   } {
     const props = properties as any;
-    const validKeys = Object.keys(properties).filter((it) => !!props[it] || props[it] === 0);
-    const removes = Object.keys(properties).filter((it) => !props[it] && props[it] !== 0);
+    const validKeys = Object.keys(properties).filter((it) => props[it] !== undefined);
+    const removes = Object.keys(properties).filter((it) => props[it] === undefined);
     const hasInc = increment && validKeys.includes(increment as string);
     const updateExpression =
       `SET ${validKeys
