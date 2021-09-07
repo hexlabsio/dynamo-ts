@@ -730,7 +730,7 @@ export class DynamoTable<
     function update(key: string, name: string) {
       const inc = (increment ?? []).find(it => it.key === key);
       if(inc) return `#${name} = ` + (inc.start !== undefined ? `if_not_exists(#${name}, :${name}start)`: `#${name}`) + ` + :${name}`
-      return undefined;
+      return `#${name} = :${name}`;
     }
     const updateExpression =
       `SET ${validKeys.map((key) => update(key, nameFor(key))).filter(it => !!it).join(', ')}` +

@@ -34,7 +34,7 @@ describe('Dynamo Table', () => {
         identifier: "test"
       },
       TableName: "testTable",
-      UpdateExpression: `SET #${cost} = if_not_exists(#${cost}, :${cost}start) + :4e1566f0798fb3d6f350720cacd74446, #9366282e11c151558bdfaab4a264aa1b = #9366282e11c151558bdfaab4a264aa1b + :9366282e11c151558bdfaab4a264aa1b`
+      UpdateExpression: `SET #e268443e43d93dab7ebef303bbe9642f = :e268443e43d93dab7ebef303bbe9642f, #${cost} = if_not_exists(#${cost}, :${cost}start) + :4e1566f0798fb3d6f350720cacd74446, #9366282e11c151558bdfaab4a264aa1b = #9366282e11c151558bdfaab4a264aa1b + :9366282e11c151558bdfaab4a264aa1b`
     });
   });
 });
