@@ -500,11 +500,12 @@ export class DynamoTable<
     return result.Attributes as T | undefined;
   }
 
-  async scan(
+  async scan<P extends Array<keyof D> | undefined = undefined>(
     next?: string,
-    logStatement?: boolean
-  ): Promise<{ member: T[]; next?: string }> {
-    const actualProjection =  Object.keys(this.definition) as string[];
+    logStatement?: boolean,
+    projection?: P
+  ): Promise<{ member: Array<P extends any[] ? Pick<T, P[number]> : T>; next?: string }> {
+    const actualProjection =  (projection ?? Object.keys(this.definition)) as string[];
     const projectionNameMappings = actualProjection.reduce(
       (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
       {},
