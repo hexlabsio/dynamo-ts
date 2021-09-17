@@ -121,6 +121,35 @@ type PartializeTop<T> = Partial<Pick<T, UndefinedKeys<T>>> & Omit<T, UndefinedKe
 type PartializeObj<T> = {[K in keyof T]: T[K] extends Record<string, unknown> ? Partialize<T[K]>: T[K] extends (infer A)[] ? (A extends Record<string, unknown> ? Partialize<A> : A)[]: T[K]};
 type Partialize<T> = PartializeObj<PartializeTop<T>>
 
+type queryParametersInput<T, H extends keyof T, R extends keyof T | null, P extends (keyof T)[] | null> = 
+{ [K in H]: T[K] } &
+(R extends string
+  ? {
+      [K in R]?: (
+        sortKey: KeyComparisonBuilder<T[R]>,
+      ) => any;
+    }
+  : {}) & {
+  filter?: (
+    compare: () => ComparisonBuilder<
+      Omit<T, R extends string ? H | R : H>
+    >,
+  ) => CompareWrapperOperator<
+    Omit<T, R extends string ? H | R : H>
+  >;
+} & { projection?: P; next?: string } & {
+  dynamo?: Omit<
+    QueryInput,
+    | 'TableName'
+    | 'IndexName'
+    | 'KeyConditionExpression'
+    | 'ProjectionExpression'
+    | 'FilterExpression'
+    | 'ExclusiveStartKey'
+  >;
+} 
+
+
 export type DynamoEntry<T extends DynamoObjectDefinition['object']> = Partialize<{
   [K in keyof T]: TypeFor<T[K]>;
 }>
@@ -369,6 +398,35 @@ export interface DynamoTableIndex<
       ? { [K in R extends string ? P[number] | H | R : P[number] | H]: T[K] }[]
       : { [K in keyof T]: T[K] }[];
   }>;
+
+  queryAll<P extends (keyof T)[] | null = null>(
+    queryParameters: { [K in H]: T[K] } &
+      (R extends string
+        ? { [K in R]?: (sortKey: KeyComparisonBuilder<T[R]>) => any }
+        : {}) & {
+        filter?: (
+          compare: () => ComparisonBuilder<
+            Omit<T, R extends string ? H | R : H>
+          >,
+        ) => CompareWrapperOperator<Omit<T, R extends string ? H | R : H>>;
+      } & { projection?: P; next?: string } & {
+        dynamo?: Omit<
+          QueryInput,
+          | 'TableName'
+          | 'IndexName'
+          | 'KeyConditionExpression'
+          | 'ProjectionExpression'
+          | 'FilterExpression'
+          | 'ExclusiveStartKey'
+        >;
+      },
+  ): Promise<{
+    next?: string;
+    member: P extends (keyof T)[]
+      ? { [K in P[number]]: T[K] }[]
+      : { [K in keyof T]: T[K] }[];
+  }>;
+
 }
 
 export class DynamoTable<
@@ -376,6 +434,7 @@ export class DynamoTable<
   T extends DynamoEntry<D>,
   H extends keyof T,
   R extends keyof T | null = null,
+  PH extends keyof T | null = null, //hash of parent if index
   G extends Record<
     string,
     { hashKey: keyof T; rangeKey?: keyof T }
@@ -385,12 +444,15 @@ export class DynamoTable<
   public readonly tableEntry: T =
     undefined as any;
 
+  private readonly definedKeys: (keyof T)[] = [...[this.rangeKey, this.parentHashKey as keyof T].filter((e): e is keyof T => !!e), this.hashKey]
+
   protected constructor(
     protected readonly table: string,
     protected readonly dynamo: DynamoDB.DocumentClient,
     private readonly definition: D,
     private readonly hashKey: H,
     private readonly rangeKey?: R,
+    private readonly parentHashKey?: PH, //hash of parent if index
     private readonly indexes?: G,
     protected readonly indexName?: string,
     public logStatements: boolean = false
@@ -502,6 +564,48 @@ export class DynamoTable<
     return result.Attributes as T | undefined;
   }
 
+  // async updateAll<K extends (R extends string ? H | R : H)> (
+  //   queryParameters: { [K in H]: T[K] } &
+  //     (R extends string
+  //       ? {
+  //           [K in R]?: (
+  //             sortKey: KeyComparisonBuilder<T[R]>,
+  //           ) => any;
+  //         }
+  //       : {}) & {
+  //       filter?: (
+  //         compare: () => ComparisonBuilder<
+  //           Omit<T, R extends string ? H | R : H>
+  //         >,
+  //       ) => CompareWrapperOperator<
+  //         Omit<T, R extends string ? H | R : H>
+  //       >;
+  //     } & { next?: string } & {
+  //       dynamo?: Omit<
+  //         QueryInput,
+  //         | 'TableName'
+  //         | 'IndexName'
+  //         | 'KeyConditionExpression'
+  //         | 'ProjectionExpression'
+  //         | 'FilterExpression'
+  //         | 'ExclusiveStartKey'
+  //       >;
+  //     },
+  //   updates: Partial<Omit<T, K>>,
+  //   increments?: Increment<Omit<T, K>, keyof Omit<T, K>>[],
+  //   extras?: Partial<Omit<UpdateItemInput, 'TableName' | 'Key' | 'UpdateExpression'>>,
+  // ): Promise<T | undefined> {
+    
+  //   const updateKeys = await this.queryAll<K[]>({...queryParameters, projection: (this.rangeKey ? [this.hashKey, this.rangeKey]: [this.hashKey]) as K[]})
+
+  //   Promise.all(updateKeys.member.map(updateKey => this.update(key: updateKey as {[C in K]: T[C]}, )))
+      
+  //   return {} as any as T;
+      
+
+
+  // }
+
   async scan<P extends Array<keyof D> | undefined = undefined>(
     projection?: P,
     next?: string,
@@ -557,45 +661,74 @@ export class DynamoTable<
       this.definition,
       indexDef.hashKey as any,
       indexDef.rangeKey as any,
+      this.hashKey as any,
       undefined,
       index as string,
     ) as any;
   }
 
-  async query<P extends (keyof T)[] | null = null>(
-    queryParameters: { [K in H]: T[K] } &
-      (R extends string
-        ? {
-            [K in R]?: (
-              sortKey: KeyComparisonBuilder<T[R]>,
-            ) => any;
-          }
-        : {}) & {
-        filter?: (
-          compare: () => ComparisonBuilder<
-            Omit<T, R extends string ? H | R : H>
-          >,
-        ) => CompareWrapperOperator<
-          Omit<T, R extends string ? H | R : H>
-        >;
-      } & { projection?: P; next?: string } & {
-        dynamo?: Omit<
-          QueryInput,
-          | 'TableName'
-          | 'IndexName'
-          | 'KeyConditionExpression'
-          | 'ProjectionExpression'
-          | 'FilterExpression'
-          | 'ExclusiveStartKey'
-        >;
-      }): Promise<{
+  private async _recQuery<P extends (keyof T)[] | null = null>(
+    queryParameters: queryParametersInput<T, H, R, P>,
+    enrichKeysFields: (keyof T)[], 
+    accumulation: P extends (keyof T)[]
+      ? {[K in P[number]]: T[K] }[]
+      : { [K in keyof T]: T[K] }[] = []
+    ): Promise<{
     next?: string;
     member: P extends (keyof T)[]
-      ? {
-          [K in R extends string
-            ? P[number] | H | R
-            : P[number] | H]: T[K];
-        }[]
+      ? {[K in P[number]]: T[K] }[]
+      : { [K in keyof T]: T[K] }[];
+  }> {
+
+    const allProjection = queryParameters?.projection ? [...queryParameters.projection!, ...enrichKeysFields] : null
+    const res =  await this.query<(keyof T)[] | null>({...queryParameters, projection: allProjection})
+    const limit = queryParameters.dynamo?.Limit ?? 0
+    if(limit >  0  && limit <= (accumulation.length + res?.member?.length ?? 0)) {
+      const nextKey = this.buildNext(res.member[limit-1])
+      return ({
+        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)].slice(0, limit),
+        next: nextKey
+      })
+    } else if(res.next) {
+      return this._recQuery({...queryParameters, next: res.next}, enrichKeysFields, [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)])
+    } else {
+      return  {
+        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)]
+      }
+    }
+  }
+
+  private removeKeyFields(members: { [K in keyof T]: T[K]; }[] | { [K in keyof T]: T[K]; }[], enrichKeysFields: (keyof T)[]) {
+    return (members ?? []).map(member => {
+      enrichKeysFields.forEach(keyField => delete member[keyField]);
+      return member;
+    });
+  }
+
+  private buildNext(t: T): string {
+    return Buffer.from(JSON.stringify({
+      ...(this.rangeKey ? {[this.rangeKey as keyof T]: t[this.rangeKey as keyof T]} : {}),
+      ...(this.parentHashKey ? {[this.parentHashKey as keyof T]: t[this.parentHashKey as keyof T]} : {}),
+      [this.hashKey]: t[this.hashKey]
+    })).toString('base64')
+  }
+
+  async queryAll<P extends (keyof T)[] | null = null>(queryParameters: queryParametersInput<T, H, R, P>): Promise<{
+    next?: string;
+    member: P extends (keyof T)[]
+    ? { [K in P[number]]: T[K] }[]
+    : { [K in keyof T]: T[K] }[]
+  }> {
+    const enrichKeysFields = queryParameters.projection 
+      ? this.definedKeys.filter(it => !queryParameters.projection!.includes(it))
+      : []
+    return await this._recQuery<P>(queryParameters, enrichKeysFields)
+  }
+
+  async query<P extends (keyof T)[] | null = null>(queryParameters: queryParametersInput<T, H, R, P>): Promise<{
+    next?: string;
+    member: P extends (keyof T)[]
+      ? {[K in P[number]]: T[K] }[]
       : { [K in keyof T]: T[K] }[];
   }> {
     const keyPart = this.keyPart(queryParameters);
@@ -762,6 +895,7 @@ export class DynamoTable<
     T extends DynamoEntry<D>,
     H extends keyof DynamoEntry<D>,
     R extends keyof DynamoEntry<D> | null = null,
+    PH extends keyof DynamoEntry<D> | null = null,
     G extends Record<
       string,
       { hashKey: keyof DynamoEntry<D>; rangeKey?: keyof DynamoEntry<D> }
@@ -770,13 +904,14 @@ export class DynamoTable<
     table: string,
     dynamo: DynamoDB.DocumentClient,
     definition: TableEntryDefinition<D, H, R, G>,
-  ): DynamoTable<D,DynamoEntry<D>, H, R, G> {
-    return new DynamoTable<D, DynamoEntry<D>, H, R, G>(
+  ): DynamoTable<D,DynamoEntry<D>, H, R, PH, G> {
+    return new DynamoTable<D, DynamoEntry<D>, H, R, PH, G>(
       table,
       dynamo,
       definition.definition,
       definition.hashKey,
       definition.rangeKey,
+      undefined,
       definition.indexes,
       undefined,
     );
