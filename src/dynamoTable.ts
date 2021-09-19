@@ -564,47 +564,43 @@ export class DynamoTable<
     return result.Attributes as T | undefined;
   }
 
-  // async updateAll<K extends (R extends string ? H | R : H)> (
-  //   queryParameters: { [K in H]: T[K] } &
-  //     (R extends string
-  //       ? {
-  //           [K in R]?: (
-  //             sortKey: KeyComparisonBuilder<T[R]>,
-  //           ) => any;
-  //         }
-  //       : {}) & {
-  //       filter?: (
-  //         compare: () => ComparisonBuilder<
-  //           Omit<T, R extends string ? H | R : H>
-  //         >,
-  //       ) => CompareWrapperOperator<
-  //         Omit<T, R extends string ? H | R : H>
-  //       >;
-  //     } & { next?: string } & {
-  //       dynamo?: Omit<
-  //         QueryInput,
-  //         | 'TableName'
-  //         | 'IndexName'
-  //         | 'KeyConditionExpression'
-  //         | 'ProjectionExpression'
-  //         | 'FilterExpression'
-  //         | 'ExclusiveStartKey'
-  //       >;
-  //     },
-  //   updates: Partial<Omit<T, K>>,
-  //   increments?: Increment<Omit<T, K>, keyof Omit<T, K>>[],
-  //   extras?: Partial<Omit<UpdateItemInput, 'TableName' | 'Key' | 'UpdateExpression'>>,
-  // ): Promise<T | undefined> {
-    
-  //   const updateKeys = await this.queryAll<K[]>({...queryParameters, projection: (this.rangeKey ? [this.hashKey, this.rangeKey]: [this.hashKey]) as K[]})
+  async updateAll<K extends R extends string ? H | R : H>(
+    queryParameters: Omit<
+      queryParametersInput<T, H, R, null>,
+      "projection" | "dynamo"
+    >,
+    updates: Partial<Omit<T, R extends string ? H | R : H>>,
+    increments?: Increment<
+      Omit<T, R extends string ? H | R : H>,
+      keyof Omit<T, R extends string ? H | R : H>
+    >[],
+    removes?: (keyof Omit<T, K>)[],
+    extras?: Partial<
+      Omit<UpdateItemInput, "TableName" | "Key" | "UpdateExpression">
+    >
+  ): Promise<(T | undefined)[]> {
+    const updateKeys = await this.queryAll({
+      ...queryParameters,
+      projection: this.definedKeys,
+    } as queryParametersInput<T, H, R, (keyof T)[]>);
 
-  //   Promise.all(updateKeys.member.map(updateKey => this.update(key: updateKey as {[C in K]: T[C]}, )))
-      
-  //   return {} as any as T;
-      
-
-
-  // }
+    const removeFields: string[] = (removes ?? []).map((it) => it.toString());
+    return Promise.all(
+      updateKeys.member?.map(async (updateKey) => {
+        const updateInput = {
+          TableName: this.table,
+          Key: updateKey,
+          ...this.updateExpression(updates, increments, removeFields),
+          ...(extras ?? {}),
+        };
+        if (this.logStatements) {
+          console.log(`updateInput: ${JSON.stringify(updateInput, null, 2)}`);
+        }
+        const result = await this.dynamo.update(updateInput).promise();
+        return result.Attributes as T | undefined;
+      })
+    );
+  }
 
   async scan<P extends Array<keyof D> | undefined = undefined>(
     projection?: P,
@@ -852,9 +848,10 @@ export class DynamoTable<
     return { ExpressionAttributeValues: {}, ExpressionAttributeNames: {} };
   }
 
-  private updateExpression(
-    properties: Partial<Omit<T, R extends string ? H | R : H>>,
-    increment?: Increment<Omit<T, R extends string ? H | R : H>, keyof Omit<T, R extends string ? H | R : H>>[],
+  private updateExpression<K extends (R extends string ? H | R : H)> (
+    properties: Partial<Omit<T, K>>,
+    increment?: Increment<Omit<T, K>, keyof Omit<T, K>>[],
+    removeFields?: string[]
   ): {
     UpdateExpression: string;
     ExpressionAttributeNames: Record<string, string>;
@@ -862,7 +859,7 @@ export class DynamoTable<
   } {
     const props = properties as any;
     const validKeys = Object.keys(properties).filter((it) => props[it] !== undefined);
-    const removes = Object.keys(properties).filter((it) => props[it] === undefined);
+    const removes = removeFields ? removeFields : Object.keys(properties).filter((it) => props[it] === undefined);
     function update(key: string, name: string) {
       const inc = (increment ?? []).find(it => it.key === key);
       if(inc) return `#${name} = ` + (inc.start !== undefined ? `if_not_exists(#${name}, :${name}start)`: `#${name}`) + ` + :${name}`
