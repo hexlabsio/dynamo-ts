@@ -602,6 +602,34 @@ export class DynamoTable<
     );
   }
 
+  async deleteAll<K extends R extends string ? H | R : H>(
+    queryParameters: Omit<
+      queryParametersInput<T, H, R, null>,
+      "projection" | "dynamo"
+    >
+  ): Promise<{ unprocessed?: WriteRequests }[]> {
+    const deleteKeys = await this.queryAll({
+      ...queryParameters,
+      projection: this.definedKeys,
+    } as queryParametersInput<T, H, R, (keyof T)[]>);
+
+    const chunkedDeletedKeys = this.chunkArray(deleteKeys.member ?? [], 25);
+    return Promise.all(
+      chunkedDeletedKeys.map(
+        async (batchKeys) =>
+          await this.directBatchWrite(
+            batchKeys.map((it) => ({ DeleteRequest: { Key: it } }))
+          )
+      )
+    );
+  }
+
+  chunkArray<U>(u: U[], chunkSize: number, acc: U[][] = []): U[][] {
+    acc.push(u.slice(0, chunkSize));
+    const rest = u.slice(chunkSize, u.length);
+    return rest.length > 0 ? this.chunkArray(rest, chunkSize, acc) : acc;
+  }
+  
   async scan<P extends Array<keyof D> | undefined = undefined>(
     projection?: P,
     next?: string,
