@@ -569,12 +569,11 @@ export class DynamoTable<
       queryParametersInput<T, H, R, null>,
       "projection" | "dynamo"
     >,
-    updates?: Partial<Omit<T, R extends string ? H | R : H>>,
+    updates: Partial<Omit<T, R extends string ? H | R : H>>,
     increments?: Increment<
       Omit<T, R extends string ? H | R : H>,
       keyof Omit<T, R extends string ? H | R : H>
     >[],
-    removes?: (keyof Omit<T, K>)[],
     extras?: Partial<
       Omit<UpdateItemInput, "TableName" | "Key" | "UpdateExpression">
     >
@@ -585,13 +584,12 @@ export class DynamoTable<
       projection: this.definedKeys,
     } as queryParametersInput<T, H, R, (keyof T)[]>);
 
-    const removeFields: string[] = (removes ?? []).map((it) => it.toString());
     return Promise.all(
       updateKeys.member?.map(async (updateKey) => {
         const updateInput = {
           TableName: this.table,
           Key: updateKey,
-          ...this.updateExpression(updates, increments, removeFields),
+          ...this.updateExpression(updates, increments),
           ...(extras ?? {}),
         };
         if (this.logStatements) {
@@ -877,18 +875,17 @@ export class DynamoTable<
     return { ExpressionAttributeValues: {}, ExpressionAttributeNames: {} };
   }
 
-  private updateExpression<K extends (R extends string ? H | R : H)> (
-    properties?: Partial<Omit<T, K>>,
-    increment?: Increment<Omit<T, K>, keyof Omit<T, K>>[],
-    removeFields?: string[]
+  updateExpression<K extends (R extends string ? H | R : H)> (
+    properties: Partial<Omit<T, K>>,
+    increment?: Increment<Omit<T, K>, keyof Omit<T, K>>[]
   ): {
     UpdateExpression: string;
     ExpressionAttributeNames: Record<string, string>;
     ExpressionAttributeValues?: Record<string, any>;
   } {
     const props = properties as any;
-    const validKeys = Object.keys(properties ?? {}).filter((it) => props[it] !== undefined);
-    const removes = removeFields ? removeFields : Object.keys(properties ?? {}).filter((it) => props[it] === undefined);
+    const validKeys = Object.keys(properties).filter((it) => props[it] !== undefined);
+    const removes = Object.keys(properties).filter((it) => props[it] === undefined);
     function update(key: string, name: string) {
       const inc = (increment ?? []).find(it => it.key === key);
       if(inc) return `#${name} = ` + (inc.start !== undefined ? `if_not_exists(#${name}, :${name}start)`: `#${name}`) + ` + :${name}`
