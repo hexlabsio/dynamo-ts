@@ -569,7 +569,7 @@ export class DynamoTable<
       queryParametersInput<T, H, R, null>,
       "projection" | "dynamo"
     >,
-    updates: Partial<Omit<T, R extends string ? H | R : H>>,
+    updates?: Partial<Omit<T, R extends string ? H | R : H>>,
     increments?: Increment<
       Omit<T, R extends string ? H | R : H>,
       keyof Omit<T, R extends string ? H | R : H>
@@ -578,6 +578,7 @@ export class DynamoTable<
     extras?: Partial<
       Omit<UpdateItemInput, "TableName" | "Key" | "UpdateExpression">
     >
+    
   ): Promise<(T | undefined)[]> {
     const updateKeys = await this.queryAll({
       ...queryParameters,
@@ -877,27 +878,28 @@ export class DynamoTable<
   }
 
   private updateExpression<K extends (R extends string ? H | R : H)> (
-    properties: Partial<Omit<T, K>>,
+    properties?: Partial<Omit<T, K>>,
     increment?: Increment<Omit<T, K>, keyof Omit<T, K>>[],
     removeFields?: string[]
   ): {
     UpdateExpression: string;
     ExpressionAttributeNames: Record<string, string>;
-    ExpressionAttributeValues: Record<string, any>;
+    ExpressionAttributeValues?: Record<string, any>;
   } {
     const props = properties as any;
-    const validKeys = Object.keys(properties).filter((it) => props[it] !== undefined);
-    const removes = removeFields ? removeFields : Object.keys(properties).filter((it) => props[it] === undefined);
+    const validKeys = Object.keys(properties ?? {}).filter((it) => props[it] !== undefined);
+    const removes = removeFields ? removeFields : Object.keys(properties ?? {}).filter((it) => props[it] === undefined);
     function update(key: string, name: string) {
       const inc = (increment ?? []).find(it => it.key === key);
       if(inc) return `#${name} = ` + (inc.start !== undefined ? `if_not_exists(#${name}, :${name}start)`: `#${name}`) + ` + :${name}`
       return `#${name} = :${name}`;
     }
-    const updateExpression =
-      `SET ${validKeys.map((key) => update(key, nameFor(key))).filter(it => !!it).join(', ')}` +
-      (removes.length > 0
-        ? ` REMOVE ${removes.map((key) => `#${nameFor(key)}`).join(', ')}`
-        : '');
+    const setExpression = validKeys.length > 0
+      ? `SET ${validKeys.map((key) => update(key, nameFor(key))).filter(it => !!it).join(', ')}` : undefined
+    const removeExpression = removes.length > 0
+      ? `REMOVE ${removes.map((key) => `#${nameFor(key)}`).join(', ')}` : undefined
+    const updateExpression = [setExpression, removeExpression].filter(it => !!it).join(' ')
+      
     const names = [...validKeys, ...removes].reduce(
       (names, key) => ({ ...names, [`#${nameFor(key)}`]: key }),
       {},
@@ -911,7 +913,9 @@ export class DynamoTable<
     return {
       UpdateExpression: updateExpression,
       ExpressionAttributeNames: names,
-      ExpressionAttributeValues: { ...values, ...starts }
+      ExpressionAttributeValues: (increment?.length ?? 0) + (validKeys.length) > 0
+        ? { ...values, ...starts }
+        : undefined
     };
   }
 
