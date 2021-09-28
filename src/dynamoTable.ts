@@ -564,6 +564,34 @@ export class DynamoTable<
     return result.Attributes as T | undefined;
   }
 
+  async updateBatch(
+    keys: { [K in R extends string ? H | R : H]: T[K] }[],
+    updates: Partial<Omit<T, R extends string ? H | R : H>>,
+    increments?: Increment<
+      Omit<T, R extends string ? H | R : H>,
+      keyof Omit<T, R extends string ? H | R : H>
+    >[],
+    extras?: Partial<
+      Omit<UpdateItemInput, "TableName" | "Key" | "UpdateExpression">
+    >
+  ): Promise<(T | undefined)[]> {
+    return Promise.all(
+      keys.map(async (key) => {
+        const updateInput = {
+          TableName: this.table,
+          Key: key,
+          ...this.updateExpression(updates, increments),
+          ...(extras ?? {}),
+        };
+        if (this.logStatements) {
+          console.log(`updateInput: ${JSON.stringify(updateInput, null, 2)}`);
+        }
+        const result = await this.dynamo.update(updateInput).promise();
+        return result.Attributes as T | undefined;
+      })
+    );
+  }
+
   async updateAll<K extends R extends string ? H | R : H>(
     queryParameters: Omit<
       queryParametersInput<T, H, R, null>,
@@ -612,15 +640,19 @@ export class DynamoTable<
       projection: this.definedKeys,
     } as queryParametersInput<T, H, R, (keyof T)[]>);
 
-    const chunkedDeletedKeys = this.chunkArray(deleteKeys.member ?? [], 25);
-    return Promise.all(
-      chunkedDeletedKeys.map(
-        async (batchKeys) =>
-          await this.directBatchWrite(
-            batchKeys.map((it) => ({ DeleteRequest: { Key: it } }))
-          )
-      )
-    );
+    if (deleteKeys.member && deleteKeys.member.length > 0) {
+      const chunkedDeletedKeys = this.chunkArray(deleteKeys.member ?? [], 25);
+      return Promise.all(
+        chunkedDeletedKeys.map(
+          async (batchKeys) =>
+            await this.directBatchWrite(
+              batchKeys.map((it) => ({ DeleteRequest: { Key: it } }))
+            )
+        )
+      );
+    } else {
+      return Promise.resolve([]);
+    }
   }
 
   chunkArray<U>(u: U[], chunkSize: number, acc: U[][] = []): U[][] {
