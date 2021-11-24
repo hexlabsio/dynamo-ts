@@ -294,7 +294,7 @@ class ComparisonBuilderType<
     const key = Math.floor(Math.random() * 10000000);
     return this.wrapper.add(
       {},
-      { [key]: this.typeFor(type) },
+      { [`:${key}`]: this.typeFor(type) },
       `attribute_type(${path}, :${key})`,
     );
   }
@@ -303,7 +303,7 @@ class ComparisonBuilderType<
     const key = Math.floor(Math.random() * 10000000);
     return this.wrapper.add(
       {},
-      { [key]: beginsWith },
+      { [`:${key}`]: beginsWith },
       `begins_with(${path}, :${key})`,
     );
   }
@@ -312,8 +312,8 @@ class ComparisonBuilderType<
     const key = Math.floor(Math.random() * 10000000);
     return this.wrapper.add(
       {},
-      { [key]: operand },
-      `operand(${path}, :${key})`,
+      { [`:${key}`]: operand },
+      `contains(${path}, :${key})`,
     );
   }
 
