@@ -9,7 +9,7 @@ import PutItemInput = DocumentClient.PutItemInput;
 import DeleteItemInput = DocumentClient.DeleteItemInput;
 import ScanInput = DocumentClient.ScanInput;
 
-type SimpleDynamoType =
+export type SimpleDynamoType =
   | 'string'
   | 'string set'
   | 'number'
@@ -30,12 +30,12 @@ type SimpleDynamoType =
   | 'list?'
   | 'map?';
 
-type Increment<T, K extends keyof T> = {
+export type Increment<T, K extends keyof T> = {
   key: K,
   start?: T[K]
 }
 
-type KeyComparisonBuilder<T> = {
+export type KeyComparisonBuilder<T> = {
   eq(value: T): void;
   lt(value: T): void;
   lte(value: T): void;
@@ -44,7 +44,7 @@ type KeyComparisonBuilder<T> = {
   between(a: T, b: T): void;
 } & (T extends string ? { beginsWith(value: string): void } : {});
 
-type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
+export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   exists(path: string): CompareWrapperOperator<T>;
   notExists(path: string): CompareWrapperOperator<T>;
   isType(path: string, type: SimpleDynamoType): CompareWrapperOperator<T>;
@@ -53,12 +53,12 @@ type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   not(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
 };
 
-type CompareWrapperOperator<T> = {
+export type CompareWrapperOperator<T> = {
   and(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
   or(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
 };
 
-type Operation<T, V> = {
+export type Operation<T, V> = {
   eq(value: V): CompareWrapperOperator<T>;
   neq(value: V): CompareWrapperOperator<T>;
   lt(value: V): CompareWrapperOperator<T>;
