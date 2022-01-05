@@ -69,6 +69,7 @@ export type Operation<T, V> = {
   in(a: V, b: V[]): CompareWrapperOperator<T>;
 };
 
+
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
 export type DynamoObjectDefinition = {optional?: boolean, object: { [key: string]: DynamoType } };
 export type DynamoArrayDefinition = {optional?: boolean, array: DynamoType };
@@ -364,6 +365,7 @@ class Wrapper {
     );
     return this;
   }
+
 }
 
 export interface DynamoTableIndex<
@@ -738,8 +740,9 @@ export class DynamoTable<
     const allProjection = queryParameters?.projection ? [...queryParameters.projection!, ...enrichKeysFields] : null
     const res =  await this.query<(keyof T)[] | null>({...queryParameters, projection: allProjection})
     const limit = queryParameters.dynamo?.Limit ?? 0
-    if(limit >  0  && limit <= (accumulation.length + res?.member?.length ?? 0)) {
-      const nextKey = this.buildNext(res.member[limit-1])
+    const resultSize = res?.member?.length ?? 0
+    if(resultSize > 0 && limit >  0  && limit <= (accumulation.length + resultSize)) {
+      const nextKey = this.buildNext(res.member[(res?.member?.length ?? limit)-1])
       return ({
         member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)].slice(0, limit),
         next: nextKey
