@@ -162,23 +162,24 @@ class KeyOperation<T> {
   public wrapper = new Wrapper();
   constructor(private readonly key: string) {}
 
-  private add(expression: (key: string) => string): (value: T) => Wrapper {
+  private add(expression: (key: string, value: string) => string): (value: T) => Wrapper {
     return (value) => {
       const mappedKey = nameFor(this.key);
+      const mappedValue = Math.floor(Math.random() * 10000000).toString();
       return this.wrapper.add(
         { [`#${mappedKey}`]: this.key },
-        { [`:${mappedKey}`]: value },
-        expression(mappedKey),
+        { [`:${mappedValue}`]: value },
+        expression(mappedKey, mappedValue),
       ) as any;
     };
   }
 
-  eq = this.add((key) => `#${key} = :${key}`);
-  neq = this.add((key) => `#${key} <> :${key}`);
-  lt = this.add((key) => `#${key} < :${key}`);
-  lte = this.add((key) => `#${key} <= :${key}`);
-  gt = this.add((key) => `#${key} > :${key}`);
-  gte = this.add((key) => `#${key} >= :${key}`);
+  eq = this.add((key, value) => `#${key} = :${value}`);
+  neq = this.add((key, value) => `#${key} <> :${value}`);
+  lt = this.add((key, value) => `#${key} < :${value}`);
+  lte = this.add((key, value) => `#${key} <= :${value}`);
+  gt = this.add((key, value) => `#${key} > :${value}`);
+  gte = this.add((key, value) => `#${key} >= :${value}`);
   
   between(a: T, b: T): Wrapper {
     const mappedKey = nameFor(this.key);
@@ -200,24 +201,25 @@ class OperationType {
   }
 
   private add(
-    expression: (key: string) => string,
+    expression: (key: string, value: string) => string,
   ): (value: TypeFor<DynamoType>) => CompareWrapperOperator<any> {
     return (value) => {
       const mappedKey = nameFor(this.key);
+      const mappedValue = Math.floor(Math.random() * 10000000).toString();
       return this.wrapper.add(
         { [`#${mappedKey}`]: this.key },
-        { [`:${mappedKey}`]: value },
-        expression(mappedKey),
+        { [`:${mappedValue}`]: value },
+        expression(mappedKey, mappedValue),
       ) as any;
     };
   }
 
-  eq = this.add((key) => `#${key} = :${key}`);
-  neq = this.add((key) => `#${key} <> :${key}`);
-  lt = this.add((key) => `#${key} < :${key}`);
-  lte = this.add((key) => `#${key} <= :${key}`);
-  gt = this.add((key) => `#${key} > :${key}`);
-  gte = this.add((key) => `#${key} >= :${key}`);
+  eq = this.add((key, value) => `#${key} = :${value}`);
+  neq = this.add((key, value) => `#${key} <> :${value}`);
+  lt = this.add((key, value) => `#${key} < :${value}`);
+  lte = this.add((key, value) => `#${key} <= :${value}`);
+  gt = this.add((key, value) => `#${key} > :${value}`);
+  gte = this.add((key, value) => `#${key} >= :${value}`);
 
   between(
     a: TypeFor<DynamoType>,
@@ -342,6 +344,11 @@ class Wrapper {
     valueMappings: Record<string, unknown> = {},
     expression: string = '',
   ): Wrapper {
+    console.log(`££££ adding `)
+    console.log(JSON.stringify(names))
+    console.log(JSON.stringify(valueMappings))
+    console.log(JSON.stringify(expression))
+    console.log(`££££ adding `)
     this.names = { ...this.names, ...names };
     this.valueMappings = { ...this.valueMappings, ...valueMappings };
     this.expression = expression;
