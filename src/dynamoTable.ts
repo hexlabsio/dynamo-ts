@@ -148,7 +148,9 @@ type queryParametersInput<T, H extends keyof T, R extends keyof T | null, P exte
     | 'FilterExpression'
     | 'ExclusiveStartKey'
   >;
-} 
+}
+
+type queryAllParametersInput<T, H extends keyof T, R extends keyof T | null, P extends (keyof T)[] | null> = queryParametersInput<T, H, R, P> & { queryLimit? : number }
 
 
 export type DynamoEntry<T extends DynamoObjectDefinition['object']> = Partialize<{
@@ -344,11 +346,6 @@ class Wrapper {
     valueMappings: Record<string, unknown> = {},
     expression: string = '',
   ): Wrapper {
-    console.log(`££££ adding `)
-    console.log(JSON.stringify(names))
-    console.log(JSON.stringify(valueMappings))
-    console.log(JSON.stringify(expression))
-    console.log(`££££ adding `)
     this.names = { ...this.names, ...names };
     this.valueMappings = { ...this.valueMappings, ...valueMappings };
     this.expression = expression;
@@ -409,27 +406,8 @@ export interface DynamoTableIndex<
   }>;
 
   queryAll<P extends (keyof T)[] | null = null>(
-    queryParameters: { [K in H]: T[K] } &
-      (R extends string
-        ? { [K in R]?: (sortKey: KeyComparisonBuilder<T[R]>) => any }
-        : {}) & {
-        filter?: (
-          compare: () => ComparisonBuilder<
-            Omit<T, R extends string ? H | R : H>
-          >,
-        ) => CompareWrapperOperator<Omit<T, R extends string ? H | R : H>>;
-      } & { projection?: P; next?: string } & {
-        dynamo?: Omit<
-          QueryInput,
-          | 'TableName'
-          | 'IndexName'
-          | 'KeyConditionExpression'
-          | 'ProjectionExpression'
-          | 'FilterExpression'
-          | 'ExclusiveStartKey'
-        >;
-      },
-  ): Promise<{
+    queryParameters: queryAllParametersInput<T, H, R, P>
+    ): Promise<{
     next?: string;
     member: P extends (keyof T)[]
       ? { [K in P[number]]: T[K] }[]
@@ -619,7 +597,7 @@ export class DynamoTable<
     const updateKeys = await this.queryAll({
       ...queryParameters,
       projection: this.definedKeys,
-    } as queryParametersInput<T, H, R, (keyof T)[]>);
+    } as queryAllParametersInput<T, H, R, (keyof T)[]>);
 
     return Promise.all(
       updateKeys.member?.map(async (updateKey) => {
@@ -647,7 +625,7 @@ export class DynamoTable<
     const deleteKeys = await this.queryAll({
       ...queryParameters,
       projection: this.definedKeys,
-    } as queryParametersInput<T, H, R, (keyof T)[]>);
+    } as queryAllParametersInput<T, H, R, (keyof T)[]>);
 
     if (deleteKeys.member && deleteKeys.member.length > 0) {
       const chunkedDeletedKeys = this.chunkArray(deleteKeys.member ?? [], 25);
@@ -732,7 +710,7 @@ export class DynamoTable<
   }
 
   private async _recQuery<P extends (keyof T)[] | null = null>(
-    queryParameters: queryParametersInput<T, H, R, P>,
+    queryParameters: queryAllParametersInput<T, H, R, P>,
     enrichKeysFields: (keyof T)[], 
     accumulation: P extends (keyof T)[]
       ? {[K in P[number]]: T[K] }[]
@@ -746,12 +724,15 @@ export class DynamoTable<
 
     const allProjection = queryParameters?.projection ? [...queryParameters.projection!, ...enrichKeysFields] : null
     const res =  await this.query<(keyof T)[] | null>({...queryParameters, projection: allProjection})
-    const limit = queryParameters.dynamo?.Limit ?? 0
-    const resultSize = res?.member?.length ?? 0
-    if(resultSize > 0 && limit >  0  && limit <= (accumulation.length + resultSize)) {
-      const nextKey = this.buildNext(res.member[(res?.member?.length ?? limit)-1])
+    const resLength = res?.member?.length ?? 0
+    const accLength = accumulation.length
+    const limit = queryParameters.queryLimit ?? 0
+    console.log(`queryLimit: ${limit}`)
+    console.log(`accumulation length: ${accumulation.length}`)
+    if(limit >  0  && limit <= (accLength + resLength) && resLength >= limit-accLength) {
+      const nextKey = this.buildNext(res.member[limit-accLength-1])
       return ({
-        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)].slice(0, limit),
+        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields).slice(0, limit-accLength)],
         next: nextKey
       })
     } else if(res.next) {
@@ -778,7 +759,7 @@ export class DynamoTable<
     })).toString('base64')
   }
 
-  async queryAll<P extends (keyof T)[] | null = null>(queryParameters: queryParametersInput<T, H, R, P>): Promise<{
+  async queryAll<P extends (keyof T)[] | null = null>(queryParameters: queryAllParametersInput<T, H, R, P>): Promise<{
     next?: string;
     member: P extends (keyof T)[]
     ? { [K in P[number]]: T[K] }[]
