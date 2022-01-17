@@ -66,7 +66,7 @@ export type Operation<T, V> = {
   gt(value: V): CompareWrapperOperator<T>;
   gte(value: V): CompareWrapperOperator<T>;
   between(a: V, b: V): CompareWrapperOperator<T>;
-  in(a: V, b: V[]): CompareWrapperOperator<T>;
+  in(b: V[]): CompareWrapperOperator<T>;
 };
 
 
@@ -246,7 +246,7 @@ class OperationType {
       { [`#${mappedKey}`]: this.key },
       valueMappings,
       `#${mappedKey} IN (${Object.keys(valueMappings)
-        .map((it) => `:${it}`)
+        .map((it) => `${it}`)
         .join(',')})`,
     ) as any;
   }
@@ -727,8 +727,6 @@ export class DynamoTable<
     const resLength = res?.member?.length ?? 0
     const accLength = accumulation.length
     const limit = queryParameters.queryLimit ?? 0
-    console.log(`queryLimit: ${limit}`)
-    console.log(`accumulation length: ${accumulation.length}`)
     if(limit >  0  && limit <= (accLength + resLength) && resLength >= limit-accLength) {
       const nextKey = this.buildNext(res.member[limit-accLength-1])
       return ({
