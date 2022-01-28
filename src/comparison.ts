@@ -125,7 +125,7 @@ export class ComparisonBuilderType<
         return this.wrapper.add(
             { [`#${mapKey}`]: key as string },
             { [`:${mapKey}`]: operand },
-            `contains(#${mapKey}, :${key})`,
+            `contains(#${mapKey}, :${mapKey})`,
         );
     }
 
