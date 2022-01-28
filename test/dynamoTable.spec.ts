@@ -1,8 +1,7 @@
 import {DynamoDB} from "aws-sdk";
-import {defineTable} from "../src";
-import {DynamoTable} from "../src/dynamoTable";
+import {defineTable, DynamoTable} from "../src";
 
-export const testTable = defineTable({
+const testTable = defineTable({
   definition: { identifier: 'string', date: 'string', account: 'string', cost: 'number', usage: 'number', currency: 'string', lineItemType: 'string' },
   hashKey: 'identifier'
 })

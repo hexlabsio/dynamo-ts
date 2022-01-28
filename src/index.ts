@@ -1,6 +1,11 @@
-import {DynamoObjectDefinition, TableEntryDefinition} from './dynamoTable';
+import {TableEntryDefinition} from './dynamoTable';
+import {DynamoObjectDefinition} from "./type-mapping";
 
 export * from './dynamoTable';
+export * from './type-mapping';
+export * from './dynamoIndex';
+export * from './operation';
+export * from './query';
 
 export function defineTable<
   D extends DynamoObjectDefinition['object'],
