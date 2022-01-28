@@ -278,18 +278,21 @@ export class DynamoTable<
       {},
     );
     const filterPart = this.filterPart({filter});
+    const values = filterPart.FilterExpression
+        ? { FilterExpression: filterPart.FilterExpression }
+        : {};
+    const names = {
+      ...filterPart.ExpressionAttributeNames,
+      ...projectionNameMappings,
+    }
+    const expressionNames = Object.keys(names).length > 0 ? {ExpressionAttributeNames: names} : {};
     const scanInput: ScanInput = {
       TableName: this.table,
       ...(filterPart.FilterExpression
           ? { FilterExpression: filterPart.FilterExpression }
           : {}),
-      ExpressionAttributeNames: {
-        ...filterPart.ExpressionAttributeNames,
-        ...projectionNameMappings,
-      },
-      ExpressionAttributeValues: {
-        ...filterPart.ExpressionAttributeValues,
-      },
+      ...expressionNames,
+      ...values,
       ProjectionExpression: Object.keys(projectionNameMappings).join(','),
       ...(next
         ? {

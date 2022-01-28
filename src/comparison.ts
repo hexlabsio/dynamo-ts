@@ -120,7 +120,16 @@ export class ComparisonBuilderType<
         );
     }
 
-    contains(path: string, operand: string): Wrapper {
+    contains(key: keyof T, operand: string): Wrapper {
+        const mapKey = Math.floor(Math.random() * 10000000);
+        return this.wrapper.add(
+            { [`#${mapKey}`]: key as string },
+            { [`:${mapKey}`]: operand },
+            `contains(#${mapKey}, :${key})`,
+        );
+    }
+
+    containsPath(path: string, operand: string): Wrapper {
         const key = Math.floor(Math.random() * 10000000);
         return this.wrapper.add(
             {},
