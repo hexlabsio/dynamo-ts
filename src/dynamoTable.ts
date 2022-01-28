@@ -283,7 +283,13 @@ export class DynamoTable<
       ...(filterPart.FilterExpression
           ? { FilterExpression: filterPart.FilterExpression }
           : {}),
-      ExpressionAttributeNames: projectionNameMappings,
+      ExpressionAttributeNames: {
+        ...filterPart.ExpressionAttributeNames,
+        ...projectionNameMappings,
+      },
+      ExpressionAttributeValues: {
+        ...filterPart.ExpressionAttributeValues,
+      },
       ProjectionExpression: Object.keys(projectionNameMappings).join(','),
       ...(next
         ? {
