@@ -25,4 +25,3 @@ type Projector<T> = { [KEY in Keys<T>]: ValueFromKey<T, KEY> extends DynamoType 
 
 const aa: Projector<{object: {abc: 'string', def: {object: {ghi: 'number'}}, def2: 'map', hij: {array: {object: {xyz: 'string'}}}}}>;
 
-const g: typeof aa.def2.type;

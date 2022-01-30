@@ -20,8 +20,7 @@ export type Operation<T, V> = {
 
 
 export class KeyOperation<T> {
-    public wrapper = new Wrapper(AttributeBuilder.create());
-    constructor(private readonly key: string) {}
+    constructor(private readonly key: string, public wrapper: Wrapper) {}
 
     private add(expression: (key: string, value: string) => string): (value: T) => Wrapper {
         return (value) => {

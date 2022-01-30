@@ -20,8 +20,8 @@ export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
     notExists(path: string): CompareWrapperOperator<T>;
     isType(path: string, type: SimpleDynamoType): CompareWrapperOperator<T>;
     beginsWith(path: string, beginsWith: string): CompareWrapperOperator<T>;
-    contains(path: keyof T, operand: string): CompareWrapperOperator<T>;
-    containsPath(path: keyof T, operand: string): CompareWrapperOperator<T>;
+    contains(key: keyof T, operand: string): CompareWrapperOperator<T>;
+    containsPath(path: string, operand: string): CompareWrapperOperator<T>;
     not(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
 };
 
