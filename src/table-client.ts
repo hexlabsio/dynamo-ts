@@ -3,6 +3,7 @@ import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
 import {DynamoGetter, GetItemExtras} from "./dynamo-getter";
 import {DynamoPutter, PutItemExtras} from "./dynamo-putter";
 import {AttributeBuilder} from "./naming";
+import {DynamoQuerier, QueryParametersInput} from "./dynamo-querier";
 
 export class TableClient<
     DEFINITION extends DynamoMapDefinition,
@@ -22,6 +23,15 @@ export class TableClient<
 
   async put<RETURN_OLD extends boolean = false>(item: DynamoEntry<DEFINITION>, options: PutItemExtras<DEFINITION, HASH, RANGE, RETURN_OLD> = {}) : Promise<RETURN_OLD extends true ? { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] } : void> {
     return DynamoPutter.put(this.config, {definition: this.config.definition, hash: this.hash, range: this.range}, AttributeBuilder.create(), item, options);
+  }
+
+  async query(
+      options: QueryParametersInput<DEFINITION, HASH, RANGE>
+  ): Promise<{
+    next?: string;
+    member: { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] }[];
+  }> {
+    return DynamoQuerier.query(this.config, {definition: this.config.definition, hash: this.hash, range: this.range}, AttributeBuilder.create(), options);
   }
 
   static build<
