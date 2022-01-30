@@ -65,21 +65,14 @@
     }
   },
   "jest": {
-    "transform": {
-      ".(ts)": "ts-jest"
-    },
-    "reporters": [
-      "default",
-      "jest-junit"
-    ],
-    "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": [
-      "ts",
-      "js"
-    ]
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "globalSetup": "./node_modules/@shelf/jest-dynamodb/setup.js",
+    "globalTeardown": "./node_modules/@shelf/jest-dynamodb/teardown.js"
   },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
   "devDependencies": {
+    "@shelf/jest-dynamodb": "^2.2.3",
     "@types/jest": "^26.0.23",
     "@types/node": "^15.6.1",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
@@ -92,7 +85,7 @@
     "jest-junit": "^13.0.0",
     "json-loader": "^0.5.7",
     "node-loader": "^0.6.0",
-    "prettier": "^2.3.1",
+    "prettier": "^2.5.1",
     "ts-jest": "^27.0.2",
     "ts-loader": "^6.2.2",
     "typescript": "^4.3.2",

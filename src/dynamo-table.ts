@@ -1,6 +1,5 @@
 import { DynamoDB } from 'aws-sdk';
 import {DocumentClient} from 'aws-sdk/lib/dynamodb/document_client';
-import GetItemInput = DocumentClient.GetItemInput;
 import UpdateItemInput = DocumentClient.UpdateItemInput;
 import QueryInput = DocumentClient.QueryInput;
 import WriteRequests = DocumentClient.WriteRequests;
@@ -9,11 +8,13 @@ import DeleteItemInput = DocumentClient.DeleteItemInput;
 import ScanInput = DocumentClient.ScanInput;
 import {ComparisonBuilderType, KeyComparisonBuilder, Wrapper} from "./comparison";
 import {KeyOperation} from "./operation";
-import {DynamoArrayDefinition, DynamoObjectDefinition, TypeFor} from "./type-mapping";
+import {DynamoArrayDefinition, DynamoKeysFrom, DynamoObjectDefinition, TypeFor} from "./type-mapping";
 import {nameFor} from "./naming";
 import {QueryAllParametersInput, QueryParametersInput} from "./query";
 import {DynamoTableIndex} from "./dynamoIndex";
 import {DynamoFilter} from "./filter";
+import {DynamoClientConfig} from "./dynamo-client-config";
+import {DynamoGetter, GetItemExtras} from "./dynamo-getter";
 
 
 export type Increment<T, K extends keyof T> = {
@@ -33,13 +34,12 @@ export type DynamoAnyEntry<T extends DynamoArrayDefinition['array'] | DynamoObje
   [K in keyof T]: TypeFor<T[K]>;
 } : T extends DynamoArrayDefinition['array'] ? TypeFor<T>[] : never;
 
-
 export class DynamoTable<
   D extends DynamoObjectDefinition['object'],
   T extends DynamoEntry<D>,
   HASH extends keyof T,
   RANGE extends keyof T | null = null,
-  PARENT_HASH extends keyof T | null = null, //hash of parent if index
+  PARENT_HASH extends keyof T | null = null,
   INDEXES extends Record<
     string,
     { hashKey: keyof T; rangeKey?: keyof T }
@@ -52,40 +52,21 @@ export class DynamoTable<
   private readonly definedKeys: (keyof T)[] = [...[this.rangeKey, this.parentHashKey as keyof T].filter((e): e is keyof T => !!e), this.hashKey]
 
   protected constructor(
-    protected readonly table: string,
     protected readonly dynamo: DynamoDB.DocumentClient,
+    private readonly config: DynamoClientConfig,
     private readonly definition: D,
     private readonly hashKey: HASH,
     private readonly rangeKey?: RANGE,
-    private readonly parentHashKey?: PARENT_HASH, //hash of parent if index
+    private readonly parentHashKey?: PARENT_HASH,
     private readonly indexes?: INDEXES,
     protected readonly indexName?: string,
-    public logStatements: boolean = false
   ) {}
 
   async get(
-    key: { [K in RANGE extends string ? HASH | RANGE : HASH]: T[K] },
-    extras: Omit<GetItemInput, 'TableName' | 'Key'> = {}
+    key: DynamoKeysFrom<T, HASH, RANGE>,
+    extras: GetItemExtras = {}
   ): Promise<T | undefined> {
-    const actualProjection =  Object.keys(this.definition) as string[];
-    const projectionNameMappings = actualProjection.reduce(
-      (acc, it) => ({ ...acc, [`#${nameFor(it as string)}`]: it as string }),
-      {},
-    );
-    const getInput = {
-      TableName: this.table,
-      Key: key,
-      ProjectionExpression: extras.ProjectionExpression ?? Object.keys(projectionNameMappings).join(','),
-      ...extras,
-      ExpressionAttributeNames: {...(extras.ExpressionAttributeNames ?? {}), ...projectionNameMappings}
-    }
-    if(this.logStatements) {
-      console.log(`getInput: ${JSON.stringify(getInput, null, 2)}`)
-    }
-    const result = await this.dynamo
-      .get(getInput)
-      .promise();
-    return result.Item as T | undefined;
+    return DynamoGetter.get(this.config, this.definition, key, extras)
   }
   
   async batchGet<P extends (keyof T)[] | null = null>(keys: { [K in RANGE extends string ? HASH | RANGE : HASH]: T[K] }[], projection?: P, consistent?: boolean)
@@ -310,7 +291,7 @@ export class DynamoTable<
       .scan(scanInput)
       .promise();
     return {
-      member: (result.Items ?? []) as T[],
+      member: (result.Items ?? []) as any,
       next: result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
             'base64',
@@ -346,7 +327,7 @@ export class DynamoTable<
     enrichKeysFields: (keyof T)[], 
     accumulation: P extends (keyof T)[]
       ? {[K in P[number]]: T[K] }[]
-      : { [K in keyof T]: T[K] }[] = []
+      : { [K in keyof T]: T[K] }[] = [] as any
     ): Promise<{
     next?: string;
     member: P extends (keyof T)[]
@@ -362,14 +343,14 @@ export class DynamoTable<
     if(limit >  0  && limit <= (accLength + resLength) && resLength >= limit-accLength) {
       const nextKey = this.buildNext(res.member[limit-accLength-1])
       return ({
-        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields).slice(0, limit-accLength)],
+        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields).slice(0, limit-accLength)] as any,
         next: nextKey
       })
     } else if(res.next) {
-      return this._recQuery({...queryParameters, next: res.next}, enrichKeysFields, [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)])
+      return this._recQuery({...queryParameters, next: res.next}, enrichKeysFields, [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)] as any)
     } else {
       return  {
-        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)]
+        member: [...accumulation, ...this.removeKeyFields(res.member ?? [], enrichKeysFields)] as any
       }
     }
   }
@@ -563,7 +544,6 @@ export class DynamoTable<
 
   static build<
     D extends DynamoObjectDefinition['object'],
-    T extends DynamoEntry<D>,
     H extends keyof DynamoEntry<D>,
     R extends keyof DynamoEntry<D> | null = null,
     PH extends keyof DynamoEntry<D> | null = null,
