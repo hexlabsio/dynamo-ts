@@ -109,7 +109,7 @@ export class DynamoQuerier {
 
     const queryInput: QueryInput = {
       TableName: config.tableName,
-      // ...(this.indexName ? { IndexName: this.indexName } : {}), //TODO
+      ...(config.indexName ? { IndexName: config.indexName } : {}),
       ...{keyExpression: keyExpression},
       ...(options.filter ? {FilterExpression: filterPart!.expression} : {}),
       ProjectionExpression: projection,

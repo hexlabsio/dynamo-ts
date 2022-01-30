@@ -5,6 +5,7 @@ export interface DynamoClientConfig<DEFINITION extends DynamoMapDefinition> {
     definition: DEFINITION;
     tableType: DynamoEntry<DEFINITION>;
     tableName: string;
+    indexName?: string;
     logStatements?: boolean;
     client: DynamoDB.DocumentClient;
 }

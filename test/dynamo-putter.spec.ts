@@ -11,7 +11,12 @@ const tableDefinition = defineTable({
     identifier: 'string', text: 'string'
 }, 'identifier');
 
-const testTable = TableClient.build(tableDefinition,{tableName: 'test-put-table', client: dynamoClient, logStatements: true});
+const testTable = TableClient.build(tableDefinition,{tableName: 'test-put-table', client: dynamoClient, logStatements: true}, {
+    'abc': {
+        hashKey: 'text',
+        rangeKey: null
+    }
+});
 
 describe('Dynamo Putter', () => {
     describe('Simple Put', () => {
