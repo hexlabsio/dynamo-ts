@@ -1,5 +1,5 @@
 import {
-  DynamoEntry,
+  DynamoEntry, DynamoIndexes,
   DynamoMapDefinition,
 } from "./type-mapping";
 import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
@@ -47,8 +47,8 @@ export type QueryParametersInput<
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null
     > =
-    HashComparison<HASH, DEFINITION> &
-    RangeComparisonIfExists<RANGE, DEFINITION> &
+    HashComparison<HASH, DynamoEntry<DEFINITION>> &
+    RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>> &
     Filter<DEFINITION,HASH, RANGE> &
     {
       projection?: string;
@@ -70,11 +70,12 @@ export class DynamoQuerier {
   private static keyPart<
       DEFINITION  extends DynamoMapDefinition,
       HASH extends keyof DynamoEntry<DEFINITION>,
-      RANGE extends keyof DynamoEntry<DEFINITION> | null = null
+      RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+      INDEXES extends DynamoIndexes<DEFINITION> = null
     >(
-      definition: DynamoDefinition<DEFINITION, HASH, RANGE>,
+      definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
       attributeBuilder: AttributeBuilder,
-      queryParameters: HashComparison<HASH, DEFINITION> & RangeComparisonIfExists<RANGE, DEFINITION>
+      queryParameters: HashComparison<HASH, DynamoEntry<DEFINITION>> & RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>
   ): [string, AttributeBuilder]{
     const builder = attributeBuilder.addNames(definition.hash as string)
     const hashValue = queryParameters[definition.hash];
@@ -91,10 +92,11 @@ export class DynamoQuerier {
   static async query<
       DEFINITION  extends DynamoMapDefinition,
       HASH extends keyof DynamoEntry<DEFINITION>,
-      RANGE extends keyof DynamoEntry<DEFINITION> | null = null
+      RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+      INDEXES extends DynamoIndexes<DEFINITION> = null
     >(
       config: DynamoClientConfig<DEFINITION>,
-      definition: DynamoDefinition<DEFINITION, HASH, RANGE>,
+      definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
       attributeBuilder: AttributeBuilder,
       options: QueryParametersInput<DEFINITION, HASH, RANGE>
   ): Promise<{

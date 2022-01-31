@@ -11,12 +11,7 @@ const tableDefinition = defineTable({
     identifier: 'string', text: 'string'
 }, 'identifier');
 
-const testTable = TableClient.build(tableDefinition,{tableName: 'test-put-table', client: dynamoClient, logStatements: true}, {
-    'abc': {
-        hashKey: 'text',
-        rangeKey: null
-    }
-});
+const testTable = TableClient.build(tableDefinition,{tableName: 'test-put-table', client: dynamoClient, logStatements: true});
 
 describe('Dynamo Putter', () => {
     describe('Simple Put', () => {
@@ -24,7 +19,7 @@ describe('Dynamo Putter', () => {
           const result = await testTable.put({identifier: 'put-item-test', text: 'some text'});
           expect(result).toEqual(undefined);
           const getResult = await testTable.get({identifier: 'put-item-test'});
-          expect(getResult).toEqual({identifier: 'put-item-test', text: 'some text'});
+          expect(getResult.item).toEqual({identifier: 'put-item-test', text: 'some text'});
         });
 
         it('should return old value on second put', async () => {
@@ -42,7 +37,7 @@ describe('Dynamo Putter', () => {
                 {condition: compare => compare().exists('identifier')}
             )).rejects.toThrow(new Error("The conditional request failed"));
             const getResult = await testTable.get({identifier: 'put-condition-test'});
-            expect(getResult).toEqual(undefined);
+            expect(getResult.item).toEqual(undefined);
         });
 
         it('should fail to put when identifier exists', async () => {
@@ -52,7 +47,7 @@ describe('Dynamo Putter', () => {
                 {condition: compare => compare().notExists('identifier')}
             )).rejects.toThrow(new Error("The conditional request failed"));
             const getResult = await testTable.get({identifier: 'put-condition-test-2'});
-            expect(getResult).toEqual({identifier: 'put-condition-test-2', text: 'some text'});
+            expect(getResult.item).toEqual({identifier: 'put-condition-test-2', text: 'some text'});
         });
 
         it('should put when identifier exists and return old result', async () => {
@@ -66,7 +61,7 @@ describe('Dynamo Putter', () => {
             )
             expect(result).toEqual({identifier: 'put-condition-test-3', text: 'some text'});
             const getResult = await testTable.get({identifier: 'put-condition-test-3'});
-            expect(getResult).toEqual({identifier: 'put-condition-test-3', text: 'updated'});
+            expect(getResult.item).toEqual({identifier: 'put-condition-test-3', text: 'updated'});
         });
     });
 });

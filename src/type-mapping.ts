@@ -1,5 +1,7 @@
 import {DynamoClientConfig} from "./dynamo-client-config";
 
+export type DynamoIndexes<DEFINITION extends DynamoMapDefinition> = Record<string, { local?: boolean, hashKey: keyof DynamoEntry<DEFINITION>; rangeKey: keyof DynamoEntry<DEFINITION> | null }> | null
+
 export type DynamoMapDefinition = { [key: string]: DynamoType };
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
 export type DynamoObjectDefinition = {optional?: boolean, object: DynamoMapDefinition };

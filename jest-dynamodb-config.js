@@ -12,5 +12,11 @@ module.exports = {
             AttributeDefinitions: [{AttributeName: 'identifier', AttributeType: 'S'}],
             ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1},
         },
+        {
+            TableName: 'test-scan-table',
+            KeySchema: [{AttributeName: 'hash', KeyType: 'HASH'}],
+            AttributeDefinitions: [{AttributeName: 'hash', AttributeType: 'S'}],
+            ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1},
+        },
     ],
 };

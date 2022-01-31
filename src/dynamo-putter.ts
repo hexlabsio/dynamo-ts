@@ -1,5 +1,5 @@
 import {
-  DynamoEntry,
+  DynamoEntry, DynamoIndexes,
   DynamoMapDefinition,
 } from "./type-mapping";
 import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
@@ -28,10 +28,11 @@ export class DynamoPutter {
       DEFINITION extends DynamoMapDefinition,
       HASH extends keyof DynamoEntry<DEFINITION>,
       RANGE extends keyof DynamoEntry<DEFINITION> | null,
+      INDEXES extends DynamoIndexes<DEFINITION> = null,
       RETURN_OLD extends boolean = false
   > (
       config: DynamoClientConfig<DEFINITION>,
-      definition: DynamoDefinition<DEFINITION, HASH, RANGE>,
+      definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
       attributeBuilder: AttributeBuilder,
       item: DynamoEntry<DEFINITION>,
       options: PutItemExtras<DEFINITION, HASH, RANGE, RETURN_OLD> = {}

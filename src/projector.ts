@@ -23,5 +23,4 @@ type ChildProjector<T extends DynamoType, PARENT> = PARENT extends DynamoArrayDe
 
 type Projector<T> = { [KEY in Keys<T>]: ValueFromKey<T, KEY> extends DynamoType ? ChildProjector<ValueFromKey<T, KEY>, T> : never }
 
-const aa: Projector<{object: {abc: 'string', def: {object: {ghi: 'number'}}, def2: 'map', hij: {array: {object: {xyz: 'string'}}}}}>;
-
+// const aa: Projector<{object: {abc: 'string', def: {object: {ghi: 'number'}}, def2: 'map', hij: {array: {object: {xyz: 'string'}}}}}>;

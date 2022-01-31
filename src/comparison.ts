@@ -1,5 +1,5 @@
 import {CompareWrapperOperator, Operation, OperationType} from "./operation";
-import {DynamoEntry, DynamoMapDefinition, SimpleDynamoType} from "./type-mapping";
+import {DynamoEntry, DynamoIndexes, DynamoMapDefinition, SimpleDynamoType} from "./type-mapping";
 import {DynamoFilter} from "./filter";
 import {AttributeBuilder} from "./naming";
 import {DynamoDefinition} from "./dynamo-client-config";
@@ -143,9 +143,10 @@ export interface FilterInfo {
 export function filterParts<
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null
+    RANGE extends keyof DynamoEntry<DEFINITION> | null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null
 >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     attributeBuilder: AttributeBuilder,
     filter: DynamoFilter<DEFINITION, HASH, RANGE>
 ): FilterInfo {
@@ -162,9 +163,10 @@ export function filterParts<
 export function conditionalParts<
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null
+    RANGE extends keyof DynamoEntry<DEFINITION> | null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null
     >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     attributeBuilder: AttributeBuilder,
     condition: (compare: () => ComparisonBuilder<DEFINITION>) => CompareWrapperOperator<DEFINITION>
 ): FilterInfo {

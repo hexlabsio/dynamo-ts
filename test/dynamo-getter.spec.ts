@@ -21,12 +21,12 @@ describe('Dynamo Table', () => {
     describe('Get', () => {
         it('should get item and project to defined type', async () => {
           const result = await testTable.get({identifier: 'get-item-test'});
-          expect(result).toEqual({identifier: 'get-item-test', text: 'some text'})
+          expect(result.item).toEqual({identifier: 'get-item-test', text: 'some text'})
         });
 
         it('should override projection if supplied', async () => {
             const result = await testTable.get({identifier: 'get-item-test'}, {ProjectionExpression: '#other', ExpressionAttributeNames: { '#other': 'other'}});
-            expect(result).toEqual({other: 'something else'})
+            expect(result.item).toEqual({other: 'something else'})
         });
     });
 });
