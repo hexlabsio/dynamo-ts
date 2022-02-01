@@ -15,11 +15,14 @@ export type KeyComparisonBuilder<T> = {
 } & (T extends string ? { beginsWith(value: string): void } : { });
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
-    existsPath(path: string): CompareWrapperOperator<T>;
     exists(key: keyof T): CompareWrapperOperator<T>;
-    notExists(path: string): CompareWrapperOperator<T>;
-    isType(path: string, type: SimpleDynamoType): CompareWrapperOperator<T>;
-    beginsWith(path: string, beginsWith: string): CompareWrapperOperator<T>;
+    existsPath(path: string): CompareWrapperOperator<T>;
+    notExists(key: keyof T): CompareWrapperOperator<T>;
+    notExistsPath(path: string): CompareWrapperOperator<T>;
+    isType(key: keyof T, type: SimpleDynamoType): CompareWrapperOperator<T>;
+    isTypePath(path: string, type: SimpleDynamoType): CompareWrapperOperator<T>;
+    beginsWith(key: keyof T, beginsWith: string): CompareWrapperOperator<T>;
+    beginsWithPath(path: string, beginsWith: string): CompareWrapperOperator<T>;
     contains(key: keyof T, operand: string): CompareWrapperOperator<T>;
     containsPath(path: string, operand: string): CompareWrapperOperator<T>;
     not(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
@@ -67,14 +70,22 @@ export class ComparisonBuilderType<
     }
 
     existsPath(path: string): Wrapper {
-        return this.wrapper.add(`attribute_exists(${path})`);
+        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
+        this.wrapper.attributeBuilder = builder;
+        return this.wrapper.add(`attribute_exists(${expression})`);
     }
     exists(key: keyof T): Wrapper {
         this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
         return this.wrapper.add(`attribute_exists(${this.wrapper.attributeBuilder.nameFor(key as string)})`);
     }
-    notExists(path: string): Wrapper {
-        return this.wrapper.add(`attribute_not_exists(${path})`);
+    notExistsPath(path: string): Wrapper {
+        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
+        this.wrapper.attributeBuilder = builder;
+        return this.wrapper.add(`attribute_not_exists(${expression})`);
+    }
+    notExists(key: keyof T): Wrapper {
+        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`attribute_not_exists(${this.wrapper.attributeBuilder.nameFor(key as string)})`);
     }
 
     private typeFor(type: SimpleDynamoType): string {
@@ -109,12 +120,25 @@ export class ComparisonBuilderType<
         return name;
     }
 
-    isType(path: string, type: SimpleDynamoType): Wrapper {
-        return this.wrapper.add(`attribute_type(${path}, ${this.getValueName(this.typeFor(type))})`,);
+    isType(key: keyof T, type: SimpleDynamoType): Wrapper {
+        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`attribute_type(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.getValueName(this.typeFor(type))})`,);
+    }
+    isTypePath(path: string, type: SimpleDynamoType): Wrapper {
+        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
+        this.wrapper.attributeBuilder = builder;
+        return this.wrapper.add(`attribute_type(${expression}, ${this.getValueName(this.typeFor(type))})`,);
     }
 
-    beginsWith(path: string, beginsWith: string): Wrapper {
-        return this.wrapper.add(`begins_with(${path}, ${this.getValueName(beginsWith)})`);
+    beginsWith(key: keyof T, beginsWith: string): Wrapper {
+        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.getValueName(beginsWith)})`);
+    }
+
+    beginsWithPath(path: string, beginsWith: string): Wrapper {
+        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
+        this.wrapper.attributeBuilder = builder;
+        return this.wrapper.add(`begins_with(${expression}, ${this.getValueName(beginsWith)})`);
     }
 
     contains(key: keyof T, operand: string): Wrapper {
@@ -123,7 +147,9 @@ export class ComparisonBuilderType<
     }
 
     containsPath(path: string, operand: string): Wrapper {
-        return this.wrapper.add(`contains(${path}, ${this.getValueName(operand)})`);
+        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
+        this.wrapper.attributeBuilder = builder;
+        return this.wrapper.add(`contains(${expression}, ${this.getValueName(operand)})`);
     }
 
     not(comparison: Wrapper): Wrapper {

@@ -34,6 +34,14 @@ export class AttributeBuilder {
         return [`:${name}`, new AttributeBuilder(this.names,{...this.values, [name]: value})];
     }
 
+    buildPath(path: string): {builder: AttributeBuilder, expression: string } {
+        const parts = path.split('.');
+        const names = parts.map(part => part.includes('[') ? part.substring(0, part.indexOf('[')) : part);
+        const builder = this.addNames(...names);
+        const expression = parts.map(part => part.includes('[') ? `${builder.nameFor(part.substring(0, part.indexOf('[')))}${part.substring(part.indexOf('['))}` : builder.nameFor(part)).join('.')
+        return {builder, expression}
+    }
+
     nameFor(name: string): string {
         return `#${this.names[name]}`;
     }
