@@ -3,6 +3,7 @@
     "rootDir": "src",
     "baseUrl": ".",
     "outDir": "./dist",
+    "strict": true,
     "noUnusedLocals": true,
     "declaration": true,
     "allowSyntheticDefaultImports": false,
