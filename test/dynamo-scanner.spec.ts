@@ -1,5 +1,6 @@
 import {DynamoDB} from "aws-sdk";
-import {defineTable, TableClient} from "../src";
+import { TableClient} from "../src";
+import {complexTableDefinition} from "./tables";
 
 const dynamoClient = new DynamoDB.DocumentClient({
     endpoint: 'localhost:8000',
@@ -9,11 +10,8 @@ const dynamoClient = new DynamoDB.DocumentClient({
     region: 'local-env',
 });
 
-const tableDefinition = defineTable({
-    hash: 'string', text: 'string?', obj: { optional: true, object: {abc: 'string'}}, arr: { optional: true, array: {object: {ghi: 'string'}}}
-}, 'hash');
 
-const testTable = TableClient.build(tableDefinition,{tableName: 'test-scan-table', client: dynamoClient, logStatements: true});
+const testTable = TableClient.build(complexTableDefinition,{tableName: 'complexTableDefinition', client: dynamoClient, logStatements: true});
 
 describe('Dynamo Scanner', () => {
     describe('Simple Scanner', () => {

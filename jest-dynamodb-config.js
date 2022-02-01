@@ -1,22 +1,42 @@
 module.exports = {
-    tables: [
+  "tables": [
+    {
+      "TableName": "simpleTableDefinition",
+      "KeySchema": [
         {
-            TableName: 'test-get-table',
-            KeySchema: [{AttributeName: 'identifier', KeyType: 'HASH'}],
-            AttributeDefinitions: [{AttributeName: 'identifier', AttributeType: 'S'}],
-            ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1},
-        },
+          "KeyType": "HASH",
+          "AttributeName": "identifier"
+        }
+      ],
+      "AttributeDefinitions": [
         {
-            TableName: 'test-put-table',
-            KeySchema: [{AttributeName: 'identifier', KeyType: 'HASH'}],
-            AttributeDefinitions: [{AttributeName: 'identifier', AttributeType: 'S'}],
-            ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1},
-        },
+          "AttributeName": "identifier",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
+      "TableName": "complexTableDefinition",
+      "KeySchema": [
         {
-            TableName: 'test-scan-table',
-            KeySchema: [{AttributeName: 'hash', KeyType: 'HASH'}],
-            AttributeDefinitions: [{AttributeName: 'hash', AttributeType: 'S'}],
-            ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1},
-        },
-    ],
+          "KeyType": "HASH",
+          "AttributeName": "hash"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "hash",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    }
+  ]
 };

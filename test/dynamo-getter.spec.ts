@@ -1,5 +1,6 @@
 import {DynamoDB} from "aws-sdk";
-import {defineTable, TableClient} from "../src/table-client";
+import {TableClient} from "../src/table-client";
+import {simpleTableDefinition} from "./tables";
 
 const dynamoClient = new DynamoDB.DocumentClient({
     endpoint: 'localhost:8000',
@@ -9,11 +10,7 @@ const dynamoClient = new DynamoDB.DocumentClient({
     region: 'local-env',
 });
 
-const tableDefinition = defineTable({
-    identifier: 'string', text: 'string'
-}, 'identifier');
-
-const testTable = TableClient.build(tableDefinition,{tableName: 'test-get-table', client: dynamoClient, logStatements: true});
+const testTable = TableClient.build(simpleTableDefinition,{tableName: 'simpleTableDefinition', client: dynamoClient, logStatements: true});
 
 describe('Dynamo Table', () => {
     beforeAll(async () => {
