@@ -4,6 +4,8 @@ import {defineTable, TableClient} from "../src";
 const dynamoClient = new DynamoDB.DocumentClient({
     endpoint: 'localhost:8000',
     sslEnabled: false,
+    accessKeyId: 'xxxx',
+    secretAccessKey: 'xxxx',
     region: 'local-env',
 });
 
