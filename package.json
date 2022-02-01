@@ -72,6 +72,7 @@
   },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.49.0",
     "@shelf/jest-dynamodb": "^2.2.3",
     "@types/jest": "^26.0.23",
     "@types/node": "^15.6.1",
