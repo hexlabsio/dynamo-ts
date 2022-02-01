@@ -6,10 +6,10 @@ import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
 import {DocumentClient} from 'aws-sdk/lib/dynamodb/document_client';
 import QueryInput = DocumentClient.QueryInput;
 import {filterParts, KeyComparisonBuilder, Wrapper} from "./comparison";
-import {AttributeBuilder} from "./naming";
+import {AttributeBuilder} from "./attribute-builder";
 import {KeyOperation} from "./operation";
 import {DynamoFilter} from "./filter";
-import {ProjectionHandler} from "./dynamo-getter";
+import {Projection, ProjectionHandler} from "./projector";
 
 
 type HashComparison<HASH extends keyof T, T> = {
@@ -45,13 +45,14 @@ type ExcessParameters = Omit<
 export type QueryParametersInput<
     DEFINITION  extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null = null
+    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+    PROJECTED = null
     > =
     HashComparison<HASH, DynamoEntry<DEFINITION>> &
     RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>> &
     Filter<DEFINITION,HASH, RANGE> &
     {
-      projection?: string;
+      projection?: Projection<DEFINITION, PROJECTED>
       next?: string
       dynamo?: ExcessParameters
     }
@@ -76,46 +77,45 @@ export class DynamoQuerier {
       definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
       attributeBuilder: AttributeBuilder,
       queryParameters: HashComparison<HASH, DynamoEntry<DEFINITION>> & RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>
-  ): [string, AttributeBuilder]{
-    const builder = attributeBuilder.addNames(definition.hash as string)
+  ): string{
+    attributeBuilder.addNames(definition.hash as string)
     const hashValue = queryParameters[definition.hash];
-    const [valueKey, newBuilder] = builder.addValue(hashValue);
-    const expression = `${builder.nameFor(definition.hash as string)}} = ${valueKey}}`;
+    const valueKey = attributeBuilder.addValue(hashValue);
+    const expression = `${attributeBuilder.nameFor(definition.hash as string)}} = ${valueKey}}`;
     if (definition.range && (queryParameters as any)[definition.range]) {
-      const keyOperation = new KeyOperation(definition.range as string, new Wrapper(newBuilder));
+      const keyOperation = new KeyOperation(definition.range as string, new Wrapper(attributeBuilder));
       (queryParameters as any)[definition.range](keyOperation);
-      return [`${expression} AND ${keyOperation.wrapper.expression}`, keyOperation.wrapper.attributeBuilder];
+      return `${expression} AND ${keyOperation.wrapper.expression}`;
     }
-    return [expression, newBuilder];
+    return expression;
   }
 
   static async query<
       DEFINITION  extends DynamoMapDefinition,
       HASH extends keyof DynamoEntry<DEFINITION>,
       RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-      INDEXES extends DynamoIndexes<DEFINITION> = null
+      INDEXES extends DynamoIndexes<DEFINITION> = null,
+      PROJECTED = null
     >(
       config: DynamoClientConfig<DEFINITION>,
       definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-      attributeBuilder: AttributeBuilder,
-      options: QueryParametersInput<DEFINITION, HASH, RANGE>
+      options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>
   ): Promise<{
     next?: string;
     member: { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] }[];
   }> {
-
-    const [keyExpression, builder] = this.keyPart(definition, attributeBuilder, options);
-    const filterPart = options.filter && filterParts(definition, builder, options.filter);
-    const updatedBuilder = filterPart?.attributeBuilder ?? builder;
-    const [updatedBuilder2, projection] = ProjectionHandler.projectionFor(updatedBuilder, config.definition, options.dynamo?.ProjectionExpression);
+    const attributeBuilder = AttributeBuilder.create();
+    const keyExpression = this.keyPart(definition, attributeBuilder, options);
+    const filterPart = options.filter && filterParts(definition, attributeBuilder, options.filter);
+    const projection = ProjectionHandler.projectionFor(attributeBuilder, config.definition, options.projection);
 
     const queryInput: QueryInput = {
       TableName: config.tableName,
       ...(config.indexName ? { IndexName: config.indexName } : {}),
       ...{keyExpression: keyExpression},
-      ...(options.filter ? {FilterExpression: filterPart!.expression} : {}),
+      ...(options.filter ? {FilterExpression: filterPart} : {}),
       ProjectionExpression: projection,
-      ...updatedBuilder2.asInput(options.dynamo),
+      ...attributeBuilder.asInput(options.dynamo),
       ...(options.next
           ? {
             ExclusiveStartKey: JSON.parse(

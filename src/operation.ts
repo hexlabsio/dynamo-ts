@@ -1,6 +1,5 @@
 import {Wrapper} from "./comparison";
 import {DynamoType, TypeFor} from "./type-mapping";
-import {AttributeBuilder} from "./naming";
 
 export type CompareWrapperOperator<T> = {
     and(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
@@ -24,8 +23,7 @@ export class KeyOperation<T> {
 
     private add(expression: (key: string, value: string) => string): (value: T) => Wrapper {
         return (value) => {
-            const [valueKey, newBuilder] = this.wrapper.attributeBuilder.addNames(this.key).addValue(value);
-            this.wrapper.attributeBuilder = newBuilder;
+            const valueKey = this.wrapper.attributeBuilder.addNames(this.key).addValue(value);
             const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
             return this.wrapper.add(expression(mappedKey, valueKey));
         };
@@ -39,10 +37,9 @@ export class KeyOperation<T> {
     gte = this.add((key, value) => `${key} >= ${value}`);
 
     between(a: T, b: T): Wrapper {
-        const builder = this.wrapper.attributeBuilder.addNames(this.key);
-        const [aKey, builder2] = builder.addValue(a);
-        const [bKey, builder3] = builder2.addValue(b);
-        this.wrapper.attributeBuilder = builder3;
+        this.wrapper.attributeBuilder.addNames(this.key);
+        const aKey = this.wrapper.attributeBuilder.addValue(a);
+        const bKey = this.wrapper.attributeBuilder.addValue(b);
         const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
         return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND :${bKey}`);
     }
@@ -59,8 +56,7 @@ export class OperationType {
 
     private add(expression: (key: string, value: string) => string): (value: TypeFor<DynamoType>) => CompareWrapperOperator<any> {
         return (value) => {
-            const [valueKey, newBuilder] = this.wrapper.attributeBuilder.addNames(this.key).addValue(value);
-            this.wrapper.attributeBuilder = newBuilder;
+            const valueKey = this.wrapper.attributeBuilder.addNames(this.key).addValue(value);
             const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
             return this.wrapper.add(expression(mappedKey, valueKey));
         };
@@ -74,25 +70,17 @@ export class OperationType {
     gte = this.add((key, value) => `${key} >= ${value}`);
 
     between(a: TypeFor<DynamoType>, b: TypeFor<DynamoType>): CompareWrapperOperator<any> {
-        const builder = this.wrapper.attributeBuilder.addNames(this.key);
-        const [aKey, builder2] = builder.addValue(a);
-        const [bKey, builder3] = builder2.addValue(b);
-        this.wrapper.attributeBuilder = builder3;
+        this.wrapper.attributeBuilder.addNames(this.key);
+        const aKey = this.wrapper.attributeBuilder.addValue(a);
+        const bKey = this.wrapper.attributeBuilder.addValue(b);
         const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
         return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND :${bKey}`);
     }
 
     in(list: TypeFor<DynamoType>[]): CompareWrapperOperator<any> {
-        const builder = this.wrapper.attributeBuilder.addNames(this.key);
-        const mappedKey = builder.nameFor(this.key);
-        const [valueKeys, newBuilder] = list.reduce<[string[], AttributeBuilder]>(
-            ([keys, prevBuilder], it) => {
-                const [key, updatedBuilder] = prevBuilder.addValue(it);
-                return [[...keys, key], updatedBuilder]
-            },
-            [[], builder] as [string[], AttributeBuilder]
-        );
-        this.wrapper.attributeBuilder = newBuilder;
+        this.wrapper.attributeBuilder.addNames(this.key);
+        const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
+        const valueKeys = list.map(it => this.wrapper.attributeBuilder.addValue(it));
         return this.wrapper.add(`${mappedKey} IN (${valueKeys.join(',')})`,
         ) as any;
     }

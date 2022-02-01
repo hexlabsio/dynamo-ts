@@ -1,7 +1,7 @@
 import {CompareWrapperOperator, Operation, OperationType} from "./operation";
 import {DynamoEntry, DynamoIndexes, DynamoMapDefinition, SimpleDynamoType} from "./type-mapping";
 import {DynamoFilter} from "./filter";
-import {AttributeBuilder} from "./naming";
+import {AttributeBuilder} from "./attribute-builder";
 import {DynamoDefinition} from "./dynamo-client-config";
 
 export type KeyComparisonBuilder<T> = {
@@ -42,7 +42,7 @@ export class Wrapper {
     }
 
     and(comparison: Wrapper): Wrapper {
-        this.attributeBuilder = this.attributeBuilder.combine(comparison.attributeBuilder);
+        this.attributeBuilder.combine(comparison.attributeBuilder);
         this.add(
             `(${this.expression}) AND (${comparison.expression})`,
         );
@@ -50,7 +50,7 @@ export class Wrapper {
     }
 
     or(comparison: Wrapper): Wrapper {
-        this.attributeBuilder = this.attributeBuilder.combine(comparison.attributeBuilder);
+       this.attributeBuilder.combine(comparison.attributeBuilder);
         this.add(
             `(${this.expression}) OR (${comparison.expression})`,
         );
@@ -70,21 +70,17 @@ export class ComparisonBuilderType<
     }
 
     existsPath(path: string): Wrapper {
-        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
-        this.wrapper.attributeBuilder = builder;
-        return this.wrapper.add(`attribute_exists(${expression})`);
+        return this.wrapper.add(`attribute_exists(${this.wrapper.attributeBuilder.buildPath(path)})`);
     }
     exists(key: keyof T): Wrapper {
-        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
+        this.wrapper.attributeBuilder.addNames(key as string);
         return this.wrapper.add(`attribute_exists(${this.wrapper.attributeBuilder.nameFor(key as string)})`);
     }
     notExistsPath(path: string): Wrapper {
-        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
-        this.wrapper.attributeBuilder = builder;
-        return this.wrapper.add(`attribute_not_exists(${expression})`);
+        return this.wrapper.add(`attribute_not_exists(${this.wrapper.attributeBuilder.buildPath(path)})`);
     }
     notExists(key: keyof T): Wrapper {
-        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
+        this.wrapper.attributeBuilder.addNames(key as string);
         return this.wrapper.add(`attribute_not_exists(${this.wrapper.attributeBuilder.nameFor(key as string)})`);
     }
 
@@ -114,42 +110,30 @@ export class ComparisonBuilderType<
         }
     }
 
-    private getValueName(value: unknown): string {
-        const [name, builder] = this.wrapper.attributeBuilder.addValue(value)
-        this.wrapper.attributeBuilder = builder;
-        return name;
-    }
-
     isType(key: keyof T, type: SimpleDynamoType): Wrapper {
-        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
-        return this.wrapper.add(`attribute_type(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.getValueName(this.typeFor(type))})`,);
+        this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`attribute_type(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,);
     }
     isTypePath(path: string, type: SimpleDynamoType): Wrapper {
-        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
-        this.wrapper.attributeBuilder = builder;
-        return this.wrapper.add(`attribute_type(${expression}, ${this.getValueName(this.typeFor(type))})`,);
+        return this.wrapper.add(`attribute_type(${this.wrapper.attributeBuilder.buildPath(path)}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,);
     }
 
     beginsWith(key: keyof T, beginsWith: string): Wrapper {
-        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
-        return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.getValueName(beginsWith)})`);
+        this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`);
     }
 
     beginsWithPath(path: string, beginsWith: string): Wrapper {
-        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
-        this.wrapper.attributeBuilder = builder;
-        return this.wrapper.add(`begins_with(${expression}, ${this.getValueName(beginsWith)})`);
+        return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.buildPath(path)}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`);
     }
 
     contains(key: keyof T, operand: string): Wrapper {
-        this.wrapper.attributeBuilder = this.wrapper.attributeBuilder.addNames(key as string);
-        return this.wrapper.add(`contains(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.getValueName(operand)})`);
+        this.wrapper.attributeBuilder.addNames(key as string);
+        return this.wrapper.add(`contains(${this.wrapper.attributeBuilder.nameFor(key as string)}, ${this.wrapper.attributeBuilder.addValue(operand)})`);
     }
 
     containsPath(path: string, operand: string): Wrapper {
-        const {expression, builder} = this.wrapper.attributeBuilder.buildPath(path);
-        this.wrapper.attributeBuilder = builder;
-        return this.wrapper.add(`contains(${expression}, ${this.getValueName(operand)})`);
+        return this.wrapper.add(`contains(${this.wrapper.attributeBuilder.buildPath(path)}, ${this.wrapper.attributeBuilder.addValue(operand)})`);
     }
 
     not(comparison: Wrapper): Wrapper {
@@ -162,10 +146,6 @@ export class ComparisonBuilderType<
     }
 }
 
-export interface FilterInfo {
-    expression: string;
-    attributeBuilder: AttributeBuilder;
-}
 export function filterParts<
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
@@ -175,15 +155,12 @@ export function filterParts<
     definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     attributeBuilder: AttributeBuilder,
     filter: DynamoFilter<DEFINITION, HASH, RANGE>
-): FilterInfo {
+): string {
     const updatedDefinition = Object.keys(definition.definition)
         .filter((it) => it !== definition.hash && it !== definition.range)
         .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});
     const parent = filter(() => new ComparisonBuilderType(updatedDefinition, new Wrapper(attributeBuilder)).builder() as any) as unknown as Wrapper;
-    return {
-        attributeBuilder: parent.attributeBuilder,
-        expression: parent.expression
-    };
+    return parent.expression
 }
 
 export function conditionalParts<
@@ -195,12 +172,9 @@ export function conditionalParts<
     definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     attributeBuilder: AttributeBuilder,
     condition: (compare: () => ComparisonBuilder<DEFINITION>) => CompareWrapperOperator<DEFINITION>
-): FilterInfo {
+): string {
     const updatedDefinition = Object.keys(definition.definition)
         .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});
     const parent = condition(() => new ComparisonBuilderType(updatedDefinition, new Wrapper(attributeBuilder)).builder() as any) as unknown as Wrapper;
-    return {
-        attributeBuilder: parent.attributeBuilder,
-        expression: parent.expression
-    };
+    return parent.expression;
 }

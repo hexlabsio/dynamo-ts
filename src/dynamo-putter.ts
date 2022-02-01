@@ -6,7 +6,7 @@ import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
 import {DocumentClient} from 'aws-sdk/lib/dynamodb/document_client';
 import PutItemInput = DocumentClient.PutItemInput;
 import {ComparisonBuilder, conditionalParts} from "./comparison";
-import {AttributeBuilder} from "./naming";
+import {AttributeBuilder} from "./attribute-builder";
 import {CompareWrapperOperator} from "./operation";
 
 export type PutItemExtras<
@@ -33,17 +33,17 @@ export class DynamoPutter {
   > (
       config: DynamoClientConfig<DEFINITION>,
       definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-      attributeBuilder: AttributeBuilder,
       item: DynamoEntry<DEFINITION>,
       options: PutItemExtras<DEFINITION, HASH, RANGE, RETURN_OLD> = {}
   ) : Promise<RETURN_OLD extends true ? { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] } : void> {
+    const attributeBuilder = AttributeBuilder.create();
     const {ExpressionAttributeNames, ExpressionAttributeValues} = options;
     const conditionPart = options.condition && conditionalParts(definition, attributeBuilder, options.condition);
     const putInput: PutItemInput = {
       TableName: config.tableName,
       Item: item,
-      ...(conditionPart?.attributeBuilder.asInput({ExpressionAttributeNames, ExpressionAttributeValues}) ?? {}),
-      ...(conditionPart ? {ConditionExpression: conditionPart.expression} : {}),
+      ...(attributeBuilder.asInput({ExpressionAttributeNames, ExpressionAttributeValues}) ?? {}),
+      ...(conditionPart ? {ConditionExpression: conditionPart} : {}),
       ...(options.returnOldValues ? {ReturnValues: 'ALL_OLD'} : {})
     };
     if(config.logStatements) {

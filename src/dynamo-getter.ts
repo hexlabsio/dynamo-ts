@@ -7,23 +7,14 @@ import {
   DynamoRangeKey
 } from "./type-mapping";
 import {DynamoClientConfig} from "./dynamo-client-config";
-import {AttributeBuilder} from "./naming";
+import {AttributeBuilder} from "./attribute-builder";
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import BatchGetItemInput = DocumentClient.BatchGetItemInput;
+import {Projection, ProjectionHandler} from "./projector";
 
-export type GetItemExtras = Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity' | 'ProjectionExpression' | 'ExpressionAttributeNames'>;
-
-export class ProjectionHandler {
-  static projectionFor<DEFINITION>(attributeBuilder: AttributeBuilder, definition: DEFINITION, expression?: string): [AttributeBuilder, string]{
-    if(expression) {
-      //complex projection, take users input
-      return [attributeBuilder, expression];
-    }
-    const keys = Object.keys(definition);
-    const updatedAttributes = attributeBuilder.addNames(...keys);
-    return [updatedAttributes, keys.map(key => updatedAttributes.nameFor(key)).join(',')];
-  }
-}
+export type GetItemExtras<DEFINITION extends DynamoMapDefinition, PROJECTED> = Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity' | 'ExpressionAttributeNames'> & {
+  projection?: Projection<DEFINITION, PROJECTED>
+};
 
 export class DynamoGetter {
 
@@ -31,19 +22,21 @@ export class DynamoGetter {
   <
       DEFINITION extends DynamoMapDefinition,
       HASH extends keyof DynamoEntry<DEFINITION>,
-      RANGE extends DynamoRangeKey<DEFINITION,HASH>
+      RANGE extends DynamoRangeKey<DEFINITION,HASH>,
+      PROJECTED = null
   > (
       config: DynamoClientConfig<DEFINITION>,
       key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
-      options: GetItemExtras = {}
-  ) : Promise<{item: DynamoClientConfig<DEFINITION>['tableType'] | undefined, consumedCapacity?: ConsumedCapacity}> {
-    const [attributes, projection] = ProjectionHandler.projectionFor(AttributeBuilder.create(), config.definition, options.ProjectionExpression);
+      options: GetItemExtras<DEFINITION, PROJECTED> = {}
+  ) : Promise<{item: (PROJECTED extends null ? DynamoClientConfig<DEFINITION>['tableType'] : PROJECTED) | undefined, consumedCapacity?: ConsumedCapacity}> {
+    const attributeBuilder = AttributeBuilder.create();
+    const expression = ProjectionHandler.projectionFor(attributeBuilder, config.definition, options.projection);
     const getInput: GetItemInput = {
       TableName: config.tableName,
       Key: key,
       ...options,
-      ProjectionExpression: projection,
-      ...attributes.asInput()
+      ProjectionExpression: expression,
+      ...attributeBuilder.asInput()
     };
     if(config.logStatements) {
       console.log(`GetItemInput: ${JSON.stringify(getInput, null, 2)}`)
@@ -51,7 +44,7 @@ export class DynamoGetter {
     const result = await config.client
         .get(getInput)
         .promise();
-    return {item: result.Item as DynamoClientConfig<DEFINITION>['tableType'] | undefined, consumedCapacity: result.ConsumedCapacity};
+    return {item: result.Item as any, consumedCapacity: result.ConsumedCapacity};
   }
 
   async batchGet<
@@ -64,12 +57,12 @@ export class DynamoGetter {
         returnConsumedCapacity?: BatchGetItemInput['ReturnConsumedCapacity'],
         consistent?: boolean
   ): Promise<{items: DynamoClientConfig<DEFINITION>['tableType'][], consumedCapacity?: ConsumedCapacity}>{
-
-    const [attributes, projection] = ProjectionHandler.projectionFor(AttributeBuilder.create(), config.definition);
+    const attributeBuilder = AttributeBuilder.create();
+    const [, projection] = ProjectionHandler.projectionFor(attributeBuilder, config.definition);
     const batchGetInput: BatchGetItemInput = {
       ReturnConsumedCapacity: returnConsumedCapacity,
       RequestItems: { [config.tableName]: {
-        ...attributes.asInput(),
+        ...attributeBuilder.asInput(),
         Keys: keys,
           ...(projection ? {ProjectionExpression: projection} : {}),
           ...((consistent !== undefined) ? {ConsistentRead: consistent}: {})

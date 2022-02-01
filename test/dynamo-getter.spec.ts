@@ -1,6 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {TableClient} from "../src/table-client";
-import {simpleTableDefinition} from "./tables";
+import {complexTableDefinition} from "./tables";
 
 const dynamoClient = new DynamoDB.DocumentClient({
     endpoint: 'localhost:8000',
@@ -10,22 +10,19 @@ const dynamoClient = new DynamoDB.DocumentClient({
     region: 'local-env',
 });
 
-const testTable = TableClient.build(simpleTableDefinition,{tableName: 'simpleTableDefinition', client: dynamoClient, logStatements: true});
+const testTable = TableClient.build(complexTableDefinition,{tableName: 'complexTableDefinition', client: dynamoClient, logStatements: true});
 
 describe('Dynamo Table', () => {
     beforeAll(async () => {
-       await testTable.put({identifier: 'get-item-test', text: 'some text', other: 'something else'} as any);
+       await testTable.put({hash: 'get-item-test', text: 'some text', obj: {abc: 'xyz', def: 2}});
     });
 
     describe('Get', () => {
         it('should get item and project to defined type', async () => {
-          const result = await testTable.get({identifier: 'get-item-test'});
-          expect(result.item).toEqual({identifier: 'get-item-test', text: 'some text'})
-        });
-
-        it('should override projection if supplied', async () => {
-            const result = await testTable.get({identifier: 'get-item-test'}, {ProjectionExpression: '#other', ExpressionAttributeNames: { '#other': 'other'}});
-            expect(result.item).toEqual({other: 'something else'})
+          const result = await testTable.get({hash: 'get-item-test'}, {
+              projection: projector => projector.project('obj.abc').project('text')
+          });
+          expect(result.item).toEqual({ text: 'some text', obj: {abc: 'xyz'}})
         });
     });
 });

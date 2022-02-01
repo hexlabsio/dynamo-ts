@@ -2,7 +2,6 @@ import {DynamoEntry, DynamoIndexes, DynamoKeysFrom, DynamoMapDefinition} from ".
 import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
 import {DynamoGetter, GetItemExtras} from "./dynamo-getter";
 import {DynamoPutter, PutItemExtras} from "./dynamo-putter";
-import {AttributeBuilder} from "./naming";
 import {DynamoQuerier, QueryParametersInput} from "./dynamo-querier";
 import {DocumentClient} from "aws-sdk/lib/dynamodb/document_client";
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
@@ -35,28 +34,28 @@ export class TableClient<
     protected readonly definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>
   ) {}
 
-  async scan(options: ScanOptions<DEFINITION> = {}): Promise<{
+  async scan<R = null>(options: ScanOptions<DEFINITION, R> = {}): Promise<{
     next?: string;
     member: { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] }[];
   }> {
-    return DynamoScanner.scan(this.config, this.definition, AttributeBuilder.create(), options);
+    return DynamoScanner.scan(this.config, this.definition, options);
   }
 
-  async get(key: DynamoKeysFrom<DEFINITION, HASH, RANGE>, options: GetItemExtras = {}): Promise<{item: DynamoClientConfig<DEFINITION>['tableType'] | undefined, consumedCapacity?: ConsumedCapacity}> {
+  async get<R = null>(key: DynamoKeysFrom<DEFINITION, HASH, RANGE>, options: GetItemExtras<DEFINITION, R> = {}): Promise<{item: (R extends null ? DynamoClientConfig<DEFINITION>['tableType'] : R) | undefined, consumedCapacity?: ConsumedCapacity}> {
     return DynamoGetter.get(this.config, key, options);
   }
 
   async put<RETURN_OLD extends boolean = false>(item: DynamoEntry<DEFINITION>, options: PutItemExtras<DEFINITION, HASH, RANGE, RETURN_OLD> = {}) : Promise<RETURN_OLD extends true ? { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] } : void> {
-    return DynamoPutter.put(this.config, this.definition, AttributeBuilder.create(), item, options);
+    return DynamoPutter.put(this.config, this.definition, item, options);
   }
 
-  async query(
-      options: QueryParametersInput<DEFINITION, HASH, RANGE>
+  async query<R = null>(
+      options: QueryParametersInput<DEFINITION, HASH, RANGE, R>
   ): Promise<{
     next?: string;
     member: { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] }[];
   }> {
-    return DynamoQuerier.query(this.config, this.definition, AttributeBuilder.create(), options);
+    return DynamoQuerier.query(this.config, this.definition, options);
   }
 
   async delete<RETURN_OLD extends boolean = false> (
