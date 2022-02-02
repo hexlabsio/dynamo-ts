@@ -23,7 +23,7 @@ describe('Dynamo Putter', () => {
         identifier: 'put-item-test',
         text: 'some text',
       });
-      expect(result).toEqual(undefined);
+      expect(result.item).toEqual(undefined);
       const getResult = await testTable.get({ identifier: 'put-item-test' });
       expect(getResult.item).toEqual({
         identifier: 'put-item-test',
