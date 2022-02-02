@@ -1,4 +1,9 @@
-import {DynamoEntry, DynamoIndexes, DynamoKeysFrom, DynamoMapDefinition} from "./type-mapping";
+import {
+  DynamoEntry,
+  DynamoIndexes,
+  DynamoKeysFrom,
+  DynamoMapDefinition,
+} from "./type-mapping";
 import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
 import {DynamoGetter, GetItemExtras} from "./dynamo-getter";
 import {DynamoPutter, PutItemExtras} from "./dynamo-putter";
@@ -8,6 +13,8 @@ import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import {DynamoScanner, ScanOptions} from "./dynamo-scanner";
 import {DeleteItemOptions, DynamoDeleter} from "./dynamo-deleter";
 import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
+import {DynamoUpdater, UpdateItemOptions, UpdateReturnType} from "./dynamo-updater";
+import ReturnValue = DocumentClient.ReturnValue;
 
 export interface Queryable<
     DEFINITION extends DynamoMapDefinition,
@@ -58,7 +65,14 @@ export class TableClient<
     return DynamoQuerier.query(this.config, this.definition, options);
   }
 
-  async delete<RETURN_OLD extends boolean = false> (
+  async update<KEY extends keyof DynamoEntry<DEFINITION>, RETURN_ITEMS extends ReturnValue | null = null> (
+      options: UpdateItemOptions<DEFINITION, HASH, RANGE, KEY, RETURN_ITEMS>
+  ) : Promise<{item: UpdateReturnType<DEFINITION, RETURN_ITEMS>, consumedCapacity?: ConsumedCapacity, itemCollectionMetrics?: ItemCollectionMetrics}> {
+    return DynamoUpdater.update(this.config, options);
+  }
+
+
+    async delete<RETURN_OLD extends boolean = false> (
       key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
       options: DeleteItemOptions<DEFINITION, RETURN_OLD>
   ) : Promise<{consumedCapacity?: ConsumedCapacity, itemCollectionMetrics?: ItemCollectionMetrics} & (RETURN_OLD extends true ? {item: DynamoClientConfig<DEFINITION>['tableType']} : {})> {

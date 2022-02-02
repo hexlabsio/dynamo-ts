@@ -100,3 +100,13 @@ export type DynamoKeysFrom<
             ? { [K in HASH | RANGE]: DynamoClientConfig<DEFINITION>['tableType'][K] }
                 : never
         : { [K in HASH]: DynamoClientConfig<DEFINITION>['tableType'][K] }
+
+export type DynamoNonKeysFrom<
+    DEFINITION extends DynamoMapDefinition,
+    HASH extends keyof DynamoClientConfig<DEFINITION>['tableType'],
+    RANGE extends DynamoRangeKey<DEFINITION, HASH>
+    > = RANGE extends string
+    ? RANGE extends keyof DynamoClientConfig<DEFINITION>['tableType']
+        ? Omit<DynamoClientConfig<DEFINITION>['tableType'], HASH | RANGE>
+        : never
+    : Omit<DynamoClientConfig<DEFINITION>['tableType'], HASH>
