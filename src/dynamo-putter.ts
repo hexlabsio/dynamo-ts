@@ -1,60 +1,76 @@
 import {
-  DynamoEntry, DynamoIndexes,
+  DynamoEntry,
+  DynamoIndexes,
   DynamoMapDefinition,
-} from "./type-mapping";
-import {DynamoClientConfig, DynamoDefinition} from "./dynamo-client-config";
-import {DocumentClient} from 'aws-sdk/lib/dynamodb/document_client';
+} from './type-mapping';
+import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
+import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import PutItemInput = DocumentClient.PutItemInput;
-import {ComparisonBuilder, conditionalParts} from "./comparison";
-import {AttributeBuilder} from "./attribute-builder";
-import {CompareWrapperOperator} from "./operation";
+import { ComparisonBuilder, conditionalParts } from './comparison';
+import { AttributeBuilder } from './attribute-builder';
+import { CompareWrapperOperator } from './operation';
+import ReturnConsumedCapacity = DocumentClient.ReturnConsumedCapacity;
+import ReturnItemCollectionMetrics = DocumentClient.ReturnItemCollectionMetrics;
+import ConsumedCapacity = DocumentClient.ConsumedCapacity;
+import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
 
 export type PutItemExtras<
-    DEFINITION  extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-    RETURN_OLD extends boolean = false
-  > =
-    Pick<PutItemInput, 'ExpressionAttributeNames' | 'ExpressionAttributeValues'> &
-    {
-      condition?: (compare: () => ComparisonBuilder<DEFINITION>) => CompareWrapperOperator<DEFINITION>,
-      returnOldValues?: RETURN_OLD
-    }
+  DEFINITION extends DynamoMapDefinition,
+  RETURN_OLD extends boolean = false,
+> = {
+  condition?: (
+    compare: () => ComparisonBuilder<DEFINITION>,
+  ) => CompareWrapperOperator<DEFINITION>;
+  returnOldValues?: RETURN_OLD;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+};
+
+export type PutItemResult<
+  DEFINITION extends DynamoMapDefinition,
+  RETURN_OLD extends boolean = false,
+> = {
+  item: RETURN_OLD extends true
+    ? { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] }
+    : undefined;
+  consumedCapacity?: ConsumedCapacity;
+  itemCollectionMetrics?: ItemCollectionMetrics;
+};
 
 export class DynamoPutter {
-
-  static async put
-  <
-      DEFINITION extends DynamoMapDefinition,
-      HASH extends keyof DynamoEntry<DEFINITION>,
-      RANGE extends keyof DynamoEntry<DEFINITION> | null,
-      INDEXES extends DynamoIndexes<DEFINITION> = null,
-      RETURN_OLD extends boolean = false
-  > (
-      config: DynamoClientConfig<DEFINITION>,
-      definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-      item: DynamoEntry<DEFINITION>,
-      options: PutItemExtras<DEFINITION, HASH, RANGE, RETURN_OLD> = {}
-  ) : Promise<RETURN_OLD extends true ? { [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K] } : void> {
+  static async put<
+    DEFINITION extends DynamoMapDefinition,
+    HASH extends keyof DynamoEntry<DEFINITION>,
+    RANGE extends keyof DynamoEntry<DEFINITION> | null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null,
+    RETURN_OLD extends boolean = false,
+  >(
+    config: DynamoClientConfig<DEFINITION>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+    item: DynamoEntry<DEFINITION>,
+    options: PutItemExtras<DEFINITION, RETURN_OLD> = {},
+  ): Promise<PutItemResult<DEFINITION, RETURN_OLD>> {
     const attributeBuilder = AttributeBuilder.create();
-    const {ExpressionAttributeNames, ExpressionAttributeValues} = options;
-    const conditionPart = options.condition && conditionalParts(definition, attributeBuilder, options.condition);
+    const conditionPart =
+      options.condition &&
+      conditionalParts(definition, attributeBuilder, options.condition);
     const putInput: PutItemInput = {
       TableName: config.tableName,
       Item: item,
-      ...(attributeBuilder.asInput({ExpressionAttributeNames, ExpressionAttributeValues}) ?? {}),
-      ...(conditionPart ? {ConditionExpression: conditionPart} : {}),
-      ...(options.returnOldValues ? {ReturnValues: 'ALL_OLD'} : {})
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
+      ...attributeBuilder.asInput(),
+      ...(conditionPart ? { ConditionExpression: conditionPart } : {}),
+      ...(options.returnOldValues ? { ReturnValues: 'ALL_OLD' } : {}),
     };
-    if(config.logStatements) {
-      console.log(`PutItemInput: ${JSON.stringify(putInput, null, 2)}`)
+    if (config.logStatements) {
+      console.log(`PutItemInput: ${JSON.stringify(putInput, null, 2)}`);
     }
-    const result = await config.client
-        .put(putInput)
-        .promise();
-    if(options.returnOldValues)
-      return result.Attributes as any;
-    return undefined as any;
+    const result = await config.client.put(putInput).promise();
+    return {
+      item: options.returnOldValues ? (result.Attributes as any) : undefined,
+      consumedCapacity: result.ConsumedCapacity,
+      itemCollectionMetrics: result.ItemCollectionMetrics,
+    };
   }
-
 }

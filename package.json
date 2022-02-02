@@ -12,7 +12,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "npm run format:fix && tsc --project tsconfig.json",
     "prepare": "husky install",
     "format": "prettier --single-quote --trailing-comma all --check './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "format:fix": "prettier --single-quote --trailing-comma all --write './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
