@@ -84,7 +84,7 @@ export function dynamoTable(
                     : []),
                 ],
                 ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
-                Projection: { projectionType: 'ALL' },
+                Projection: { ProjectionType: 'ALL' },
               };
             },
           ),
