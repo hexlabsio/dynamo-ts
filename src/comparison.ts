@@ -214,8 +214,8 @@ export function conditionalParts<
   definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
   attributeBuilder: AttributeBuilder,
   condition: (
-    compare: () => ComparisonBuilder<DEFINITION>,
-  ) => CompareWrapperOperator<DEFINITION>,
+    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
+  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>,
 ): string {
   const updatedDefinition = Object.keys(definition.definition).reduce(
     (acc, it) => ({ ...acc, [it]: definition.definition[it] }),

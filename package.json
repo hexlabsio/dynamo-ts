@@ -76,6 +76,7 @@
     "@shelf/jest-dynamodb": "^2.2.3",
     "@types/jest": "^26.0.23",
     "@types/node": "^15.6.1",
+    "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "aws-sdk": "^2.918.0",

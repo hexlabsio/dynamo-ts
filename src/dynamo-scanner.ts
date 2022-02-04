@@ -18,8 +18,8 @@ export type ScanOptions<
 > = Omit<QueryInput, 'TableName'> & {
   projection?: Projection<DEFINITION, PROJECTED>;
   filter?: (
-    compare: () => ComparisonBuilder<DEFINITION>,
-  ) => CompareWrapperOperator<DEFINITION>;
+    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
+  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>;
   next?: string;
 };
 

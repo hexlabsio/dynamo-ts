@@ -50,6 +50,10 @@ export class TableClient<
     >,
   ) {}
 
+  logStatements(on: boolean) {
+    this.config.logStatements = on;
+  }
+
   async scan<R = null>(
     options: ScanOptions<DEFINITION, R> = {},
   ): Promise<{
@@ -80,13 +84,15 @@ export class TableClient<
     return DynamoPutter.put(this.config, this.definition, item, options);
   }
 
-  async query<R = null>(
-    options: QueryParametersInput<DEFINITION, HASH, RANGE, R>,
+  async query<PROJECTED = null>(
+    options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
   ): Promise<{
     next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
+    member: (PROJECTED extends null
+        ? {
+          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+        }
+        : PROJECTED)[];
   }> {
     return DynamoQuerier.query(this.config, this.definition, options);
   }
@@ -106,7 +112,7 @@ export class TableClient<
 
   async delete<RETURN_OLD extends boolean = false>(
     key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
-    options: DeleteItemOptions<DEFINITION, RETURN_OLD>,
+    options: DeleteItemOptions<DEFINITION, RETURN_OLD> = {},
   ): Promise<
     {
       consumedCapacity?: ConsumedCapacity;

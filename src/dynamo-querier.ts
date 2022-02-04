@@ -77,7 +77,7 @@ export class DynamoQuerier {
     const valueKey = attributeBuilder.addValue(hashValue);
     const expression = `${attributeBuilder.nameFor(
       definition.hash as string,
-    )}} = ${valueKey}}`;
+    )} = ${valueKey}`;
     if (definition.range && (queryParameters as any)[definition.range]) {
       const keyOperation = new KeyOperation(
         definition.range as string,
@@ -101,9 +101,11 @@ export class DynamoQuerier {
     options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
   ): Promise<{
     next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
+    member: (PROJECTED extends null
+        ? {
+          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+        }
+        : PROJECTED)[];
   }> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyPart(definition, attributeBuilder, options);
@@ -119,7 +121,7 @@ export class DynamoQuerier {
     const queryInput: QueryInput = {
       TableName: config.tableName,
       ...(config.indexName ? { IndexName: config.indexName } : {}),
-      ...{ keyExpression: keyExpression },
+      ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
       ProjectionExpression: projection,
       ...attributeBuilder.asInput(options.dynamo),

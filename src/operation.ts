@@ -46,6 +46,11 @@ export class KeyOperation<T> {
     const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
     return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND :${bKey}`);
   }
+
+  beginsWith(a: T): Wrapper {
+    const valueKey = this.wrapper.attributeBuilder.addNames(this.key).addValue(a);
+    return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.nameFor(this.key)},${valueKey})`);
+  }
 }
 
 export class OperationType {

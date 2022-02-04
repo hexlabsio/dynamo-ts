@@ -27,7 +27,7 @@ export type UpdateItemOptions<
 > = Partial<
   Pick<
     UpdateItemInput,
-    'ReturnValues' | 'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
+    'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
   >
 > & {
   key: DynamoKeysFrom<DEFINITION, HASH, RANGE>;
