@@ -19,8 +19,8 @@ export type PutItemExtras<
   RETURN_OLD extends boolean = false,
 > = {
   condition?: (
-    compare: () => ComparisonBuilder<DEFINITION>,
-  ) => CompareWrapperOperator<DEFINITION>;
+    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
+  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>;
   returnOldValues?: RETURN_OLD;
   returnConsumedCapacity?: ReturnConsumedCapacity;
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics;

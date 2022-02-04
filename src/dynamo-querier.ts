@@ -102,10 +102,10 @@ export class DynamoQuerier {
   ): Promise<{
     next?: string;
     member: (PROJECTED extends null
-        ? {
+      ? {
           [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
         }
-        : PROJECTED)[];
+      : PROJECTED)[];
   }> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyPart(definition, attributeBuilder, options);

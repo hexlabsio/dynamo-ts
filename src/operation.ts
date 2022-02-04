@@ -48,8 +48,14 @@ export class KeyOperation<T> {
   }
 
   beginsWith(a: T): Wrapper {
-    const valueKey = this.wrapper.attributeBuilder.addNames(this.key).addValue(a);
-    return this.wrapper.add(`begins_with(${this.wrapper.attributeBuilder.nameFor(this.key)},${valueKey})`);
+    const valueKey = this.wrapper.attributeBuilder
+      .addNames(this.key)
+      .addValue(a);
+    return this.wrapper.add(
+      `begins_with(${this.wrapper.attributeBuilder.nameFor(
+        this.key,
+      )},${valueKey})`,
+    );
   }
 }
 

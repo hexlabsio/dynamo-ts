@@ -31,7 +31,7 @@ export class DynamoGetter {
     options: GetItemExtras<DEFINITION, PROJECTED> = {},
   ): Promise<{
     item:
-      (PROJECTED extends null
+      | (PROJECTED extends null
           ? DynamoClientConfig<DEFINITION>['tableType']
           : PROJECTED)
       | undefined;

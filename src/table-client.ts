@@ -89,10 +89,10 @@ export class TableClient<
   ): Promise<{
     next?: string;
     member: (PROJECTED extends null
-        ? {
+      ? {
           [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
         }
-        : PROJECTED)[];
+      : PROJECTED)[];
   }> {
     return DynamoQuerier.query(this.config, this.definition, options);
   }

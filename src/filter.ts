@@ -12,5 +12,7 @@ export type DynamoFilter<
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
 > = (
-  compare: () => ComparisonBuilder<WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>>,
+  compare: () => ComparisonBuilder<
+    WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>
+  >,
 ) => CompareWrapperOperator<WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>>;

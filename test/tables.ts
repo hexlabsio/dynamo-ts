@@ -1,5 +1,5 @@
 import { defineTable } from '../src';
-import {exampleCarTable} from "../examples/example-table";
+import { exampleCarTable } from '../examples/example-table';
 
 export const simpleTableDefinition = defineTable(
   {
