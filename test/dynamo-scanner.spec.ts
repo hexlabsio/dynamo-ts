@@ -41,41 +41,43 @@ describe('Dynamo Scanner', () => {
     await testTable.put({ hash: 'scan-item-test5' });
   });
 
-
   it('should scan all items', async () => {
     const result = await testTable.scan();
     expect(result.member).toEqual([
       {
         obj: { def: 2, abc: 'def' },
         hash: 'scan-item-test',
-        text: 'some text'
+        text: 'some text',
       },
       { hash: 'scan-item-test5' },
       {
-        arr: [ { ghi: 'a' }, { ghi: 'b' } ],
+        arr: [{ ghi: 'a' }, { ghi: 'b' }],
         hash: 'scan-item-test3',
-        text: 'some text'
+        text: 'some text',
       },
       { arr: [], hash: 'scan-item-test2', text: 'some text' },
-      { arr: [ { ghi: 'a' } ], hash: 'scan-item-test4', text: 'some text' }
+      { arr: [{ ghi: 'a' }], hash: 'scan-item-test4', text: 'some text' },
     ]);
   });
 
   it('should project items when scanning', async () => {
-    const result = await testTable.scan({projection: projector => projector.project('text').project('obj.def').project('arr.[1]')});
+    const result = await testTable.scan({
+      projection: (projector) =>
+        projector.project('text').project('obj.def').project('arr.[1]'),
+    });
     console.log(result.member);
     expect(result.member).toEqual([
       {
         obj: { def: 2 },
-        text: 'some text'
+        text: 'some text',
       },
-      { },
+      {},
       {
-        arr: [ { ghi: 'b' } ],
-        text: 'some text'
+        arr: [{ ghi: 'b' }],
+        text: 'some text',
       },
       { text: 'some text' },
-      { text: 'some text' }
+      { text: 'some text' },
     ]);
   });
 
