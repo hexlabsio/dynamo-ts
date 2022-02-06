@@ -44,7 +44,7 @@ export class KeyOperation<T> {
     const aKey = this.wrapper.attributeBuilder.addValue(a);
     const bKey = this.wrapper.attributeBuilder.addValue(b);
     const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
-    return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND :${bKey}`);
+    return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND ${bKey}`);
   }
 
   beginsWith(a: T): Wrapper {
@@ -95,7 +95,7 @@ export class OperationType {
     const aKey = this.wrapper.attributeBuilder.addValue(a);
     const bKey = this.wrapper.attributeBuilder.addValue(b);
     const mappedKey = this.wrapper.attributeBuilder.nameFor(this.key);
-    return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND :${bKey}`);
+    return this.wrapper.add(`${mappedKey} BETWEEN ${aKey} AND ${bKey}`);
   }
 
   in(list: TypeFor<DynamoType>[]): CompareWrapperOperator<any> {
