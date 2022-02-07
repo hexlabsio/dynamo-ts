@@ -23,6 +23,12 @@ import {
   UpdateReturnType,
 } from './dynamo-updater';
 import ReturnValue = DocumentClient.ReturnValue;
+import {
+  BatchWrite,
+  BatchWriteOutput,
+  DynamoBatchWriter,
+  DeleteWrite,
+} from './dynamo-batch-writer';
 
 export interface Queryable<
   DEFINITION extends DynamoMapDefinition,
@@ -92,6 +98,16 @@ export class TableClient<
     options: PutItemExtras<DEFINITION, RETURN_OLD> = {},
   ): Promise<PutItemResult<DEFINITION, RETURN_OLD>> {
     return DynamoPutter.put(this.config, this.definition, item, options);
+  }
+
+  async batchPut(items: DynamoEntry<DEFINITION>[]): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchPut(this.config, items);
+  }
+
+  async batchWrite(
+    items: BatchWrite<DEFINITION, HASH, RANGE>[],
+  ): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchWrite(this.config, items);
   }
 
   async query<PROJECTED = null>(
@@ -171,6 +187,12 @@ export class TableClient<
       ) as any;
     }
     return undefined as any;
+  }
+
+  async batchDelete(
+    items: DeleteWriteItem<DEFINITION, HASH, RANGE>[],
+  ): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchDelete(this.config, items);
   }
 
   static build<

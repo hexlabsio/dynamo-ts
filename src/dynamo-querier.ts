@@ -202,7 +202,7 @@ export class DynamoQuerier {
             ),
           }
         : {}),
-      ...(options.dynamo ? options.dynamo : {})  
+      ...(options.dynamo ? options.dynamo : {}),
     };
     if (config.logStatements) {
       console.log(`QueryInput: ${JSON.stringify(queryInput, null, 2)}`);
@@ -249,7 +249,7 @@ export class DynamoQuerier {
       enrichedFields.forEach((field) => delete lastItem[field]),
     );
   }
-  
+
   private static async _recQuery(
     client: DocumentClient,
     queryInput: QueryInput,
