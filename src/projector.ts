@@ -51,12 +51,15 @@ interface Projector<DEFINITION extends DynamoMapDefinition, PROJECTED = {}> {
   >;
 }
 
-class ProjectorType<DEFINITION extends DynamoMapDefinition, PROJECTED = {}>
-  implements Projector<DEFINITION, PROJECTED>
+export class ProjectorType<
+  DEFINITION extends DynamoMapDefinition,
+  PROJECTED = {},
+> implements Projector<DEFINITION, PROJECTED>
 {
   constructor(
     private readonly attributeBuilder: AttributeBuilder,
     readonly expression: string = '',
+    readonly projectionFields: (keyof DEFINITION)[] = [],
   ) {}
 
   project<PATH extends PathKeys<DynamoEntry<DEFINITION>>>(
@@ -72,6 +75,7 @@ class ProjectorType<DEFINITION extends DynamoMapDefinition, PROJECTED = {}>
       this.expression
         ? `${this.expression},${projectionExpression}`
         : projectionExpression,
+      [path as string, ...this.projectionFields],
     );
   }
 }
@@ -81,22 +85,63 @@ export type Projection<DEFINITION extends DynamoMapDefinition, R> = (
 ) => Projector<DEFINITION, R>;
 
 export class ProjectionHandler {
-  static projectionFor<DEFINITION extends DynamoMapDefinition>(
+  static projectionExpressionFor<DEFINITION extends DynamoMapDefinition>(
     attributeBuilder: AttributeBuilder,
     definition: DEFINITION,
     projection?: Projection<DEFINITION, any>,
   ): string {
     if (projection) {
-      return (
-        projection(new ProjectorType(attributeBuilder)) as ProjectorType<
-          any,
-          any
-        >
-      ).expression;
+      return this.projectionFor(attributeBuilder, projection).expression;
     } else {
-      const keys = Object.keys(definition);
-      const updatedAttributes = attributeBuilder.addNames(...keys);
-      return keys.map((key) => updatedAttributes.nameFor(key)).join(',');
+      return this.addDefinitionProjection(attributeBuilder, definition);
     }
+  }
+
+  static projectionWithKeysFor<DEFINITION extends DynamoMapDefinition>(
+    attributeBuilder: AttributeBuilder,
+    definition: DEFINITION,
+    hashKey: keyof DynamoEntry<DEFINITION>,
+    rangeKey: keyof DynamoEntry<DEFINITION> | null,
+    indexName: keyof DynamoEntry<DEFINITION> | null,
+    projection?: Projection<DEFINITION, any>,
+  ): [string, string[]] {
+    if (projection) {
+      const baseProjector = this.projectionFor(attributeBuilder, projection);
+      const keyFields = [rangeKey, indexName].reduce(
+        (acc, elem) => (elem ? [elem, ...acc] : acc),
+        [hashKey],
+      );
+
+      const enrichedFields = keyFields.filter(
+        (kf) => !baseProjector.projectionFields.includes(kf),
+      ) as string[];
+
+      const updatedProjector = enrichedFields.reduce(
+        (p, ef) => p.project(ef as any) as any,
+        baseProjector,
+      );
+      return [updatedProjector.expression, enrichedFields];
+    } else {
+      return [this.addDefinitionProjection(attributeBuilder, definition), []];
+    }
+  }
+
+  static projectionFor<DEFINITION extends DynamoMapDefinition>(
+    attributeBuilder: AttributeBuilder,
+    projection: Projection<DEFINITION, any>,
+  ): ProjectorType<DEFINITION, any> {
+    return projection(new ProjectorType(attributeBuilder)) as ProjectorType<
+      any,
+      any
+    >;
+  }
+
+  static addDefinitionProjection<DEFINITION extends DynamoMapDefinition>(
+    attributeBuilder: AttributeBuilder,
+    definition: DEFINITION,
+  ): string {
+    const keys = Object.keys(definition);
+    const updatedAttributes = attributeBuilder.addNames(...keys);
+    return keys.map((key) => updatedAttributes.nameFor(key)).join(',');
   }
 }

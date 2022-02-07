@@ -7,7 +7,11 @@ import {
 import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
 import { DynamoGetter, GetItemExtras } from './dynamo-getter';
 import { DynamoPutter, PutItemExtras, PutItemResult } from './dynamo-putter';
-import { DynamoQuerier, QueryParametersInput } from './dynamo-querier';
+import {
+  DynamoQuerier,
+  QueryParametersInput,
+  QueryAllParametersInput,
+} from './dynamo-querier';
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import { DynamoScanner, ScanOptions } from './dynamo-scanner';
@@ -26,6 +30,12 @@ export interface Queryable<
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
 > {
   query(options: QueryParametersInput<DEFINITION, HASH, RANGE>): Promise<{
+    next?: string;
+    member: {
+      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+    }[];
+  }>;
+  queryAll(options: QueryAllParametersInput<DEFINITION, HASH, RANGE>): Promise<{
     next?: string;
     member: {
       [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
@@ -95,6 +105,19 @@ export class TableClient<
       : PROJECTED)[];
   }> {
     return DynamoQuerier.query(this.config, this.definition, options);
+  }
+
+  async queryAll<PROJECTED = null>(
+    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
+  ): Promise<{
+    next?: string;
+    member: (PROJECTED extends null
+      ? {
+          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+        }
+      : PROJECTED)[];
+  }> {
+    return DynamoQuerier.queryAll(this.config, this.definition, options);
   }
 
   async update<

@@ -42,7 +42,7 @@ export class DynamoScanner {
     }[];
   }> {
     const attributeBuilder = AttributeBuilder.create();
-    const projection = ProjectionHandler.projectionFor(
+    const projection = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
       config.definition,
       options.projection,
