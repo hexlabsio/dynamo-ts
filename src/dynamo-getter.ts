@@ -38,7 +38,7 @@ export class DynamoGetter {
     consumedCapacity?: ConsumedCapacity;
   }> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = ProjectionHandler.projectionFor(
+    const expression = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
       config.definition,
       options.projection,
@@ -74,7 +74,7 @@ export class DynamoGetter {
     consumedCapacity?: ConsumedCapacity;
   }> {
     const attributeBuilder = AttributeBuilder.create();
-    const [, projection] = ProjectionHandler.projectionFor(
+    const [, projection] = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
       config.definition,
     );
