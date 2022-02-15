@@ -26,8 +26,8 @@ import ReturnValue = DocumentClient.ReturnValue;
 import {
   BatchWrite,
   BatchWriteOutput,
+  DeleteWriteItem,
   DynamoBatchWriter,
-  DeleteWrite,
 } from './dynamo-batch-writer';
 
 export interface Queryable<
