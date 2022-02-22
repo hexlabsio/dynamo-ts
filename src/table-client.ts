@@ -7,7 +7,11 @@ import {
 import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
 import { DynamoGetter, GetItemExtras } from './dynamo-getter';
 import { DynamoPutter, PutItemExtras, PutItemResult } from './dynamo-putter';
-import { DynamoQuerier, QueryParametersInput } from './dynamo-querier';
+import {
+  DynamoQuerier,
+  QueryParametersInput,
+  QueryAllParametersInput,
+} from './dynamo-querier';
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import { DynamoScanner, ScanOptions } from './dynamo-scanner';
@@ -19,6 +23,12 @@ import {
   UpdateReturnType,
 } from './dynamo-updater';
 import ReturnValue = DocumentClient.ReturnValue;
+import {
+  BatchWrite,
+  BatchWriteOutput,
+  DeleteWriteItem,
+  DynamoBatchWriter,
+} from './dynamo-batch-writer';
 
 export interface Queryable<
   DEFINITION extends DynamoMapDefinition,
@@ -26,6 +36,12 @@ export interface Queryable<
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
 > {
   query(options: QueryParametersInput<DEFINITION, HASH, RANGE>): Promise<{
+    next?: string;
+    member: {
+      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+    }[];
+  }>;
+  queryAll(options: QueryAllParametersInput<DEFINITION, HASH, RANGE>): Promise<{
     next?: string;
     member: {
       [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
@@ -84,6 +100,16 @@ export class TableClient<
     return DynamoPutter.put(this.config, this.definition, item, options);
   }
 
+  async batchPut(items: DynamoEntry<DEFINITION>[]): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchPut(this.config, items);
+  }
+
+  async batchWrite(
+    items: BatchWrite<DEFINITION, HASH, RANGE>[],
+  ): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchWrite(this.config, items);
+  }
+
   async query<PROJECTED = null>(
     options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
   ): Promise<{
@@ -95,6 +121,19 @@ export class TableClient<
       : PROJECTED)[];
   }> {
     return DynamoQuerier.query(this.config, this.definition, options);
+  }
+
+  async queryAll<PROJECTED = null>(
+    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
+  ): Promise<{
+    next?: string;
+    member: (PROJECTED extends null
+      ? {
+          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+        }
+      : PROJECTED)[];
+  }> {
+    return DynamoQuerier.queryAll(this.config, this.definition, options);
   }
 
   async update<
@@ -148,6 +187,12 @@ export class TableClient<
       ) as any;
     }
     return undefined as any;
+  }
+
+  async batchDelete(
+    items: DeleteWriteItem<DEFINITION, HASH, RANGE>[],
+  ): Promise<BatchWriteOutput> {
+    return DynamoBatchWriter.batchDelete(this.config, items);
   }
 
   static build<

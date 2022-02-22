@@ -11,6 +11,7 @@ import { AttributeBuilder } from './attribute-builder';
 import { KeyOperation } from './operation';
 import { DynamoFilter } from './filter';
 import { Projection, ProjectionHandler } from './projector';
+import { AttributeMap } from 'aws-sdk/clients/dynamodb';
 
 type HashComparison<HASH extends keyof T, T> = {
   [K in HASH]: T[K];
@@ -58,7 +59,10 @@ export type QueryAllParametersInput<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-> = QueryParametersInput<DEFINITION, HASH, RANGE> & { queryLimit?: number };
+  PROJECTED = null,
+> = QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED> & {
+  queryLimit?: number;
+};
 
 export class DynamoQuerier {
   private static keyPart<
@@ -112,13 +116,12 @@ export class DynamoQuerier {
     const filterPart =
       options.filter &&
       filterParts(definition, attributeBuilder, options.filter);
-    const projection = ProjectionHandler.projectionFor(
+    const projection = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
       config.definition,
       options.projection,
     );
-
-    const queryInput: QueryInput = {
+    const queryInput = {
       TableName: config.tableName,
       ...(config.indexName ? { IndexName: config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
@@ -146,5 +149,148 @@ export class DynamoQuerier {
           )
         : undefined,
     } as any;
+  }
+
+  static async queryAll<
+    DEFINITION extends DynamoMapDefinition,
+    HASH extends keyof DynamoEntry<DEFINITION>,
+    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null,
+    PROJECTED = null,
+  >(
+    config: DynamoClientConfig<DEFINITION>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
+  ): Promise<{
+    next?: string;
+    member: (PROJECTED extends null
+      ? {
+          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
+        }
+      : PROJECTED)[];
+  }> {
+    const attributeBuilder = AttributeBuilder.create();
+    const keyExpression = this.keyPart(definition, attributeBuilder, options);
+    const filterPart =
+      options.filter &&
+      filterParts(definition, attributeBuilder, options.filter);
+
+    const indexName =
+      config.indexName && definition.indexes
+        ? definition.indexes[config.indexName]?.rangeKey ?? null
+        : null;
+    const [projection, enrichedFields] =
+      ProjectionHandler.projectionWithKeysFor(
+        attributeBuilder,
+        config.definition,
+        definition.hash,
+        definition.range,
+        indexName,
+        options.projection,
+      );
+    const queryInput = {
+      TableName: config.tableName,
+      KeyConditionExpression: keyExpression,
+      ...(config.indexName ? { IndexName: config.indexName } : {}),
+      ...(options.filter ? { FilterExpression: filterPart } : {}),
+      ProjectionExpression: projection,
+      ...attributeBuilder.asInput(options.dynamo),
+      ...(options.next
+        ? {
+            ExclusiveStartKey: JSON.parse(
+              Buffer.from(options.next, 'base64').toString('ascii'),
+            ),
+          }
+        : {}),
+      ...(options.dynamo ? options.dynamo : {}),
+    };
+    if (config.logStatements) {
+      console.log(`QueryInput: ${JSON.stringify(queryInput, null, 2)}`);
+    }
+    definition.hash as string;
+    const result = await this._recQuery(
+      config.client,
+      queryInput,
+      {
+        hashKey: definition.hash as string,
+        rangeKey: definition.range ? (definition.range as string) : undefined,
+        indexKey: indexName ? (indexName as string) : undefined,
+      },
+      enrichedFields,
+      options.queryLimit,
+    );
+    return {
+      member: (result.Items ?? []) as any[],
+      next: result.LastEvaluatedKey
+        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
+            'base64',
+          )
+        : undefined,
+    } as any;
+  }
+
+  private static buildNext(
+    lastItem: AttributeMap,
+    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string },
+  ): string {
+    const nextKey = { [keyFields.hashKey]: lastItem[keyFields.hashKey] };
+    if (keyFields.rangeKey)
+      nextKey[keyFields.rangeKey] = lastItem[keyFields.rangeKey];
+    if (keyFields.indexKey)
+      nextKey[keyFields.indexKey] = lastItem[keyFields.indexKey];
+    return Buffer.from(JSON.stringify(nextKey)).toString('base64');
+  }
+
+  private static removeFields(
+    lastItems: AttributeMap[],
+    enrichedFields: string[],
+  ): void {
+    lastItems.forEach((lastItem) =>
+      enrichedFields.forEach((field) => delete lastItem[field]),
+    );
+  }
+
+  private static async _recQuery(
+    client: DocumentClient,
+    queryInput: QueryInput,
+    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string },
+    enrichedFields?: string[],
+    queryLimit?: number,
+    accumulation: AttributeMap[] = [],
+    accumulationCount?: number,
+  ): Promise<{ Items: AttributeMap[]; LastEvaluatedKey?: string }> {
+    const res = await client.query(queryInput).promise();
+
+    const resLength = res?.Items?.length ?? 0;
+    const accLength = accumulationCount ?? 0;
+    const updatedAccLength = accLength + resLength;
+    const limit = queryLimit ?? 0;
+    if (limit > 0 && limit <= updatedAccLength) {
+      const nextKey = this.buildNext(
+        res.Items![limit - accLength - 1],
+        keyFields,
+      );
+      const accumulatedResults = [
+        ...res.Items!.slice(0, limit - accLength),
+        ...accumulation,
+      ];
+      if (enrichedFields) {
+        this.removeFields(accumulatedResults, enrichedFields);
+      }
+      return {
+        Items: accumulatedResults,
+        LastEvaluatedKey: nextKey,
+      };
+    } else {
+      return await this._recQuery(
+        client,
+        { ...queryInput, ExclusiveStartKey: res.LastEvaluatedKey },
+        keyFields,
+        enrichedFields,
+        queryLimit,
+        [...accumulation, ...(res.Items ?? [])],
+        updatedAccLength,
+      );
+    }
   }
 }
