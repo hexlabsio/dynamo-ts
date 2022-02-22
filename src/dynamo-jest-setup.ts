@@ -97,22 +97,23 @@ export function dynamoTable(
 }
 
 export function tableDefinition(
-  defintions: Record<string, DynamoDefinition<any, any, any, any>>,
+    definitions: Record<string, DynamoDefinition<any, any, any, any>>,
 ): { tables: unknown[] } {
   return {
-    tables: Object.keys(defintions).map((table) =>
-      dynamoTable(defintions[table], table),
+    tables: Object.keys(definitions).map((table) =>
+      dynamoTable(definitions[table], table),
     ),
   };
 }
 
 export function writeJestDynamoConfig(
-  defintions: Record<string, DynamoDefinition<any, any, any, any>>,
+  definitions: Record<string, DynamoDefinition<any, any, any, any>>,
   name = 'jest-dynamodb-config.js',
+  rest = {}
 ): void {
-  const definition = tableDefinition(defintions);
+  const definition = tableDefinition(definitions);
   fs.writeFileSync(
     name,
-    `module.exports = ${JSON.stringify(definition, null, 2)};`,
+    `module.exports = ${JSON.stringify({...rest, definition }, null, 2)};`,
   );
 }
