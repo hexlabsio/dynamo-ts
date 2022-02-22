@@ -1,4 +1,5 @@
 module.exports = {
+  "port": 5001,
   "tables": [
     {
       "TableName": "simpleTableDefinition",

@@ -114,6 +114,6 @@ export function writeJestDynamoConfig(
   const definition = tableDefinition(definitions);
   fs.writeFileSync(
     name,
-    `module.exports = ${JSON.stringify({...rest, definition }, null, 2)};`,
+    `module.exports = ${JSON.stringify({...rest, ...definition }, null, 2)};`,
   );
 }

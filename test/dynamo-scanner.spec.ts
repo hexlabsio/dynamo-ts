@@ -3,7 +3,7 @@ import { TableClient } from '../src';
 import { complexTableDefinition } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
-  endpoint: 'localhost:8000',
+  endpoint: 'localhost:5001',
   sslEnabled: false,
   accessKeyId: 'xxxx',
   secretAccessKey: 'xxxx',

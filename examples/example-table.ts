@@ -2,7 +2,7 @@ import {defineTable} from "../src";
 import {DynamoDB} from "aws-sdk";
 
 export const exampleClient = new DynamoDB.DocumentClient({
-    endpoint: 'localhost:8000',
+    endpoint: 'localhost:5001',
     sslEnabled: false,
     accessKeyId: 'xxxx',
     secretAccessKey: 'xxxx',
