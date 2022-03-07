@@ -97,7 +97,7 @@ export function dynamoTable(
 }
 
 export function tableDefinition(
-    definitions: Record<string, DynamoDefinition<any, any, any, any>>,
+  definitions: Record<string, DynamoDefinition<any, any, any, any>>,
 ): { tables: unknown[] } {
   return {
     tables: Object.keys(definitions).map((table) =>
@@ -109,11 +109,11 @@ export function tableDefinition(
 export function writeJestDynamoConfig(
   definitions: Record<string, DynamoDefinition<any, any, any, any>>,
   name = 'jest-dynamodb-config.js',
-  rest = {}
+  rest = {},
 ): void {
   const definition = tableDefinition(definitions);
   fs.writeFileSync(
     name,
-    `module.exports = ${JSON.stringify({...rest, ...definition }, null, 2)};`,
+    `module.exports = ${JSON.stringify({ ...rest, ...definition }, null, 2)};`,
   );
 }
