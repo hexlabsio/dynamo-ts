@@ -67,6 +67,55 @@ describe('Dynamo Querier', () => {
     expect(allHaveYearsBetween2006And2022).toEqual(true);
   });
 
+  it('should fetch all Nissans', async () => {
+    const result = await tableClient.queryAll({
+      make: 'Nissan',
+      projection: (projector) => projector.project('model'),
+    });
+    expect(result.member.length).toEqual(100);
+  });
+
+  it('should fetch all Nissans up to 2006', async () => {
+    const result = await tableClient.queryAll({
+      make: 'Nissan',
+      filter: (compare) => compare().year.lte(2006),
+      projection: (projector) => projector.project('model'),
+    });
+    expect(result.member.length).toEqual(20);
+  });
+
+  it('should retrieve all Nissans if limit greater than items in table', async () => {
+    const result = await tableClient.queryAll({
+      make: 'Nissan',
+      projection: (projector) => projector.project('model'),
+      queryLimit: 500000,
+    });
+    expect(result.member.length).toEqual(100);
+  });
+
+  it('should limit fetching all Nissans', async () => {
+    const result = await tableClient.queryAll({
+      make: 'Nissan',
+      projection: (projector) => projector.project('model'),
+      queryLimit: 50,
+    });
+    expect(result.member.length).toEqual(50);
+  });
+
+  it('should correctly project fetch all Nissans', async () => {
+    const result = await tableClient.queryAll({
+      make: 'Nissan',
+      projection: (projector) => projector.project('model'),
+    });
+
+    const validProjections = result.member.filter((member) => {
+      const keys = Object.keys(member);
+      return keys.length == 1 && keys[0] === 'model';
+    });
+
+    expect(validProjections.length).toEqual(result.member.length);
+  });
+
   it('should query all Nissans between 2006 & 2007 that are metallic black', async () => {
     const result = await queryNissansBetween2006And2007ThatAreMetallicBlack();
     expect(result.length).toEqual(10);

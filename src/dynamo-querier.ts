@@ -259,12 +259,14 @@ export class DynamoQuerier {
     accumulation: AttributeMap[] = [],
     accumulationCount?: number,
   ): Promise<{ Items: AttributeMap[]; LastEvaluatedKey?: string }> {
+    console.log(`_recQuery called accumulated ${accumulationCount}`);
     const res = await client.query(queryInput).promise();
 
     const resLength = res?.Items?.length ?? 0;
     const accLength = accumulationCount ?? 0;
     const updatedAccLength = accLength + resLength;
     const limit = queryLimit ?? 0;
+
     if (limit > 0 && limit <= updatedAccLength) {
       const nextKey = this.buildNext(
         res.Items![limit - accLength - 1],
@@ -280,6 +282,14 @@ export class DynamoQuerier {
       return {
         Items: accumulatedResults,
         LastEvaluatedKey: nextKey,
+      };
+    } else if (!res.LastEvaluatedKey) {
+      const accumulatedResults = [...(res.Items ?? []), ...accumulation];
+      if (enrichedFields) {
+        this.removeFields(accumulatedResults, enrichedFields);
+      }
+      return {
+        Items: accumulatedResults,
       };
     } else {
       return await this._recQuery(
