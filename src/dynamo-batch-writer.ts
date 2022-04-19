@@ -7,6 +7,7 @@ import {
 } from './type-mapping';
 
 import WriteRequests = DocumentClient.WriteRequests;
+import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 
 type PutWrite<DEFINITION extends DynamoMapDefinition> = {
   put: DynamoEntry<DEFINITION>;
@@ -29,7 +30,7 @@ export type BatchWrite<
   RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
 > = DeleteWrite<DEFINITION, HASH, RANGE> | PutWrite<DEFINITION>;
 
-export type BatchWriteOutput = { unprocessed?: WriteRequests };
+export type BatchWriteOutput = { unprocessed?: WriteRequests, consumedCapacity?: ConsumedCapacity[] };
 export class DynamoBatchWriter {
   private static async directBatchWrite<DEFINITION extends DynamoMapDefinition>(
     config: DynamoClientConfig<DEFINITION>,
@@ -42,7 +43,7 @@ export class DynamoBatchWriter {
       console.log(JSON.stringify(batchWriteInput, null, 2));
     }
     const result = await config.client.batchWrite(batchWriteInput).promise();
-    return { unprocessed: result.UnprocessedItems?.[config.tableName] };
+    return { unprocessed: result.UnprocessedItems?.[config.tableName], consumedCapacity: result.ConsumedCapacity };
   }
 
   private static chunkArray<U>(
@@ -90,7 +91,10 @@ export class DynamoBatchWriter {
       const res = await Promise.all(
         chunkedDirectWriteOps.map((it) => this.directBatchWrite(config, it)),
       );
-      return { unprocessed: res.flatMap((it) => it.unprocessed ?? []) };
+      return res.reduce((acc, {unprocessed, consumedCapacity}) => ({
+          unprocessed: unprocessed ? [...acc.unprocessed ?? [], ...unprocessed] : acc.unprocessed,
+          consumedCapacity: consumedCapacity? [...acc.consumedCapacity ?? [], ...consumedCapacity] : acc.consumedCapacity,
+        }), {});
     }
   }
 
