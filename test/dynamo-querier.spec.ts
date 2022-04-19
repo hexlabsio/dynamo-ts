@@ -129,20 +129,12 @@ describe('Dynamo Querier', () => {
     expect(allHaveYearsBetween2006And2007).toEqual(true);
   });
 
-  it('should query and fetch 250 Nissans', async () => {
-    const result = await tableClient.queryAll({
-      make: 'Nissan',
-      projection: (projector) => projector.project('model'),
-      queryLimit: 250,
-    });
-    expect(result.member.length).toEqual(250);
-  });
 
   it('should exclude enriched key fields added internally by queryAll from result', async () => {
     const result = await tableClient.queryAll({
       make: 'Nissan',
       projection: (projector) => projector.project('model'),
-      queryLimit: 250,
+      queryLimit: 50,
     });
     expect(result.next).toBeDefined();
     //ensure identifier that was added to projection is not present
