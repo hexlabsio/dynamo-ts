@@ -1,13 +1,15 @@
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import {
   DynamoEntry,
+  DynamoIndexes,
   DynamoKeysFrom,
   DynamoMapDefinition,
 } from './type-mapping';
-import { DynamoClientConfig } from './dynamo-client-config';
+import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import DeleteItemInput = DocumentClient.DeleteItemInput;
-import { ComparisonBuilder } from './comparison';
+import { ComparisonBuilder, conditionalParts } from './comparison';
+import { AttributeBuilder } from './attribute-builder';
 import { CompareWrapperOperator } from './operation';
 import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
 
@@ -22,8 +24,8 @@ export type DeleteItemOptions<
   | 'ReturnItemCollectionMetrics'
 > & {
   condition?: (
-    compare: () => ComparisonBuilder<DEFINITION>,
-  ) => CompareWrapperOperator<DEFINITION>;
+    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
+  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>;
   returnOldValues?: RETURN_OLD;
 };
 
@@ -32,9 +34,11 @@ export class DynamoDeleter {
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null,
     RETURN_OLD extends boolean = false,
   >(
     config: DynamoClientConfig<DEFINITION>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
     options: DeleteItemOptions<DEFINITION, RETURN_OLD>,
   ): Promise<
@@ -45,10 +49,16 @@ export class DynamoDeleter {
       ? { item: DynamoClientConfig<DEFINITION>['tableType'] }
       : {})
   > {
+    const attributeBuilder = AttributeBuilder.create();
+    const conditionPart =
+      options.condition &&
+      conditionalParts(definition, attributeBuilder, options.condition);
     const deleteInput: DeleteItemInput = {
       TableName: config.tableName,
       Key: key,
-      ...options,
+      ...attributeBuilder.asInput(),
+      ...(conditionPart ? { ConditionExpression: conditionPart } : {}),
+      ...(options.returnOldValues ? { ReturnValues: 'ALL_OLD' } : {}),
     };
     if (config.logStatements) {
       console.log(`DeleteItemInput: ${JSON.stringify(deleteInput, null, 2)}`);

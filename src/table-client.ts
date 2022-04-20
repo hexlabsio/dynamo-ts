@@ -160,7 +160,7 @@ export class TableClient<
       ? { item: DynamoClientConfig<DEFINITION>['tableType'] }
       : {})
   > {
-    return DynamoDeleter.delete(this.config, key, options);
+    return DynamoDeleter.delete(this.config, this.definition, key, options);
   }
   index<INDEX extends keyof INDEXES>(
     index: INDEX,
