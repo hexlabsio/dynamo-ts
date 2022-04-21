@@ -15,6 +15,7 @@ export const complexTableDefinition = defineTable(
     text: 'string?',
     obj: { optional: true, object: { abc: 'string', def: 'number' } },
     arr: { optional: true, array: { object: { ghi: 'string' } } },
+    jkl: 'number?',
   },
   'hash',
 );

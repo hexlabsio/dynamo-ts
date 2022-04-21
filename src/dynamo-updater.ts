@@ -77,7 +77,7 @@ export class DynamoUpdater {
                 key,
               )}, ${attributeBuilder.addValue(inc.start)})`
             : `${attributeBuilder.nameFor(key)}`) +
-          ` + ${attributeBuilder.addValue(key)}`
+          ` + ${attributeBuilder.addValue(props[key])}`
         );
       return `${attributeBuilder.nameFor(key)} = ${attributeBuilder.addValue(
         props[key],

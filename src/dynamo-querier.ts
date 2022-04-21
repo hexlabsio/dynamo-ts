@@ -259,7 +259,6 @@ export class DynamoQuerier {
     accumulation: AttributeMap[] = [],
     accumulationCount?: number,
   ): Promise<{ Items: AttributeMap[]; LastEvaluatedKey?: string }> {
-    console.log(`_recQuery called accumulated ${accumulationCount}`);
     const res = await client.query(queryInput).promise();
 
     const resLength = res?.Items?.length ?? 0;
