@@ -4,6 +4,7 @@ import {
   DynamoEntry,
   DynamoMapDefinition,
   DynamoRangeKey,
+  TypeFor,
 } from './type-mapping';
 
 import WriteRequests = DocumentClient.WriteRequests;
@@ -23,7 +24,7 @@ export type DeleteWriteItem<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-> = { [K in RANGE extends string ? HASH | RANGE : HASH]: DEFINITION[K] };
+> = { [K in RANGE extends string ? HASH | RANGE : HASH]: TypeFor<DEFINITION[K]> };
 export type BatchWrite<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
