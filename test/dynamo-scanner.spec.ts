@@ -18,6 +18,7 @@ const testTable = TableClient.build(complexTableDefinition, {
 
 describe('Dynamo Scanner', () => {
   beforeAll(async () => {
+    testTable.logStatements(false);
     await testTable.put({
       hash: 'scan-item-test',
       text: 'some text',
@@ -31,14 +32,15 @@ describe('Dynamo Scanner', () => {
     await testTable.put({
       hash: 'scan-item-test3',
       text: 'some text',
-      arr: [{ ghi: 'a' }, { ghi: 'b' }],
+      arr: [{ ghi: 1 }, { ghi: 2 }],
     });
     await testTable.put({
       hash: 'scan-item-test4',
       text: 'some text',
-      arr: [{ ghi: 'a' }],
+      arr: [{ ghi: 1 }],
     });
     await testTable.put({ hash: 'scan-item-test5' });
+    testTable.logStatements(true);
   });
 
   it('should scan all items', async () => {
@@ -51,12 +53,12 @@ describe('Dynamo Scanner', () => {
       },
       { hash: 'scan-item-test5' },
       {
-        arr: [{ ghi: 'a' }, { ghi: 'b' }],
+        arr: [{ ghi: 1 }, { ghi: 2 }],
         hash: 'scan-item-test3',
         text: 'some text',
       },
       { arr: [], hash: 'scan-item-test2', text: 'some text' },
-      { arr: [{ ghi: 'a' }], hash: 'scan-item-test4', text: 'some text' },
+      { arr: [{ ghi: 1 }], hash: 'scan-item-test4', text: 'some text' },
     ]);
   });
 
@@ -65,7 +67,6 @@ describe('Dynamo Scanner', () => {
       projection: (projector) =>
         projector.project('text').project('obj.def').project('arr.[1]'),
     });
-    console.log(result.member);
     expect(result.member).toEqual([
       {
         obj: { def: 2 },
@@ -73,7 +74,7 @@ describe('Dynamo Scanner', () => {
       },
       {},
       {
-        arr: [{ ghi: 'b' }],
+        arr: [{ ghi: 2 }],
         text: 'some text',
       },
       { text: 'some text' },
@@ -89,7 +90,7 @@ describe('Dynamo Scanner', () => {
       {
         hash: 'scan-item-test3',
         text: 'some text',
-        arr: [{ ghi: 'a' }, { ghi: 'b' }],
+        arr: [{ ghi: 1 }, { ghi: 2 }],
       },
     ]);
   });

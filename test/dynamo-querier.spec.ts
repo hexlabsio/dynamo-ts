@@ -35,7 +35,7 @@ describe('Dynamo Querier', () => {
         );
       }),
     );
-    tableClient.logStatements(true);
+    // tableClient.logStatements(true);
   }, 3000);
   it('should query all Nissans from 2006', async () => {
     const result = await queryNissansFrom2006();

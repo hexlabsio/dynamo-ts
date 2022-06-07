@@ -3,6 +3,7 @@ import {
   DynamoIndexes,
   DynamoKeysFrom,
   DynamoMapDefinition,
+  DynamoNestedKV,
 } from './type-mapping';
 import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
 import { DynamoGetter, GetItemExtras } from './dynamo-getter';
@@ -137,7 +138,7 @@ export class TableClient<
   }
 
   async update<
-    KEY extends keyof DynamoEntry<DEFINITION>,
+    KEY extends keyof DynamoNestedKV<DynamoEntry<DEFINITION>>,
     RETURN_ITEMS extends ReturnValue | null = null,
   >(
     options: UpdateItemOptions<DEFINITION, HASH, RANGE, KEY, RETURN_ITEMS>,
