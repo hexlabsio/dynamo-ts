@@ -9,6 +9,17 @@ export const simpleTableDefinition = defineTable(
   'identifier',
 );
 
+export const complexTableDefinitionScan = defineTable(
+  {
+    hash: 'string',
+    text: 'string?',
+    obj: { optional: true, object: { abc: 'string', def: 'number?' } },
+    arr: { optional: true, array: { object: { ghi: 'number?' } } },
+    jkl: 'number?',
+  },
+  'hash',
+);
+
 export const complexTableDefinition = defineTable(
   {
     hash: 'string',

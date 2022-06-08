@@ -193,7 +193,7 @@ describe('Dynamo Updater', () => {
   it('should increment nested array', async () => {
     const result = await testTable.update({
       key: { hash: 'update-item-test7' },
-      updates: { 'arr.[1000].ghi': 2, 'arr.[1].ghi': 3 },
+      updates: { 'arr.[0].ghi': 2, 'arr.[1].ghi': 3 },
       increments: [
         { key: 'arr.[0].ghi', start: 0 },
         { key: 'arr.[1].ghi', start: 1 },

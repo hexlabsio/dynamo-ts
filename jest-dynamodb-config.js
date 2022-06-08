@@ -21,6 +21,25 @@ module.exports = {
       }
     },
     {
+      "TableName": "complexTableDefinitionScan",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "hash"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "hash",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
       "TableName": "complexTableDefinition",
       "KeySchema": [
         {
