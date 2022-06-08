@@ -3,6 +3,7 @@ import {
   DynamoEntry,
   DynamoKeysFrom,
   DynamoMapDefinition,
+  DynamoNestedKV,
   DynamoNonKeysFrom,
   DynamoRangeKey,
 } from './type-mapping';
@@ -22,7 +23,7 @@ export type UpdateItemOptions<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-  KEY extends keyof DynamoEntry<DEFINITION>,
+  KEY extends keyof DynamoNestedKV<DynamoEntry<DEFINITION>>,
   RETURN_ITEMS extends ReturnValue | null = null,
 > = Partial<
   Pick<
@@ -31,8 +32,8 @@ export type UpdateItemOptions<
   >
 > & {
   key: DynamoKeysFrom<DEFINITION, HASH, RANGE>;
-  updates: Partial<DynamoNonKeysFrom<DEFINITION, HASH, RANGE>>;
-  increments?: Array<Increment<DynamoEntry<DEFINITION>, KEY>>;
+  updates: DynamoNestedKV<DynamoNonKeysFrom<DEFINITION, HASH, RANGE>>;
+  increments?: Array<Increment<DynamoNestedKV<DynamoEntry<DEFINITION>>, KEY>>;
   return?: RETURN_ITEMS;
 };
 
@@ -54,32 +55,30 @@ export class DynamoUpdater {
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-    KEY extends keyof DynamoEntry<DEFINITION>,
+    KEY extends keyof DynamoNestedKV<DynamoEntry<DEFINITION>>,
   >(
     attributeBuilder: AttributeBuilder,
-    properties: Partial<DynamoNonKeysFrom<DEFINITION, HASH, RANGE>>,
-    increment?: Array<Increment<DynamoEntry<DEFINITION>, KEY>>,
+    properties: DynamoNestedKV<DynamoNonKeysFrom<DEFINITION, HASH, RANGE>>,
+    increment?: Array<Increment<DynamoNestedKV<DynamoEntry<DEFINITION>>, KEY>>,
   ): string {
     const props = properties as any;
     const propKeys = Object.keys(properties);
     const validKeys = propKeys.filter((it) => props[it] !== undefined);
     const removes = propKeys.filter((it) => props[it] === undefined);
 
-    attributeBuilder.addNames(...propKeys);
-
     function update(key: string) {
       const inc = (increment ?? []).find((it) => it.key === key);
       if (inc)
         return (
-          `${attributeBuilder.nameFor(key)} = ` +
+          `${attributeBuilder.buildPath(key)} = ` +
           (inc.start !== undefined
-            ? `if_not_exists(${attributeBuilder.nameFor(
+            ? `if_not_exists(${attributeBuilder.buildPath(
                 key,
               )}, ${attributeBuilder.addValue(inc.start)})`
-            : `${attributeBuilder.nameFor(key)}`) +
+            : `${attributeBuilder.buildPath(key)}`) +
           ` + ${attributeBuilder.addValue(props[key])}`
         );
-      return `${attributeBuilder.nameFor(key)} = ${attributeBuilder.addValue(
+      return `${attributeBuilder.buildPath(key)} = ${attributeBuilder.addValue(
         props[key],
       )}`;
     }
@@ -94,7 +93,7 @@ export class DynamoUpdater {
     const removeExpression =
       removes.length > 0
         ? `REMOVE ${removes
-            .map((key) => `${attributeBuilder.nameFor(key)} `)
+            .map((key) => `${attributeBuilder.buildPath(key)} `)
             .join(', ')}`
         : undefined;
     return [setExpression, removeExpression].filter((it) => !!it).join(' ');
@@ -104,7 +103,7 @@ export class DynamoUpdater {
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-    KEY extends keyof DynamoEntry<DEFINITION>,
+    KEY extends keyof DynamoNestedKV<DynamoEntry<DEFINITION>>,
     RETURN_ITEMS extends ReturnValue | null = null,
   >(
     config: DynamoClientConfig<DEFINITION>,

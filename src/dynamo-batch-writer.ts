@@ -24,14 +24,19 @@ export type DeleteWriteItem<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-> = { [K in RANGE extends string ? HASH | RANGE : HASH]: TypeFor<DEFINITION[K]> };
+> = {
+  [K in RANGE extends string ? HASH | RANGE : HASH]: TypeFor<DEFINITION[K]>;
+};
 export type BatchWrite<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
 > = DeleteWrite<DEFINITION, HASH, RANGE> | PutWrite<DEFINITION>;
 
-export type BatchWriteOutput = { unprocessed?: WriteRequests, consumedCapacity?: ConsumedCapacity[] };
+export type BatchWriteOutput = {
+  unprocessed?: WriteRequests;
+  consumedCapacity?: ConsumedCapacity[];
+};
 export class DynamoBatchWriter {
   private static async directBatchWrite<DEFINITION extends DynamoMapDefinition>(
     config: DynamoClientConfig<DEFINITION>,
@@ -44,7 +49,10 @@ export class DynamoBatchWriter {
       console.log(JSON.stringify(batchWriteInput, null, 2));
     }
     const result = await config.client.batchWrite(batchWriteInput).promise();
-    return { unprocessed: result.UnprocessedItems?.[config.tableName], consumedCapacity: result.ConsumedCapacity };
+    return {
+      unprocessed: result.UnprocessedItems?.[config.tableName],
+      consumedCapacity: result.ConsumedCapacity,
+    };
   }
 
   private static chunkArray<U>(
@@ -92,10 +100,17 @@ export class DynamoBatchWriter {
       const res = await Promise.all(
         chunkedDirectWriteOps.map((it) => this.directBatchWrite(config, it)),
       );
-      return res.reduce((acc, {unprocessed, consumedCapacity}) => ({
-          unprocessed: unprocessed ? [...acc.unprocessed ?? [], ...unprocessed] : acc.unprocessed,
-          consumedCapacity: consumedCapacity? [...acc.consumedCapacity ?? [], ...consumedCapacity] : acc.consumedCapacity,
-        }), {});
+      return res.reduce(
+        (acc, { unprocessed, consumedCapacity }) => ({
+          unprocessed: unprocessed
+            ? [...(acc.unprocessed ?? []), ...unprocessed]
+            : acc.unprocessed,
+          consumedCapacity: consumedCapacity
+            ? [...(acc.consumedCapacity ?? []), ...consumedCapacity]
+            : acc.consumedCapacity,
+        }),
+        {},
+      );
     }
   }
 

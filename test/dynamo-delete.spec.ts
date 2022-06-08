@@ -38,21 +38,39 @@ describe('Dynamo Delete', () => {
       expect((await testTable.scan()).member.length).toEqual(1);
     });
     it('should delete item conditionally', async () => {
-      await testTable.delete({ hash: 'get-item-test' }, { condition: (compare) => compare().exists('text')});
+      await testTable.delete(
+        { hash: 'get-item-test' },
+        { condition: (compare) => compare().exists('text') },
+      );
       expect((await testTable.scan()).member.length).toEqual(0);
     });
     it('should not delete item conditionally', async () => {
       await expect(async () => {
-        await testTable.delete({ hash: 'get-item-test' }, { condition: (compare) => compare().notExists('text')});
+        await testTable.delete(
+          { hash: 'get-item-test' },
+          { condition: (compare) => compare().notExists('text') },
+        );
       }).rejects.toThrow('The conditional request failed');
     });
     it('should delete item conditionally (complex)', async () => {
-      await testTable.delete({ hash: 'get-item-test' }, { condition: (compare) => compare().exists('text').and(compare().text!.eq('some text'))});
+      await testTable.delete(
+        { hash: 'get-item-test' },
+        {
+          condition: (compare) =>
+            compare().exists('text').and(compare().text!.eq('some text')),
+        },
+      );
       expect((await testTable.scan()).member.length).toEqual(0);
     });
     it('should not delete item conditionally (complex)', async () => {
       await expect(async () => {
-        await testTable.delete({ hash: 'get-item-test' }, { condition: (compare) => compare().exists('text').and(compare().text!.eq('invalid'))});
+        await testTable.delete(
+          { hash: 'get-item-test' },
+          {
+            condition: (compare) =>
+              compare().exists('text').and(compare().text!.eq('invalid')),
+          },
+        );
       }).rejects.toThrow('The conditional request failed');
     });
   });
