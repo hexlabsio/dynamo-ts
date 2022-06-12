@@ -2,16 +2,16 @@ import {
   DynamoEntry,
   DynamoIndexes,
   DynamoMapDefinition,
-} from './type-mapping';
-import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+} from "./type-mapping";
+import { DynamoClientConfig, DynamoDefinition } from "./dynamo-client-config";
+import { DocumentClient } from "aws-sdk/lib/dynamodb/document_client";
 import QueryInput = DocumentClient.QueryInput;
-import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
-import { AttributeBuilder } from './attribute-builder';
-import { KeyOperation } from './operation';
-import { DynamoFilter } from './filter';
-import { Projection, ProjectionHandler } from './projector';
-import { AttributeMap } from 'aws-sdk/clients/dynamodb';
+import { filterParts, KeyComparisonBuilder, Wrapper } from "./comparison";
+import { AttributeBuilder } from "./attribute-builder";
+import { KeyOperation } from "./operation";
+import { DynamoFilter } from "./filter";
+import { Projection, ProjectionHandler } from "./projector";
+import { AttributeMap } from "aws-sdk/clients/dynamodb";
 
 type HashComparison<HASH extends keyof T, T> = {
   [K in HASH]: T[K];
@@ -28,25 +28,25 @@ type RangeComparisonIfExists<R extends keyof T | null, T> = R extends string
 type Filter<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
+  RANGE extends keyof DynamoEntry<DEFINITION> | null = null
 > = {
   filter?: DynamoFilter<DEFINITION, HASH, RANGE>;
 };
 
 type ExcessParameters = Omit<
   QueryInput,
-  | 'TableName'
-  | 'IndexName'
-  | 'KeyConditionExpression'
-  | 'FilterExpression'
-  | 'ExclusiveStartKey'
+  | "TableName"
+  | "IndexName"
+  | "KeyConditionExpression"
+  | "FilterExpression"
+  | "ExclusiveStartKey"
 >;
 
 export type QueryParametersInput<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  PROJECTED = null,
+  PROJECTED = null
 > = HashComparison<HASH, DynamoEntry<DEFINITION>> &
   RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>> &
   Filter<DEFINITION, HASH, RANGE> & {
@@ -59,7 +59,7 @@ export type QueryAllParametersInput<
   DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  PROJECTED = null,
+  PROJECTED = null
 > = QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED> & {
   queryLimit?: number;
 };
@@ -69,23 +69,23 @@ export class DynamoQuerier {
     DEFINITION extends DynamoMapDefinition,
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
+    INDEXES extends DynamoIndexes<DEFINITION> = null
   >(
     definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
     attributeBuilder: AttributeBuilder,
     queryParameters: HashComparison<HASH, DynamoEntry<DEFINITION>> &
-      RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>,
+      RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>
   ): string {
     attributeBuilder.addNames(definition.hash as string);
     const hashValue = queryParameters[definition.hash];
     const valueKey = attributeBuilder.addValue(hashValue);
     const expression = `${attributeBuilder.nameFor(
-      definition.hash as string,
+      definition.hash as string
     )} = ${valueKey}`;
     if (definition.range && (queryParameters as any)[definition.range]) {
       const keyOperation = new KeyOperation(
         definition.range as string,
-        new Wrapper(attributeBuilder),
+        new Wrapper(attributeBuilder)
       );
       (queryParameters as any)[definition.range](keyOperation);
       return `${expression} AND ${keyOperation.wrapper.expression}`;
@@ -98,11 +98,11 @@ export class DynamoQuerier {
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
     INDEXES extends DynamoIndexes<DEFINITION> = null,
-    PROJECTED = null,
+    PROJECTED = null
   >(
     config: DynamoClientConfig<DEFINITION>,
     definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-    options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
+    options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>
   ): Promise<{
     next?: string;
     member: (PROJECTED extends null
@@ -119,7 +119,7 @@ export class DynamoQuerier {
     const projection = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
       config.definition,
-      options.projection,
+      options.projection
     );
     const queryInput = {
       TableName: config.tableName,
@@ -131,7 +131,7 @@ export class DynamoQuerier {
       ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
-              Buffer.from(options.next, 'base64').toString('ascii'),
+              Buffer.from(options.next, "base64").toString("ascii")
             ),
           }
         : {}),
@@ -145,7 +145,7 @@ export class DynamoQuerier {
       member: (result.Items ?? []) as any[],
       next: result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
-            'base64',
+            "base64"
           )
         : undefined,
     } as any;
@@ -156,11 +156,11 @@ export class DynamoQuerier {
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
     INDEXES extends DynamoIndexes<DEFINITION> = null,
-    PROJECTED = null,
+    PROJECTED = null
   >(
     config: DynamoClientConfig<DEFINITION>,
     definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
+    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>
   ): Promise<{
     next?: string;
     member: (PROJECTED extends null
@@ -186,7 +186,7 @@ export class DynamoQuerier {
         definition.hash,
         definition.range,
         indexName,
-        options.projection,
+        options.projection
       );
     const queryInput = {
       TableName: config.tableName,
@@ -198,7 +198,7 @@ export class DynamoQuerier {
       ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
-              Buffer.from(options.next, 'base64').toString('ascii'),
+              Buffer.from(options.next, "base64").toString("ascii")
             ),
           }
         : {}),
@@ -217,36 +217,32 @@ export class DynamoQuerier {
         indexKey: indexName ? (indexName as string) : undefined,
       },
       enrichedFields,
-      options.queryLimit,
+      options.queryLimit
     );
     return {
       member: (result.Items ?? []) as any[],
-      next: result.LastEvaluatedKey
-        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
-            'base64',
-          )
-        : undefined,
+      next: result.LastEvaluatedKey,
     } as any;
   }
 
   private static buildNext(
     lastItem: AttributeMap,
-    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string },
+    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string }
   ): string {
     const nextKey = { [keyFields.hashKey]: lastItem[keyFields.hashKey] };
     if (keyFields.rangeKey)
       nextKey[keyFields.rangeKey] = lastItem[keyFields.rangeKey];
     if (keyFields.indexKey)
       nextKey[keyFields.indexKey] = lastItem[keyFields.indexKey];
-    return Buffer.from(JSON.stringify(nextKey)).toString('base64');
+    return Buffer.from(JSON.stringify(nextKey)).toString("base64");
   }
 
   private static removeFields(
     lastItems: AttributeMap[],
-    enrichedFields: string[],
+    enrichedFields: string[]
   ): void {
     lastItems.forEach((lastItem) =>
-      enrichedFields.forEach((field) => delete lastItem[field]),
+      enrichedFields.forEach((field) => delete lastItem[field])
     );
   }
 
@@ -257,7 +253,7 @@ export class DynamoQuerier {
     enrichedFields?: string[],
     queryLimit?: number,
     accumulation: AttributeMap[] = [],
-    accumulationCount?: number,
+    accumulationCount?: number
   ): Promise<{ Items: AttributeMap[]; LastEvaluatedKey?: string }> {
     const res = await client.query(queryInput).promise();
 
@@ -269,7 +265,7 @@ export class DynamoQuerier {
     if (limit > 0 && limit <= updatedAccLength) {
       const nextKey = this.buildNext(
         res.Items![limit - accLength - 1],
-        keyFields,
+        keyFields
       );
       const accumulatedResults = [
         ...res.Items!.slice(0, limit - accLength),
@@ -298,7 +294,7 @@ export class DynamoQuerier {
         enrichedFields,
         queryLimit,
         [...accumulation, ...(res.Items ?? [])],
-        updatedAccLength,
+        updatedAccLength
       );
     }
   }
