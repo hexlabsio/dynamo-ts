@@ -101,6 +101,10 @@ module.exports = {
         {
           "AttributeName": "model",
           "AttributeType": "S"
+        },
+        {
+          "AttributeName": "year",
+          "AttributeType": "N"
         }
       ],
       "ProvisionedThroughput": {
@@ -118,6 +122,26 @@ module.exports = {
             {
               "KeyType": "RANGE",
               "AttributeName": "model"
+            }
+          ],
+          "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+          },
+          "Projection": {
+            "ProjectionType": "ALL"
+          }
+        },
+        {
+          "IndexName": "model-year-index",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "model"
+            },
+            {
+              "KeyType": "RANGE",
+              "AttributeName": "year"
             }
           ],
           "ProvisionedThroughput": {

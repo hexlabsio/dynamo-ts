@@ -1,6 +1,7 @@
 import { CompareWrapperOperator, Operation, OperationType } from './operation';
 import {
   DynamoEntry,
+  DynamoIndexBaseKeys,
   DynamoIndexes,
   DynamoMapDefinition,
   SimpleDynamoType,
@@ -187,8 +188,9 @@ export function filterParts<
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null,
   INDEXES extends DynamoIndexes<DEFINITION> = null,
+  BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
 >(
-  definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+  definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
   attributeBuilder: AttributeBuilder,
   filter: DynamoFilter<DEFINITION, HASH, RANGE>,
 ): string {

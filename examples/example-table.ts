@@ -22,5 +22,9 @@ export const exampleCarTable = defineTable({
         'model-index': {
             hashKey: 'make',
             rangeKey: 'model'
+        },
+        'model-year-index': {
+            hashKey: 'model',
+            rangeKey: 'year'
         }
     });

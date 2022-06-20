@@ -1,5 +1,6 @@
 import {
   DynamoEntry,
+  DynamoIndexBaseKeys,
   DynamoIndexes,
   DynamoMapDefinition,
 } from './type-mapping';
@@ -70,8 +71,9 @@ export class DynamoQuerier {
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
     INDEXES extends DynamoIndexes<DEFINITION> = null,
+    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
   >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
     attributeBuilder: AttributeBuilder,
     queryParameters: HashComparison<HASH, DynamoEntry<DEFINITION>> &
       RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>,
@@ -156,10 +158,11 @@ export class DynamoQuerier {
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
     INDEXES extends DynamoIndexes<DEFINITION> = null,
+    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
     PROJECTED = null,
   >(
     config: DynamoClientConfig<DEFINITION>,
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
     options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
   ): Promise<{
     next?: string;
@@ -175,17 +178,14 @@ export class DynamoQuerier {
       options.filter &&
       filterParts(definition, attributeBuilder, options.filter);
 
-    const indexName =
-      config.indexName && definition.indexes
-        ? definition.indexes[config.indexName]?.rangeKey ?? null
-        : null;
     const [projection, enrichedFields] =
       ProjectionHandler.projectionWithKeysFor(
         attributeBuilder,
         config.definition,
         definition.hash,
         definition.range,
-        indexName,
+        definition.baseKeys?.hash ?? null,
+        definition?.baseKeys?.range ?? null,
         options.projection,
       );
     const queryInput = {
@@ -207,15 +207,23 @@ export class DynamoQuerier {
     if (config.logStatements) {
       console.log(`QueryInput: ${JSON.stringify(queryInput, null, 2)}`);
     }
-    definition.hash as string;
+    const baseKeys = definition.baseKeys
+      ? {
+        baseHashKey: definition.baseKeys.hash as string,
+        baseRangeKey: definition.baseKeys.range
+          ? (definition.baseKeys.range as string)
+          : undefined,
+      }
+      : {}
+    const keyFields = {
+      hashKey: definition.hash as string,
+      rangeKey: definition.range ? (definition.range as string) : undefined,
+      ...baseKeys,
+    }
     const result = await this._recQuery(
       config.client,
       queryInput,
-      {
-        hashKey: definition.hash as string,
-        rangeKey: definition.range ? (definition.range as string) : undefined,
-        indexKey: indexName ? (indexName as string) : undefined,
-      },
+      keyFields,
       enrichedFields,
       options.queryLimit,
     );
@@ -227,13 +235,20 @@ export class DynamoQuerier {
 
   private static buildNext(
     lastItem: AttributeMap,
-    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string },
+    keyFields: {
+      hashKey: string;
+      rangeKey?: string;
+      baseHashKey?: string;
+      baseRangeKey?: string;
+    },
   ): string {
     const nextKey = { [keyFields.hashKey]: lastItem[keyFields.hashKey] };
     if (keyFields.rangeKey)
       nextKey[keyFields.rangeKey] = lastItem[keyFields.rangeKey];
-    if (keyFields.indexKey)
-      nextKey[keyFields.indexKey] = lastItem[keyFields.indexKey];
+    if (keyFields.baseHashKey)
+      nextKey[keyFields.baseHashKey] = lastItem[keyFields.baseHashKey];
+    if (keyFields.baseRangeKey)
+      nextKey[keyFields.baseRangeKey] = lastItem[keyFields.baseRangeKey];
     return Buffer.from(JSON.stringify(nextKey)).toString('base64');
   }
 
@@ -249,7 +264,12 @@ export class DynamoQuerier {
   private static async _recQuery(
     client: DocumentClient,
     queryInput: QueryInput,
-    keyFields: { hashKey: string; rangeKey?: string; indexKey?: string },
+    keyFields: {
+      hashKey: string;
+      rangeKey?: string;
+      baseHashKey?: string;
+      baseRangeKey?: string;
+    },
     enrichedFields?: string[],
     queryLimit?: number,
     accumulation: AttributeMap[] = [],

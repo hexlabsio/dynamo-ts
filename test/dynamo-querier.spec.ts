@@ -88,6 +88,43 @@ describe('Dynamo Querier', () => {
     expect(result1.member).not.toEqual(result2.member);
   }, 50000);
 
+  it('should fetch limited number of Nissans from model index', async () => {
+    const query = { make: 'Nissan', queryLimit: 1 };
+    const result1 = await tableClient.index('model-index').queryAll(query);
+    const query2Offset = result1.next;
+    const result2 = await tableClient.index('model-index').queryAll({
+      next: query2Offset,
+      ...query,
+    });
+    expect(result1.member.length).toEqual(1);
+    expect(result2.member.length).toEqual(1);
+    expect(result1.member).not.toEqual(result2.member);
+  }, 50000);
+
+  it('should fetch limited number of Nissans from model year index', async () => {
+    const result1 = await tableClient.index('model-year-index').queryAll({
+      model: '350z',
+      projection: (projector) => projector.project('colour').project('identifier'),
+      queryLimit: 1,
+    });
+
+    const query2Offset = result1.next;
+
+    const result2 = await tableClient.index('model-year-index').queryAll({
+      next: query2Offset,
+      model: '350z',
+      projection: (projector) => projector.project('colour').project('identifier'),
+      queryLimit: 1,
+    });
+    expect(result1.member.length).toEqual(1);
+    expect(Object.keys(result1.member[0]).sort()).toEqual(['colour', 'identifier'].sort());
+
+    expect(result2.member.length).toEqual(1);
+    expect(Object.keys(result2.member[0]).sort()).toEqual(['colour', 'identifier'].sort());
+
+    expect(result1.member).not.toEqual(result2.member);
+  }, 50000);
+
   it('should fetch all Nissans up to 2006', async () => {
     const result = await tableClient.queryAll({
       make: 'Nissan',

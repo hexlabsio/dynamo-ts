@@ -87,6 +87,11 @@ export type DynamoIndexes<DEFINITION extends DynamoMapDefinition> = Record<
   }
 > | null;
 
+export type DynamoIndexBaseKeys<DEFINITION extends DynamoMapDefinition> = {
+  hash: keyof DynamoEntry<DEFINITION>;
+  range?: keyof DynamoEntry<DEFINITION> | null;
+} | null;
+
 export type DynamoMapDefinition = { [key: string]: DynamoType };
 export type DynamoType = SimpleDynamoType | DynamoEntryDefinition;
 export type DynamoObjectDefinition = {

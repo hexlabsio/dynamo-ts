@@ -1,5 +1,6 @@
 import {
   DynamoEntry,
+  DynamoIndexBaseKeys,
   DynamoIndexes,
   DynamoKeysFrom,
   DynamoMapDefinition,
@@ -55,19 +56,29 @@ export class TableClient<
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
   INDEXES extends DynamoIndexes<DEFINITION> = null,
+  BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
 > implements Queryable<DEFINITION, HASH, RANGE>
 {
+  private readonly baseDefinition: DynamoDefinition<
+    DEFINITION,
+    HASH,
+    RANGE,
+    INDEXES
+    >
   constructor(
     protected readonly config: DynamoClientConfig<DEFINITION>,
     protected readonly definition: DynamoDefinition<
       DEFINITION,
       HASH,
       RANGE,
-      INDEXES
+      INDEXES,
+      BASEKEYS
     >,
-  ) {}
+  ) {
+    this.baseDefinition = { ...this.definition, baseKeys: null }
+  }
 
-  logStatements(on: boolean) {
+  logStatements(on: boolean): void {
     this.config.logStatements = on;
   }
 
@@ -79,7 +90,11 @@ export class TableClient<
       [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
     }[];
   }> {
-    return DynamoScanner.scan(this.config, this.definition, options);
+    return DynamoScanner.scan(
+      this.config,
+      this.baseDefinition,
+      options,
+    );
   }
 
   async get<R = null>(
@@ -98,7 +113,12 @@ export class TableClient<
     item: DynamoEntry<DEFINITION>,
     options: PutItemExtras<DEFINITION, RETURN_OLD> = {},
   ): Promise<PutItemResult<DEFINITION, RETURN_OLD>> {
-    return DynamoPutter.put(this.config, this.definition, item, options);
+    return DynamoPutter.put(
+      this.config,
+      this.baseDefinition,
+      item,
+      options,
+    );
   }
 
   async batchPut(items: DynamoEntry<DEFINITION>[]): Promise<BatchWriteOutput> {
@@ -121,7 +141,11 @@ export class TableClient<
         }
       : PROJECTED)[];
   }> {
-    return DynamoQuerier.query(this.config, this.definition, options);
+    return DynamoQuerier.query(
+      this.config,
+      this.baseDefinition,
+      options,
+    );
   }
 
   async queryAll<PROJECTED = null>(
@@ -161,7 +185,12 @@ export class TableClient<
       ? { item: DynamoClientConfig<DEFINITION>['tableType'] }
       : {})
   > {
-    return DynamoDeleter.delete(this.config, this.definition, key, options);
+    return DynamoDeleter.delete(
+      this.config,
+      this.baseDefinition,
+      key,
+      options,
+    );
   }
   index<INDEX extends keyof INDEXES>(
     index: INDEX,
@@ -180,6 +209,10 @@ export class TableClient<
           hash: hashKey,
           range: rangeKey as any,
           indexes: null,
+          baseKeys: {
+            hash: this.definition.hash,
+            range: this.definition.range,
+          },
         },
         {
           ...this.config,
@@ -201,10 +234,11 @@ export class TableClient<
     HASH extends keyof DynamoEntry<DEFINITION>,
     RANGE extends keyof DynamoEntry<DEFINITION> | null,
     INDEXES extends DynamoIndexes<DEFINITION> = null,
+    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
   >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
+    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
     config: Omit<DynamoClientConfig<DEFINITION>, 'tableType' | 'definition'>,
-  ): TableClient<DEFINITION, HASH, RANGE, INDEXES> {
+  ): TableClient<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS> {
     return new TableClient(
       {
         ...config,
@@ -234,5 +268,11 @@ export function defineTable<
   range: RANGE = null as RANGE,
   indexes: INDEXES = null as INDEXES,
 ): DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES> {
-  return { definition, hash, range: range as RANGE, indexes: indexes };
+  return {
+    definition,
+    hash,
+    range: range as RANGE,
+    indexes: indexes,
+    baseKeys: null,
+  };
 }
