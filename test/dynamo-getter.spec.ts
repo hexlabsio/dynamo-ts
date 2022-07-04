@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
-import { TableClient } from '../src/table-client';
-import { complexTableDefinition } from './tables';
+import { DynamoGetter } from '../src/dynamo-getter';
+import { complexTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
   endpoint: 'localhost:5001',
@@ -10,7 +10,7 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-const testTable = TableClient.build(complexTableDefinition, {
+const testTable = new DynamoGetter(complexTableDefinition2, {
   tableName: 'complexTableDefinition',
   client: dynamoClient,
   logStatements: true,
@@ -18,11 +18,10 @@ const testTable = TableClient.build(complexTableDefinition, {
 
 describe('Dynamo Table', () => {
   beforeAll(async () => {
-    await testTable.put({
-      hash: 'get-item-test',
-      text: 'some text',
-      obj: { abc: 'xyz', def: 2 },
-    });
+    await dynamoClient.put({
+      TableName: 'get-item-test',
+      Item: { hash: 'get-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } }
+    }).promise();
   });
 
   describe('Get', () => {
@@ -37,7 +36,7 @@ describe('Dynamo Table', () => {
     it('should return consumed capacity', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
-        { ReturnConsumedCapacity: 'TOTAL' },
+        { returnConsumedCapacity: 'TOTAL' },
       );
       expect(result.consumedCapacity).toEqual({
         TableName: 'complexTableDefinition',
@@ -47,7 +46,7 @@ describe('Dynamo Table', () => {
     it('should allow consistent read', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
-        { ReturnConsumedCapacity: 'TOTAL', ConsistentRead: true },
+        { returnConsumedCapacity: 'TOTAL', consistentRead: true },
       );
       expect(result.consumedCapacity).toEqual({
         TableName: 'complexTableDefinition',

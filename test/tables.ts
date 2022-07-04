@@ -1,4 +1,5 @@
 import { defineTable } from '../src';
+import { defineTable as defineTable2 } from '../src/types';
 import { exampleCarTable } from '../examples/example-table';
 
 export const simpleTableDefinition = defineTable(
@@ -29,6 +30,18 @@ export const complexTableDefinition = defineTable(
     jkl: 'number?',
   },
   'hash',
+);
+export const complexTableDefinition2 = defineTable2(
+  {
+    definition: {
+      hash: 'string',
+      text: 'string?',
+      obj: {optional: true, object: {abc: 'string', def: 'number?'}},
+      arr: {optional: true, array: {object: {ghi: 'number?'}}},
+      jkl: 'number?',
+    },
+    partitionKey: 'hash'
+  } as const
 );
 
 export const deleteTableDefinition = defineTable(
