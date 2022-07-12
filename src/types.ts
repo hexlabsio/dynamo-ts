@@ -3,12 +3,13 @@ import { DynamoDB } from 'aws-sdk';
 type DynamoPrimitive = 'string' | 'number' | 'null' | 'map' | 'list' | `"${string}"`
 export type Definition = DynamoPrimitive
   | `${DynamoPrimitive}?`
+  | `${DynamoPrimitive} | ${string}`
   | { optional?: boolean, object: DynamoDefinition }
-  | { optional?: boolean, array: Definition }
-  | string;
-export type DynamoDefinition = Record<string, Definition>
+  | { optional?: boolean, array: Definition };
 
-type Obj<T> = { [K in keyof T]: TypeFrom<T[K]> }
+export type DynamoDefinition = { [key: string]: Definition };
+
+export type Obj<T> = { [K in keyof T]: TypeFrom<T[K]> }
 
 type TypeFrom<S> =
   S extends { object: infer O }
@@ -47,18 +48,16 @@ type MakeOptionalsObject<T> = { [K in keyof T]: T[K] extends (infer A)[] ? MakeO
 type MakeOptionals<T> = RequiredParts<MakeOptionalsObject<T>> & OptionalParts<MakeOptionalsObject<T>>
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>
 
-export type ExpandRecursively<T> = T extends (...args: infer A) => infer R
-  ? (...args: ExpandRecursively<A>) => ExpandRecursively<R>
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  : T extends object
-    ? T extends infer O
-      ? { [K in keyof O]: ExpandRecursively<O[K]> }
-      : never
-    : T;
+export type DynamoType<D extends DynamoInfo> = TypeFromDefinition<D['definition']>;
 
 export type DynamoInfo<DEFINITION extends DynamoDefinition = any> = {
   definition: DEFINITION,
-  partitionKey?: keyof DEFINITION,
+  partitionKey: keyof DEFINITION,
+  sortKey: keyof DEFINITION | null
+}
+
+export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {
+  partitionKey: keyof DEFINITION,
   sortKey?: keyof DEFINITION
 }
 
@@ -87,8 +86,28 @@ export type PickSort<INFO extends DynamoInfo> = INFO extends { definition: infer
 
 export type PickKeys<INFO extends DynamoInfo> = PickPartition<INFO> & PickSort<INFO>;
 
-export function defineTable<INFO extends DynamoInfo>(info: INFO): INFO {
-  return info;
+export function defineTable<
+  DEFINITION extends DynamoDefinition,
+  PK extends keyof DEFINITION,
+  SK extends Exclude<keyof DEFINITION, PK> | null = null,
+  INDEXES extends Record<string, DynamoIndex<DEFINITION>> = {}
+  >(
+  definition: DEFINITION,
+  partitionKey: PK,
+  sortKey?: SK,
+  indexes?: INDEXES
+): {
+  definition: DEFINITION,
+  partitionKey: PK,
+  sortKey: SK,
+  indexes: INDEXES
+} {
+  return {
+    definition,
+    partitionKey,
+    sortKey: sortKey ?? null as any,
+    indexes: indexes ?? {} as any
+  }
 }
 
 export type CamelCaseKey<K> = K extends `${infer F}${infer TAIL}` ? `${Lowercase<F>}${TAIL}` : K;

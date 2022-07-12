@@ -1,6 +1,7 @@
 import { DynamoDB } from 'aws-sdk';
 import { DynamoGetter } from '../src/dynamo-getter';
-import { complexTableDefinition2 } from './tables';
+import { DynamoType } from '../src/types';
+import { complexTableDefinition } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
   endpoint: 'localhost:5001',
@@ -10,21 +11,29 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-const testTable = new DynamoGetter(complexTableDefinition2, {
+type TableType = DynamoType<typeof complexTableDefinition>;
+
+const testTable = new DynamoGetter(complexTableDefinition, {
   tableName: 'complexTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
+const preInserts: TableType[] = [
+  { hash: 'get-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } },
+  { hash: 'get-item-test-2', text: 'some other text' },
+];
+
 describe('Dynamo Table', () => {
+
+  const TableName = 'complexTableDefinition';
+
   beforeAll(async () => {
-    await dynamoClient.put({
-      TableName: 'get-item-test',
-      Item: { hash: 'get-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } }
-    }).promise();
+    await Promise.all(preInserts.map(Item => dynamoClient.put({TableName, Item}).promise()));
   });
 
   describe('Get', () => {
+
     it('should get item', async () => {
       const result = await testTable.get({ hash: 'get-item-test' });
       expect(result.item).toEqual({
@@ -33,26 +42,29 @@ describe('Dynamo Table', () => {
         obj: { abc: 'xyz', def: 2 },
       });
     });
+
     it('should return consumed capacity', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
         { returnConsumedCapacity: 'TOTAL' },
       );
       expect(result.consumedCapacity).toEqual({
-        TableName: 'complexTableDefinition',
+        TableName,
         CapacityUnits: 0.5,
       });
     });
+
     it('should allow consistent read', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
         { returnConsumedCapacity: 'TOTAL', consistentRead: true },
       );
       expect(result.consumedCapacity).toEqual({
-        TableName: 'complexTableDefinition',
+        TableName,
         CapacityUnits: 1,
       });
     });
+
     it('should project result', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
@@ -60,6 +72,24 @@ describe('Dynamo Table', () => {
       );
       expect(result.item).toEqual({ obj: { abc: 'xyz' } });
       expect(result.item!.obj.abc).toEqual('xyz'); //verifies that obj.abc exists on type of item
+    });
+
+    describe('Batch Get', () => {
+      it('should get each item', async () => {
+        const result = await testTable.batchGet([{ hash: 'get-item-test' }, { hash: 'get-item-test-2' }]);
+        expect(result.items.length).toEqual(2);
+        expect(result.items.find(it => it!.hash === 'get-item-test')).toEqual(preInserts[0]);
+        expect(result.items.find(it => it!.hash === 'get-item-test-2')).toEqual(preInserts[1]);
+      });
+    });
+
+    describe('Transact Get', () => {
+      it('should get each item in a transaction', async () => {
+        const result = await testTable.transactGet([{ hash: 'get-item-test' }, { hash: 'get-item-test-2' }]);
+        expect(result.items.length).toEqual(2);
+        expect(result.items.find(it => it!.hash === 'get-item-test')).toEqual(preInserts[0]);
+        expect(result.items.find(it => it!.hash === 'get-item-test-2')).toEqual(preInserts[1]);
+      });
     });
   });
 });

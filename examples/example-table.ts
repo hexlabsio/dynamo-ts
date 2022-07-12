@@ -1,4 +1,4 @@
-import {defineTable} from "../src";
+import {defineTable} from "../src/types";
 import {DynamoDB} from "aws-sdk";
 
 export const exampleClient = new DynamoDB.DocumentClient({
@@ -20,11 +20,11 @@ export const exampleCarTable = defineTable({
     'identifier',
     {
         'model-index': {
-            hashKey: 'make',
-            rangeKey: 'model'
+            partitionKey: 'make',
+            sortKey: 'model'
         },
         'model-year-index': {
-            hashKey: 'model',
-            rangeKey: 'year'
+            partitionKey: 'model',
+            sortKey: 'year'
         }
     });

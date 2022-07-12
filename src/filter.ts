@@ -1,6 +1,7 @@
 import { ComparisonBuilder } from './comparison';
 import { CompareWrapperOperator } from './operation';
 import { DynamoEntry, DynamoMapDefinition } from './type-mapping';
+import { DynamoInfo, TypeFromDefinition } from './types';
 
 type WithoutKeys<T, HASH extends keyof T, RANGE extends keyof T | null> = Omit<
   T,
@@ -16,3 +17,7 @@ export type DynamoFilter<
     WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>
   >,
 ) => CompareWrapperOperator<WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>>;
+
+export type DynamoFilter2<D extends DynamoInfo> = (
+  compare: () => ComparisonBuilder<Required<TypeFromDefinition<WithoutKeys<D['definition'], D['partitionKey'], D['sortKey']>>>>
+) => CompareWrapperOperator<TypeFromDefinition<D>>;
