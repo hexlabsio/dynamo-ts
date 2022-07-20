@@ -86,7 +86,7 @@ export class DynamoBatchWriter {
     const directWriteOps = operations.map((operation) =>
       this.isPutWrite(operation)
         ? { PutRequest: { Item: operation.put } }
-        : { Delete: { Key: operation.delete } },
+        : { DeleteRequest: { Key: operation.delete } },
     );
 
     const opCount = directWriteOps.length;
