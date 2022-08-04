@@ -1,140 +1,102 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import { DynamoClientConfig } from './dynamo-client-config';
-import {
-  DynamoEntry,
-  DynamoMapDefinition,
-  DynamoRangeKey,
-  TypeFor,
-} from './type-mapping';
+import { DynamoDB } from 'aws-sdk';
+import BatchWriteItemInput = DynamoDB.DocumentClient.BatchWriteItemInput;
+import ItemCollectionMetricsPerTable = DynamoDB.DocumentClient.ItemCollectionMetricsPerTable;
+import ConsumedCapacityMultiple = DynamoDB.DocumentClient.ConsumedCapacityMultiple;
+import BatchWriteItemRequestMap = DynamoDB.DocumentClient.BatchWriteItemRequestMap;
+import { CamelCaseKeys, DynamoConfig, DynamoInfo, PickKeys, TypeFromDefinition } from './types';
 
-import WriteRequests = DocumentClient.WriteRequests;
-import ConsumedCapacity = DocumentClient.ConsumedCapacity;
+export type BatchWriteItemOptions<INFO extends DynamoInfo> = CamelCaseKeys<Pick<BatchWriteItemInput, 'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'>>;
 
-type PutWrite<DEFINITION extends DynamoMapDefinition> = {
-  put: DynamoEntry<DEFINITION>;
-};
-type DeleteWrite<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-> = {
-  delete: DeleteWriteItem<DEFINITION, HASH, RANGE>;
-};
-export type DeleteWriteItem<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-> = {
-  [K in RANGE extends string ? HASH | RANGE : HASH]: TypeFor<DEFINITION[K]>;
-};
-export type BatchWrite<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-> = DeleteWrite<DEFINITION, HASH, RANGE> | PutWrite<DEFINITION>;
+export type BatchWriteItemReturn<INFO extends DynamoInfo> = {
+  itemCollectionMetrics?: ItemCollectionMetricsPerTable;
+  consumedCapacity?: ConsumedCapacityMultiple;
+}
 
-export type BatchWriteOutput = {
-  unprocessed?: WriteRequests;
-  consumedCapacity?: ConsumedCapacity[];
-};
-export class DynamoBatchWriter {
-  private static async directBatchWrite<DEFINITION extends DynamoMapDefinition>(
-    config: DynamoClientConfig<DEFINITION>,
-    writeRequest: WriteRequests,
-  ): Promise<BatchWriteOutput> {
-    const batchWriteInput = {
-      RequestItems: { [config.tableName]: writeRequest },
-    };
-    if (config.logStatements) {
-      console.log(JSON.stringify(batchWriteInput, null, 2));
-    }
-    const result = await config.client.batchWrite(batchWriteInput).promise();
+export interface BatchWriteExecutor<T extends DynamoInfo> {
+  input: BatchWriteItemInput;
+  execute(): Promise<BatchWriteItemReturn<T>>
+  and<B extends BatchWriteExecutor<any>>(other: B): BatchWriteClient<[this, B]>;
+}
+
+export class BatchWriteExecutorHolder<T extends DynamoInfo> implements BatchWriteExecutor<T> {
+  constructor(private readonly client: DynamoDB.DocumentClient, public readonly input: BatchWriteItemInput) {}
+
+  async execute(): Promise<BatchWriteItemReturn<T>> {
+    const result = await this.client.batchWrite(this.input).promise();
     return {
-      unprocessed: result.UnprocessedItems?.[config.tableName],
-      consumedCapacity: result.ConsumedCapacity,
-    };
-  }
-
-  private static chunkArray<U>(
-    u: U[],
-    chunkSize: number,
-    acc: U[][] = [],
-  ): U[][] {
-    acc.push(u.slice(0, chunkSize));
-    const rest = u.slice(chunkSize, u.length);
-    return rest.length > 0 ? this.chunkArray(rest, chunkSize, acc) : acc;
-  }
-
-  private static isPutWrite<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-  >(
-    batchWrite: BatchWrite<DEFINITION, HASH, RANGE>,
-  ): batchWrite is PutWrite<DEFINITION> {
-    return (batchWrite as PutWrite<DEFINITION>).put !== undefined;
-  }
-
-  static async batchWrite<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    operations: BatchWrite<DEFINITION, HASH, RANGE>[],
-  ): Promise<BatchWriteOutput> {
-    const directWriteOps = operations.map((operation) =>
-      this.isPutWrite(operation)
-        ? { PutRequest: { Item: operation.put } }
-        : { Delete: { Key: operation.delete } },
-    );
-
-    const opCount = directWriteOps.length;
-    if (opCount === 0) {
-      return {};
-    } else if (directWriteOps.length <= 25) {
-      return await this.directBatchWrite(config, directWriteOps);
-    } else {
-      const chunkedDirectWriteOps = this.chunkArray(directWriteOps, 25);
-
-      const res = await Promise.all(
-        chunkedDirectWriteOps.map((it) => this.directBatchWrite(config, it)),
-      );
-      return res.reduce(
-        (acc, { unprocessed, consumedCapacity }) => ({
-          unprocessed: unprocessed
-            ? [...(acc.unprocessed ?? []), ...unprocessed]
-            : acc.unprocessed,
-          consumedCapacity: consumedCapacity
-            ? [...(acc.consumedCapacity ?? []), ...consumedCapacity]
-            : acc.consumedCapacity,
-        }),
-        {},
-      );
+      itemCollectionMetrics: result.ItemCollectionMetrics,
+      consumedCapacity: result.ConsumedCapacity
     }
   }
 
-  static async batchPut<DEFINITION extends DynamoMapDefinition>(
-    config: DynamoClientConfig<DEFINITION>,
-    operations: DynamoEntry<DEFINITION>[],
-  ): Promise<BatchWriteOutput> {
-    return await this.batchWrite(
-      config,
-      operations.map((it) => ({ put: it })),
-    );
+  and<B extends BatchWriteExecutor<any>>(other: B): BatchWriteClient<[this, B]> {
+    return new BatchWriteClient(this.client, [this, other]);
+  }
+}
+
+export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
+
+  public readonly input: BatchWriteItemInput;
+
+  constructor(private readonly client: DynamoDB.DocumentClient, private readonly executors: T) {
+    const RequestItems = this.executors.reduce((prev, next) => {
+      const tables = Object.keys(next.input.RequestItems ?? {});
+      return ({...prev, [tables[0]]: [...(prev[tables[0]] ?? []), ...(next.input.RequestItems[tables[0]])]});
+    }, {} as Record<string, any>);
+    this.input = {
+      ...this.executors[0].input,
+      RequestItems
+    }
   }
 
-  static async batchDelete<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends DynamoRangeKey<DEFINITION, HASH> | null = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    operations: DeleteWriteItem<DEFINITION, HASH, RANGE>[],
-  ): Promise<BatchWriteOutput> {
-    return await this.batchWrite(
-      config,
-      operations.map((it) => ({ delete: it })),
-    );
+  and<B extends BatchWriteExecutor<any>>(other: B): BatchWriteClient<[...T, B]> {
+    return new BatchWriteClient<[...T, B]>(this.client, [...this.executors, other]);
+  }
+
+  async execute(reprocess = false): Promise<{ consumedCapacity?: ConsumedCapacityMultiple, unprocessedItems?: BatchWriteItemRequestMap }> {
+    let result = await this.client.batchWrite(this.input).promise();
+    let returnType = {
+      unprocessedItems: result.UnprocessedItems,
+      consumedCapacity: result.ConsumedCapacity
+    }
+    while(reprocess && !!returnType.unprocessedItems) {
+      result = await this.client.batchWrite({
+        ...this.executors[0].input,
+        RequestItems: returnType.unprocessedItems
+      }).promise();
+      returnType = {
+        unprocessedItems: result.UnprocessedItems,
+        consumedCapacity: returnType.consumedCapacity ? [...returnType.consumedCapacity, ...result.ConsumedCapacity ?? []] : undefined
+      }
+    }
+    return returnType as any;
+  }
+}
+
+export class DynamoBatchWriter<T extends DynamoInfo> {
+  constructor(private readonly config: DynamoConfig) {}
+
+  batchPutExecutor(items: TypeFromDefinition<T['definition']>[], options: BatchWriteItemOptions<T> = {}): BatchWriteExecutor<T> {
+    const input: BatchWriteItemInput = {
+      RequestItems: {
+        [this.config.tableName]: items.map(item => ({ PutRequest: { Item: item } }))
+      },
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: options.returnItemCollectionMetrics
+    };
+    const client = this.config.client;
+    return new BatchWriteExecutorHolder(client, input);
+  }
+
+  batchDeleteExecutor(keys: PickKeys<T>[], options: BatchWriteItemOptions<T> = {}): BatchWriteExecutor<T> {
+    const input: BatchWriteItemInput = {
+      RequestItems: {
+        [this.config.tableName]: keys.map(key => ({ DeleteRequest: { Key: key } }))
+      },
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: options.returnItemCollectionMetrics
+    };
+    const client = this.config.client;
+    return new BatchWriteExecutorHolder(client, input);
   }
 }
