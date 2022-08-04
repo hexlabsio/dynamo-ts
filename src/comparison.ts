@@ -1,14 +1,14 @@
 import { CompareWrapperOperator, Operation, OperationType } from './operation';
 import {
   DynamoEntry,
-  DynamoIndexBaseKeys,
   DynamoIndexes,
   DynamoMapDefinition,
   SimpleDynamoType,
 } from './type-mapping';
-import { DynamoFilter } from './filter';
+import { DynamoFilter2 } from './filter';
 import { AttributeBuilder } from './attribute-builder';
 import { DynamoDefinition } from './dynamo-client-config';
+import { DynamoInfo, TypeFromDefinition } from './types';
 
 export type KeyComparisonBuilder<T> = {
   eq(value: T): void;
@@ -19,6 +19,10 @@ export type KeyComparisonBuilder<T> = {
   between(a: T, b: T): void;
   // eslint-disable-next-line @typescript-eslint/ban-types
 } & (T extends string ? { beginsWith(value: string): void } : {});
+
+type WithoutKeys<T, HASH extends keyof T, RANGE extends keyof T | null> = Omit<T, RANGE extends string ? HASH | RANGE : HASH>;
+
+export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<Required<TypeFromDefinition<WithoutKeys<INFO['definition'], INFO['partitionKey'], INFO['sortKey']>>>>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   exists(key: keyof T): CompareWrapperOperator<T>;
@@ -183,28 +187,18 @@ export class ComparisonBuilderType<
   }
 }
 
-export function filterParts<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null,
-  INDEXES extends DynamoIndexes<DEFINITION> = null,
-  BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
->(
-  definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
+export function filterParts<DEFINITION extends DynamoInfo>(
+  definition: DEFINITION,
   attributeBuilder: AttributeBuilder,
-  filter: DynamoFilter<DEFINITION, HASH, RANGE>,
+  filter: DynamoFilter2<DEFINITION>,
 ): string {
   const updatedDefinition = Object.keys(definition.definition)
-    .filter((it) => it !== definition.hash && it !== definition.range)
+    .filter((it) => it !== definition.partitionKey && it !== definition.sortKey)
     .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});
-  const parent = filter(
-    () =>
-      new ComparisonBuilderType(
-        updatedDefinition,
-        new Wrapper(attributeBuilder),
-      ).builder() as any,
+  const { expression } = filter(
+    () => new ComparisonBuilderType(updatedDefinition, new Wrapper(attributeBuilder)).builder() as any,
   ) as unknown as Wrapper;
-  return parent.expression;
+  return expression;
 }
 
 export function conditionalParts<

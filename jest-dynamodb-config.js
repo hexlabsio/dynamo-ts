@@ -21,7 +21,34 @@ module.exports = {
       }
     },
     {
-      "TableName": "complexTableDefinitionScan",
+      "TableName": "simpleTableDefinition2",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "identifier"
+        },
+        {
+          "KeyType": "RANGE",
+          "AttributeName": "sort"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "identifier",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "sort",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
+      "TableName": "complexTableDefinitionQuery",
       "KeySchema": [
         {
           "KeyType": "HASH",
@@ -41,25 +68,6 @@ module.exports = {
     },
     {
       "TableName": "complexTableDefinition",
-      "KeySchema": [
-        {
-          "KeyType": "HASH",
-          "AttributeName": "hash"
-        }
-      ],
-      "AttributeDefinitions": [
-        {
-          "AttributeName": "hash",
-          "AttributeType": "S"
-        }
-      ],
-      "ProvisionedThroughput": {
-        "ReadCapacityUnits": 1,
-        "WriteCapacityUnits": 1
-      }
-    },
-    {
-      "TableName": "complexTableDefinition2",
       "KeySchema": [
         {
           "KeyType": "HASH",

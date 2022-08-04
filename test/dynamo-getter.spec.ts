@@ -24,7 +24,7 @@ const preInserts: TableType[] = [
   { hash: 'get-item-test-2', text: 'some other text' },
 ];
 
-describe('Dynamo Table', () => {
+describe('Dynamo Getter', () => {
 
   const TableName = 'complexTableDefinition';
 
@@ -72,24 +72,6 @@ describe('Dynamo Table', () => {
       );
       expect(result.item).toEqual({ obj: { abc: 'xyz' } });
       expect(result.item!.obj.abc).toEqual('xyz'); //verifies that obj.abc exists on type of item
-    });
-
-    describe('Batch Get', () => {
-      it('should get each item', async () => {
-        const result = await testTable.batchGet([{ hash: 'get-item-test' }, { hash: 'get-item-test-2' }]);
-        expect(result.items.length).toEqual(2);
-        expect(result.items.find(it => it!.hash === 'get-item-test')).toEqual(preInserts[0]);
-        expect(result.items.find(it => it!.hash === 'get-item-test-2')).toEqual(preInserts[1]);
-      });
-    });
-
-    describe('Transact Get', () => {
-      it('should get each item in a transaction', async () => {
-        const result = await testTable.transactGet([{ hash: 'get-item-test' }, { hash: 'get-item-test-2' }]);
-        expect(result.items.length).toEqual(2);
-        expect(result.items.find(it => it!.hash === 'get-item-test')).toEqual(preInserts[0]);
-        expect(result.items.find(it => it!.hash === 'get-item-test-2')).toEqual(preInserts[1]);
-      });
     });
   });
 });

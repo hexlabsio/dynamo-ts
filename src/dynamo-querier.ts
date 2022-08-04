@@ -1,9 +1,9 @@
-import { QueryInput } from '@aws-sdk/client-dynamodb';
+import { ConsumedCapacity, QueryInput } from 'aws-sdk/clients/dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
 import { DynamoFilter2 } from './filter';
 import { KeyOperation } from './operation';
-import { Projection } from './projector';
+import { Projection, ProjectionHandler } from './projector';
 import { CamelCaseKeys, DynamoConfig, DynamoIndex, DynamoInfo, TypeFromDefinition } from './types';
 
 export type HashCompare<D extends DynamoInfo> = TypeFromDefinition<{ [K in D['partitionKey']]: D['definition'][K] }>
@@ -13,16 +13,20 @@ export type QueryKeys<D extends DynamoInfo> = HashCompare<D> & SortCompare<D>;
 export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
   filter?: DynamoFilter2<D>;
   projection?: Projection<D, PROJECTION>;
-} & CamelCaseKeys<Pick<QueryInput, 'Limit' | 'ConsistentRead' | 'ScanIndexForward' | 'ReturnConsumedCapacity'>>
-
-export type QuerierReturn<D extends DynamoInfo, PROJECTION> = {
-  member: PROJECTION extends null ? TypeFromDefinition<D['definition']>[] : PROJECTION[],
   next?: string;
+} & CamelCaseKeys<Pick<QueryInput, 'Limit' | 'ConsistentRead' | 'ScanIndexForward' | 'ReturnConsumedCapacity' | 'ExpressionAttributeNames' | 'ExpressionAttributeValues'>>
+
+export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
+  member: PROJECTION extends null ? TypeFromDefinition<D['definition']>[] : PROJECTION[];
+  next?: string;
+  consumedCapacity?: ConsumedCapacity;
+  count?: number;
+  scannedCount?: number;
 }
 
 export interface QueryExecutor<D extends DynamoInfo, PROJECTION> {
   input: QueryInput;
-  executor: () => Promise<QuerierReturn<D, PROJECTION>>;
+  execute: () => Promise<QuerierReturn<D, PROJECTION>>;
 }
 
 export class DynamoQuerier<D extends DynamoInfo = any, I extends Record<string, DynamoIndex> = {}> {
@@ -43,24 +47,34 @@ export class DynamoQuerier<D extends DynamoInfo = any, I extends Record<string, 
     return expression;
   }
 
-  queryExecutor<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION>): QueryExecutor<D, PROJECTION> {
+  query<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION> = {}): Promise<QuerierReturn<D, PROJECTION>> {
+    const executor = this.queryExecutor(keys, options);
+    if (this.config.logStatements) {
+      console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    return executor.execute();
+  }
+
+  queryExecutor<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION> = {}): QueryExecutor<D, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyExpression(keys, attributeBuilder);
-    const filterPart =
-      options.filter &&
-      filterParts(definition, attributeBuilder, options.filter);
+    const filterPart = options.filter && filterParts(this.info, attributeBuilder, options.filter);
     const projection = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      config.definition,
+      this.info,
       options.projection,
     );
-    const queryInput = {
-      TableName: config.tableName,
-      ...(config.indexName ? { IndexName: config.indexName } : {}),
+    const input: QueryInput = {
+      TableName: this.config.tableName,
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
       ProjectionExpression: projection,
-      ...attributeBuilder.asInput(options.dynamo),
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ScanIndexForward: options.scanIndexForward,
+      ConsistentRead: options.consistentRead,
+      Limit: options.limit,
+      ...attributeBuilder.asInput(options),
       ...(options.next
         ? {
           ExclusiveStartKey: JSON.parse(
@@ -69,5 +83,19 @@ export class DynamoQuerier<D extends DynamoInfo = any, I extends Record<string, 
         }
         : {}),
     };
+    const client = this.config.client;
+    return {
+      input,
+      execute: async () => {
+        const result = await client.query(input).promise();
+        return {
+          member: (result.Items ?? []) as any,
+          next: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString('base64') : undefined,
+          consumedCapacity: result.ConsumedCapacity,
+          count: result.Count,
+          scannedCount: result.ScannedCount
+        }
+      }
+    }
   }
 }

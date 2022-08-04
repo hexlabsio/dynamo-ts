@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
 
-type DynamoPrimitive = 'string' | 'number' | 'null' | 'map' | 'list' | `"${string}"`
+type DynamoPrimitive = 'string' | 'number' | 'null' | 'undefined' | 'map' | 'list' | `"${string}"`
 export type Definition = DynamoPrimitive
   | `${DynamoPrimitive}?`
   | `${DynamoPrimitive} | ${string}`
@@ -24,19 +24,21 @@ type TypeFrom<S> =
             ? null
             : S extends 'string'
               ? string
-              : S extends 'map'
-                ? Record<string, any>
-                : S extends 'list'
-                  ? any[]
-                  : S extends `${infer first} & ${infer rest}`
-                    ? TypeFrom<first> & TypeFrom<rest>
-                    : S extends `${infer first} | ${infer rest}`
-                      ? TypeFrom<first> | TypeFrom<rest>
-                      : S extends `"${infer CONST}"`
-                        ? CONST
-                        : S extends `${infer first}?`
-                          ? { optional: true, type: TypeFrom<first> }
-                          : never;
+              : S extends 'undefined'
+                ? undefined
+                : S extends 'map'
+                  ? Record<string, any>
+                  : S extends 'list'
+                    ? any[]
+                    : S extends `${infer first} & ${infer rest}`
+                      ? TypeFrom<first> & TypeFrom<rest>
+                      : S extends `${infer first} | ${infer rest}`
+                        ? TypeFrom<first> | TypeFrom<rest>
+                        : S extends `"${infer CONST}"`
+                          ? CONST
+                          : S extends `${infer first}?`
+                            ? { optional: true, type: TypeFrom<first> }
+                            : never;
 
 type IsOptional<T> = T extends { optional: true } ? true : false
 type UndefinedKeys<T> = { [K in keyof T]: IsOptional<T[K]> extends true ? K : never}[keyof T]
@@ -64,6 +66,7 @@ export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {
 export interface DynamoConfig {
   logStatements?: boolean;
   tableName: string;
+  indexName?: string;
   client: DynamoDB.DocumentClient;
 }
 

@@ -1,4 +1,4 @@
-import { ComparisonBuilder } from './comparison';
+import { ComparisonBuilder, ComparisonBuilderFrom } from './comparison';
 import { CompareWrapperOperator } from './operation';
 import { DynamoEntry, DynamoMapDefinition } from './type-mapping';
 import { DynamoInfo, TypeFromDefinition } from './types';
@@ -19,5 +19,5 @@ export type DynamoFilter<
 ) => CompareWrapperOperator<WithoutKeys<DynamoEntry<DEFINITION>, HASH, RANGE>>;
 
 export type DynamoFilter2<D extends DynamoInfo> = (
-  compare: () => ComparisonBuilder<Required<TypeFromDefinition<WithoutKeys<D['definition'], D['partitionKey'], D['sortKey']>>>>
+  compare: () => ComparisonBuilderFrom<D>
 ) => CompareWrapperOperator<TypeFromDefinition<D>>;

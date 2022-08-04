@@ -1,5 +1,6 @@
 import { PutItemInput } from 'aws-sdk/clients/dynamodb';
 import { AttributeNamer } from './naming';
+import { CamelCaseKeys } from './types';
 
 export class AttributeBuilder {
   private constructor(
@@ -53,25 +54,25 @@ export class AttributeBuilder {
   }
 
   asInput(
-    provided?: Pick<
+    provided?: CamelCaseKeys<Pick<
       PutItemInput,
       'ExpressionAttributeNames' | 'ExpressionAttributeValues'
-    >,
+    >>,
   ): Pick<
     PutItemInput,
     'ExpressionAttributeNames' | 'ExpressionAttributeValues'
   > {
     const keys = Object.keys(this.names);
-    const providedNames = Object.keys(provided?.ExpressionAttributeNames ?? {});
+    const providedNames = Object.keys(provided?.expressionAttributeNames ?? {});
     const providedValues = Object.keys(
-      provided?.ExpressionAttributeValues ?? {},
+      provided?.expressionAttributeValues ?? {},
     );
     const valueKeys = Object.keys(this.values);
     const names =
       keys.length > 0 || providedNames.length > 0
         ? {
             ExpressionAttributeNames: {
-              ...(provided?.ExpressionAttributeNames ?? {}),
+              ...(provided?.expressionAttributeNames ?? {}),
               ...keys.reduce(
                 (prev, key) => ({ ...prev, [this.nameFor(key)]: key }),
                 {},
@@ -83,7 +84,7 @@ export class AttributeBuilder {
       valueKeys.length > 0 || providedValues.length > 0
         ? {
             ExpressionAttributeValues: {
-              ...(provided?.ExpressionAttributeNames ?? {}),
+              ...(provided?.expressionAttributeNames ?? {}),
               ...valueKeys.reduce(
                 (prev, key) => ({ ...prev, [`:${key}`]: this.values[key] }),
                 {},
