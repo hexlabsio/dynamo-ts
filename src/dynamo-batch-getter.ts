@@ -69,15 +69,18 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
     return new BatchGetClient<[...T, B]>(this.client, [...this.executors, other]);
   }
 
-  async execute(reprocess = false): Promise<{ items: BatchGetExecutorResult<T>, consumedCapacity?: ConsumedCapacityMultiple, unprocessedKeys?: BatchGetRequestMap }> {
+  async execute(reprocess = false, maxRetries = 10): Promise<{ items: BatchGetExecutorResult<T>, consumedCapacity?: ConsumedCapacityMultiple, unprocessedKeys?: BatchGetRequestMap }> {
     const tableNameList = this.executors.map(it => Object.keys(it.input.RequestItems)[0]);
     let result = await this.client.batchGet(this.input).promise();
+    let retry = 0;
     let returnType = {
       items: tableNameList.map(tableName => result.Responses?.[tableName] ?? []),
       unprocessedKeys: result.UnprocessedKeys,
       consumedCapacity: result.ConsumedCapacity
     }
-    while(reprocess && !!returnType.unprocessedKeys) {
+    while(reprocess && !!returnType.unprocessedKeys && retry < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 2 ** retry * 10));
+      retry = retry + 1;
       result = await this.client.batchGet({
         ...this.executors[0].input,
         RequestItems: returnType.unprocessedKeys

@@ -53,13 +53,16 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
     return new BatchWriteClient<[...T, B]>(this.client, [...this.executors, other]);
   }
 
-  async execute(reprocess = false): Promise<{ consumedCapacity?: ConsumedCapacityMultiple, unprocessedItems?: BatchWriteItemRequestMap }> {
+  async execute(reprocess = false, maxRetries = 10): Promise<{ consumedCapacity?: ConsumedCapacityMultiple, unprocessedItems?: BatchWriteItemRequestMap }> {
     let result = await this.client.batchWrite(this.input).promise();
+    let retry = 0;
     let returnType = {
       unprocessedItems: result.UnprocessedItems,
       consumedCapacity: result.ConsumedCapacity
     }
-    while(reprocess && !!returnType.unprocessedItems) {
+    while(reprocess && !!returnType.unprocessedItems && retry < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 2 ** retry * 10));
+      retry = retry + 1;
       result = await this.client.batchWrite({
         ...this.executors[0].input,
         RequestItems: returnType.unprocessedItems
