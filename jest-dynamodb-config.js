@@ -59,12 +59,34 @@ module.exports = {
         {
           "AttributeName": "hash",
           "AttributeType": "S"
+        },
+        {
+          "AttributeName": "text",
+          "AttributeType": "S"
         }
       ],
       "ProvisionedThroughput": {
         "ReadCapacityUnits": 1,
         "WriteCapacityUnits": 1
-      }
+      },
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "abc",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "text"
+            }
+          ],
+          "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+          },
+          "Projection": {
+            "ProjectionType": "ALL"
+          }
+        }
+      ]
     },
     {
       "TableName": "complexTableDefinition",
@@ -103,83 +125,6 @@ module.exports = {
         "ReadCapacityUnits": 1,
         "WriteCapacityUnits": 1
       }
-    },
-    {
-      "TableName": "exampleCarTableDefinition",
-      "KeySchema": [
-        {
-          "KeyType": "HASH",
-          "AttributeName": "make"
-        },
-        {
-          "KeyType": "RANGE",
-          "AttributeName": "identifier"
-        }
-      ],
-      "AttributeDefinitions": [
-        {
-          "AttributeName": "make",
-          "AttributeType": "S"
-        },
-        {
-          "AttributeName": "identifier",
-          "AttributeType": "S"
-        },
-        {
-          "AttributeName": "model",
-          "AttributeType": "S"
-        },
-        {
-          "AttributeName": "year",
-          "AttributeType": "N"
-        }
-      ],
-      "ProvisionedThroughput": {
-        "ReadCapacityUnits": 1,
-        "WriteCapacityUnits": 1
-      },
-      "GlobalSecondaryIndexes": [
-        {
-          "IndexName": "model-index",
-          "KeySchema": [
-            {
-              "KeyType": "HASH",
-              "AttributeName": "make"
-            },
-            {
-              "KeyType": "RANGE",
-              "AttributeName": "model"
-            }
-          ],
-          "ProvisionedThroughput": {
-            "ReadCapacityUnits": 1,
-            "WriteCapacityUnits": 1
-          },
-          "Projection": {
-            "ProjectionType": "ALL"
-          }
-        },
-        {
-          "IndexName": "model-year-index",
-          "KeySchema": [
-            {
-              "KeyType": "HASH",
-              "AttributeName": "model"
-            },
-            {
-              "KeyType": "RANGE",
-              "AttributeName": "year"
-            }
-          ],
-          "ProvisionedThroughput": {
-            "ReadCapacityUnits": 1,
-            "WriteCapacityUnits": 1
-          },
-          "Projection": {
-            "ProjectionType": "ALL"
-          }
-        }
-      ]
     }
   ]
 };

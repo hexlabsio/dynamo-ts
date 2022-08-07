@@ -70,7 +70,7 @@ describe('Dynamo Querier', () => {
 
     it('should find multiple items by partition', async () => {
       const result = await testTable2.query({ identifier });
-      expect(result.member).toEqual(preInserts2);
+      expect(result.member).toEqual(preInserts2.slice(0,4));
     });
 
     it('should find items by equality', async () => {

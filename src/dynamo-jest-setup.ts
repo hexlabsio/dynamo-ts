@@ -14,7 +14,7 @@ export function dynamoTable(
   props?: any,
 ): any {
   const indexKeys = Object.keys(definition.indexes ?? {}).flatMap((key) => [
-    definition.indexes![key].sortKey as string,
+    definition.indexes![key].partitionKey as string,
     ...(definition.indexes![key].sortKey
       ? [definition.indexes![key].sortKey! as string]
       : []),

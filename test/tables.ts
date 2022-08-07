@@ -1,5 +1,4 @@
 import { defineTable } from '../src/types';
-import { exampleCarTable } from '../examples/example-table';
 
 export const simpleTableDefinition = defineTable(
   {
@@ -54,5 +53,3 @@ export const deleteTableDefinition = defineTable(
   },
   'hash',
 );
-
-export const exampleCarTableDefinition = exampleCarTable;
