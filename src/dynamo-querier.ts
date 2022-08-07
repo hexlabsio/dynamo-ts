@@ -55,7 +55,34 @@ export class DynamoQuerier<D extends DynamoInfo = any, I extends Record<string, 
     return executor.execute();
   }
 
-  queryExecutor<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION> = {}): QueryExecutor<D, PROJECTION> {
+  async queryAll<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION> = {}): Promise<Omit<QuerierReturn<D, PROJECTION>, 'next'>> {
+    const executor = this.queryExecutor(keys, options);
+    if (this.config.logStatements) {
+      console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    let result = await executor.execute();
+    let scannedCount = result.scannedCount ?? 0;
+    const member = result.member;
+    while(result.next) {
+      executor.input.ExclusiveStartKey = JSON.parse(
+        Buffer.from(result.next, 'base64').toString('ascii'),
+      )
+      if (this.config.logStatements) {
+        console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+      }
+      result = await executor.execute();
+      member.push(...result.member as any[]);
+      scannedCount = scannedCount + (result.scannedCount ?? 0);
+    }
+    return {
+      member,
+      count: member.length,
+      scannedCount,
+      consumedCapacity: result.consumedCapacity
+    }
+  }
+
+    queryExecutor<PROJECTION = null>(keys: QueryKeys<D>, options: QuerierInput<D, PROJECTION> = {}): QueryExecutor<D, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyExpression(keys, attributeBuilder);
     const filterPart = options.filter && filterParts(this.info, attributeBuilder, options.filter);
@@ -66,6 +93,7 @@ export class DynamoQuerier<D extends DynamoInfo = any, I extends Record<string, 
     );
     const input: QueryInput = {
       TableName: this.config.tableName,
+      ...(this.config.indexName ? {IndexName: this.config.indexName}: {}),
       ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),

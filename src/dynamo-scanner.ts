@@ -38,6 +38,33 @@ export class DynamoScanner<T extends DynamoInfo> {
     return await scanInput.execute();
   }
 
+  async scanAll<PROJECTION = null>(options: ScanOptions<T, PROJECTION> = {}): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
+    const executor = this.scanExecutor(options);
+    if (this.config.logStatements) {
+      console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    let result = await executor.execute();
+    let scannedCount = result.scannedCount ?? 0;
+    const member = result.member;
+    while(result.next) {
+      executor.input.ExclusiveStartKey = JSON.parse(
+        Buffer.from(result.next, 'base64').toString('ascii'),
+      )
+      if (this.config.logStatements) {
+        console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
+      }
+      result = await executor.execute();
+      member.push(...result.member as any[]);
+      scannedCount = scannedCount + (result.scannedCount ?? 0);
+    }
+    return {
+      member,
+      count: member.length,
+      scannedCount,
+      consumedCapacity: result.consumedCapacity
+    }
+  }
+
   scanExecutor<PROJECTION = null>(options: ScanOptions<T, PROJECTION>): ScanExecutor<T, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression = ProjectionHandler.projectionExpressionFor(
@@ -47,6 +74,7 @@ export class DynamoScanner<T extends DynamoInfo> {
     );
     const input = {
       TableName: this.config.tableName,
+      ...(this.config.indexName ? {IndexName: this.config.indexName}: {}),
       Limit: options.limit,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ConsistentRead: options.consistentRead,
@@ -77,30 +105,4 @@ export class DynamoScanner<T extends DynamoInfo> {
       }
     }
   }
-
-  // transactGetExecutor<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION>): TransactGetExecutor<T, PROJECTION> {
-  //   const input: TransactGetItemsInput = {
-  //     TransactItems: keys.map(key => ({ Get: {Key: key, TableName: this.config.tableName }})),
-  //     ReturnConsumedCapacity: options.returnConsumedCapacity
-  //   };
-  //   const client = this.config.client;
-  //   return {
-  //     input,
-  //     async execute(): Promise<BatchGetItemReturn<T, PROJECTION>> {
-  //       const result = await client.transactGet(input).promise();
-  //       return {
-  //         items: result.Responses?.map(it => it.Item) ?? [] as any,
-  //         consumedCapacity: result.ConsumedCapacity?.[0]
-  //       }
-  //     }
-  //   }
-  // }
-  //
-  // async transactGet<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION> = {}): Promise<BatchGetItemReturn<T, PROJECTION>> {
-  //   const executor = this.transactGetExecutor(keys, options);
-  //   if (this.config.logStatements) {
-  //     console.log(`BatchGetItemInput: ${JSON.stringify(executor.input, null, 2)}`);
-  //   }
-  //   return await executor.execute();
-  // }
 }

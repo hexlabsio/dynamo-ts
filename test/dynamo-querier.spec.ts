@@ -1,6 +1,7 @@
 import { DynamoDB } from 'aws-sdk';
 import { CompareWrapperOperator, Operation } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
+import TableClient from '../src/table-client';
 import { DynamoType } from '../src/types';
 import { complexTableDefinitionQuery, simpleTableDefinition2 } from './tables';
 
@@ -26,6 +27,12 @@ const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
 
 const testTable2 = new DynamoQuerier(simpleTableDefinition2, {
   tableName: TableName2,
+  client: dynamoClient,
+  logStatements: true,
+});
+
+const testTableClient = new TableClient(complexTableDefinitionQuery, {
+  tableName: TableName,
   client: dynamoClient,
   logStatements: true,
 });
@@ -250,3 +257,5 @@ describe('Dynamo Querier', () => {
   });
 
 })
+
+testTableClient.index('abc').query({text: '2'})

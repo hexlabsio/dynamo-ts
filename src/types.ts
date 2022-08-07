@@ -52,15 +52,16 @@ export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>
 
 export type DynamoType<D extends DynamoInfo> = TypeFromDefinition<D['definition']>;
 
-export type DynamoInfo<DEFINITION extends DynamoDefinition = any> = {
-  definition: DEFINITION,
-  partitionKey: keyof DEFINITION,
-  sortKey: keyof DEFINITION | null
-}
-
 export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {
   partitionKey: keyof DEFINITION,
   sortKey?: keyof DEFINITION
+}
+
+export type DynamoInfo<DEFINITION extends DynamoDefinition = any, I extends Record<string, DynamoIndex<DEFINITION>> = any> = {
+  definition: DEFINITION,
+  partitionKey: keyof DEFINITION,
+  sortKey: keyof DEFINITION | null,
+  indexes: I
 }
 
 export interface DynamoConfig {

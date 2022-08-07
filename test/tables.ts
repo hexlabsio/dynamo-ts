@@ -30,6 +30,8 @@ export const complexTableDefinitionQuery = defineTable(
     pqr: '"xxx" | "yyy" | "123 456"'
   },
   'hash',
+  null,
+  {'abc': {partitionKey: 'text'}}
 );
 
 export const complexTableDefinition = defineTable(
