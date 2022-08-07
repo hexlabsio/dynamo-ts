@@ -4,11 +4,16 @@ import { DynamoGetter, GetItemOptions, GetItemReturn } from './dynamo-getter';
 import { DynamoBatchGetter, BatchGetExecutor, BatchGetItemOptions } from './dynamo-batch-getter';
 import { DynamoPuter, PutItemOptions, PutItemReturn, PutReturnValues } from './dynamo-puter';
 import { DynamoQuerier, QuerierInput, QuerierReturn, QueryKeys } from './dynamo-querier';
+import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
 import { DynamoConfig, DynamoInfo, PickKeys, TypeFromDefinition } from './types';
 
 export default class TableClient<T extends DynamoInfo> {
 
   constructor(public readonly info: T, private readonly config: DynamoConfig) {}
+
+  async scan<PROJECTION = null>(options: ScanOptions<T, PROJECTION> = {}): Promise<ScanReturn<T, PROJECTION>> {
+    return new DynamoScanner(this.info, this.config).scan(options);
+  }
 
   get<PROJECTION = null>(keys: PickKeys<T>, options: GetItemOptions<T, PROJECTION> = {}): Promise<GetItemReturn<T, PROJECTION>> {
     return new DynamoGetter(this.info, this.config).get(keys, options);
