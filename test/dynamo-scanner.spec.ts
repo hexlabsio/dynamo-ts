@@ -1,6 +1,7 @@
 import { DynamoDB } from 'aws-sdk';
-import { TableClient } from '../src';
-import { complexTableDefinitionScan } from './tables';
+import TableClient from '../src/table-client';
+import { DynamoTypeFrom } from '../src/types';
+import { simpleTableDefinition3 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
   endpoint: 'localhost:5001',
@@ -10,88 +11,31 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-const testTable = TableClient.build(complexTableDefinitionScan, {
-  tableName: 'complexTableDefinitionScan',
+type TableType = DynamoTypeFrom<typeof simpleTableDefinition3>;
+
+const testTable = new TableClient(simpleTableDefinition3, {
+  tableName: 'simpleTableDefinition3',
   client: dynamoClient,
   logStatements: true,
 });
+const preInserts: TableType[] = new Array(1000).fill(0).map((a, index) => ({
+  identifier: index.toString(),
+  text: index.toString(),
+  sort: index.toString().padStart(6, '0'),
+}));
 
 describe('Dynamo Scanner', () => {
+  const TableName = 'simpleTableDefinition3';
+
   beforeAll(async () => {
-    testTable.logStatements(false);
-    await testTable.put({
-      hash: 'scan-item-test',
-      text: 'some text',
-      obj: { abc: 'def', def: 2 },
-    });
-    await testTable.put({
-      hash: 'scan-item-test2',
-      text: 'some text',
-      arr: [],
-    });
-    await testTable.put({
-      hash: 'scan-item-test3',
-      text: 'some text',
-      arr: [{ ghi: 1 }, { ghi: 2 }],
-    });
-    await testTable.put({
-      hash: 'scan-item-test4',
-      text: 'some text',
-      arr: [{ ghi: 1 }],
-    });
-    await testTable.put({ hash: 'scan-item-test5' });
-    testTable.logStatements(true);
+    await Promise.all(
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+    );
   });
 
-  it('should scan all items', async () => {
+  it('should scan table', async () => {
     const result = await testTable.scan();
-    expect(result.member).toEqual([
-      {
-        obj: { def: 2, abc: 'def' },
-        hash: 'scan-item-test',
-        text: 'some text',
-      },
-      { hash: 'scan-item-test5' },
-      {
-        arr: [{ ghi: 1 }, { ghi: 2 }],
-        hash: 'scan-item-test3',
-        text: 'some text',
-      },
-      { arr: [], hash: 'scan-item-test2', text: 'some text' },
-      { arr: [{ ghi: 1 }], hash: 'scan-item-test4', text: 'some text' },
-    ]);
-  });
-
-  it('should project items when scanning', async () => {
-    const result = await testTable.scan({
-      projection: (projector) =>
-        projector.project('text').project('obj.def').project('arr.[1]'),
-    });
-    expect(result.member).toEqual([
-      {
-        obj: { def: 2 },
-        text: 'some text',
-      },
-      {},
-      {
-        arr: [{ ghi: 2 }],
-        text: 'some text',
-      },
-      { text: 'some text' },
-      { text: 'some text' },
-    ]);
-  });
-
-  it('should scan and filter items that have a single entry in arr', async () => {
-    const result = await testTable.scan({
-      filter: (compare) => compare().existsPath('arr[1]'),
-    });
-    expect(result.member).toEqual([
-      {
-        hash: 'scan-item-test3',
-        text: 'some text',
-        arr: [{ ghi: 1 }, { ghi: 2 }],
-      },
-    ]);
+    const ordered = result.member.sort((a, b) => a.sort.localeCompare(b.sort));
+    expect(ordered).toEqual(preInserts);
   });
 });

@@ -1,5 +1,3 @@
-import { DynamoClientConfig } from './dynamo-client-config';
-
 // prettier-ignore
 export type NestedDepthTable = {
   32: 31; 31: 30; 30: 29; 29: 28; 28: 27; 27: 26; 26: 25; 25: 24; 24: 23;
@@ -209,28 +207,3 @@ export type SimpleDynamoType =
   | 'boolean?'
   | 'list?'
   | 'map?';
-
-export type DynamoRangeKey<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoClientConfig<DEFINITION>['tableType'],
-> = Omit<keyof DynamoClientConfig<DEFINITION>['tableType'], HASH> | null;
-
-export type DynamoKeysFrom<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoClientConfig<DEFINITION>['tableType'],
-  RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-> = RANGE extends string
-  ? RANGE extends keyof DynamoClientConfig<DEFINITION>['tableType']
-    ? { [K in HASH | RANGE]: DynamoClientConfig<DEFINITION>['tableType'][K] }
-    : never
-  : { [K in HASH]: DynamoClientConfig<DEFINITION>['tableType'][K] };
-
-export type DynamoNonKeysFrom<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoClientConfig<DEFINITION>['tableType'],
-  RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-> = RANGE extends string
-  ? RANGE extends keyof DynamoClientConfig<DEFINITION>['tableType']
-    ? Omit<DynamoClientConfig<DEFINITION>['tableType'], HASH | RANGE>
-    : never
-  : Omit<DynamoClientConfig<DEFINITION>['tableType'], HASH>;

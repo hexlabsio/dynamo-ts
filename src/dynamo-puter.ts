@@ -6,78 +6,70 @@ import {
   CamelCaseKeys,
   DynamoConfig,
   DynamoInfo,
-  PickKeys,
   TypeFromDefinition,
 } from './types';
-import DeleteItemInput = DocumentClient.DeleteItemInput;
-import DeleteItemOutput = DocumentClient.DeleteItemOutput;
+import PutItemInput = DocumentClient.PutItemInput;
+import PutItemOutput = DocumentClient.PutItemOutput;
 
-export type DeleteReturnValues = 'NONE' | 'ALL_OLD';
+export type PutReturnValues = 'NONE' | 'ALL_OLD';
 
-export type DeleteItemOptions<
+export type PutItemOptions<
   INFO extends DynamoInfo,
-  RETURN extends DeleteReturnValues,
-> = Partial<
-  CamelCaseKeys<
-    Pick<
-      DeleteItemInput,
-      'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'
-    >
-  >
+  RETURN extends PutReturnValues,
+> = CamelCaseKeys<
+  Pick<PutItemInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>
 > & {
   returnValues?: RETURN;
   condition?: DynamoFilter2<INFO>;
 };
 
-export type DeleteItemReturn<
+export type PutItemReturn<
   INFO extends DynamoInfo,
-  RETURN extends DeleteReturnValues,
+  RETURN extends PutReturnValues,
 > = CamelCaseKeys<
-  Pick<DeleteItemOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
+  Pick<PutItemOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
   (RETURN extends 'ALL_OLD'
-    ? { item?: TypeFromDefinition<INFO['definition']> }
+    ? { item: TypeFromDefinition<INFO['definition']> | undefined }
     : {});
 
-export interface DeleteExecutor<
+export interface PutExecutor<
   T extends DynamoInfo,
-  RETURN extends DeleteReturnValues,
+  RETURN extends PutReturnValues,
 > {
-  input: DeleteItemInput;
-  execute(): Promise<DeleteItemReturn<T, RETURN>>;
+  input: PutItemInput;
+  execute(): Promise<PutItemReturn<T, RETURN>>;
 }
 
-export class DynamoDeleter<T extends DynamoInfo> {
+export class DynamoPuter<T extends DynamoInfo> {
   constructor(
     private readonly info: T,
     private readonly config: DynamoConfig,
   ) {}
 
-  async delete<RETURN extends DeleteReturnValues = 'NONE'>(
-    keys: PickKeys<T>,
-    options: DeleteItemOptions<T, RETURN> = {},
-  ): Promise<DeleteItemReturn<T, RETURN>> {
-    const getInput = this.deleteExecutor(keys, options);
+  async put<RETURN extends PutReturnValues = 'NONE'>(
+    item: TypeFromDefinition<T['definition']>,
+    options: PutItemOptions<T, RETURN> = {},
+  ): Promise<PutItemReturn<T, RETURN>> {
+    const getInput = this.putExecutor(item, options);
     if (this.config.logStatements) {
-      console.log(
-        `DeleteItemInput: ${JSON.stringify(getInput.input, null, 2)}`,
-      );
+      console.log(`PutItemInput: ${JSON.stringify(getInput.input, null, 2)}`);
     }
     return await getInput.execute();
   }
 
-  deleteExecutor<RETURN extends DeleteReturnValues = 'NONE'>(
-    keys: PickKeys<T>,
-    options: DeleteItemOptions<T, RETURN> = {},
-  ): DeleteExecutor<T, RETURN> {
+  putExecutor<RETURN extends PutReturnValues = 'NONE'>(
+    item: TypeFromDefinition<T['definition']>,
+    options: PutItemOptions<T, RETURN> = {},
+  ): PutExecutor<T, RETURN> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
       filterParts(this.info, attributeBuilder, options.condition);
-    const input: DeleteItemInput = {
+    const input: PutItemInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
-      Key: keys,
+      Item: item,
       ReturnValues: options.returnValues,
       ConditionExpression: condition,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
@@ -86,8 +78,8 @@ export class DynamoDeleter<T extends DynamoInfo> {
     const client = this.config.client;
     return {
       input,
-      async execute(): Promise<DeleteItemReturn<T, RETURN>> {
-        const result = await client.delete(input).promise();
+      async execute(): Promise<PutItemReturn<T, RETURN>> {
+        const result = await client.put(input).promise();
         return {
           item: result.Attributes as any,
           consumedCapacity: result.ConsumedCapacity,

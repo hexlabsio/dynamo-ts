@@ -1,135 +1,164 @@
-import {
-  DynamoEntry,
-  DynamoIndexBaseKeys,
-  DynamoIndexes,
-  DynamoMapDefinition,
-} from './type-mapping';
-import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import QueryInput = DocumentClient.QueryInput;
-import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
+import { ConsumedCapacity, QueryInput } from 'aws-sdk/clients/dynamodb';
 import { AttributeBuilder } from './attribute-builder';
+import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
+import { DynamoFilter2 } from './filter';
 import { KeyOperation } from './operation';
-import { DynamoFilter } from './filter';
 import { Projection, ProjectionHandler } from './projector';
-import { AttributeMap } from 'aws-sdk/clients/dynamodb';
+import {
+  CamelCaseKeys,
+  DynamoConfig,
+  DynamoIndex,
+  DynamoInfo,
+  TypeFromDefinition,
+} from './types';
 
-type HashComparison<HASH extends keyof T, T> = {
-  [K in HASH]: T[K];
-};
+export type HashCompare<D extends DynamoInfo> = TypeFromDefinition<{
+  [K in D['partitionKey']]: D['definition'][K];
+}>;
+export type SortCompare<D extends DynamoInfo> =
+  D['sortKey'] extends keyof TypeFromDefinition<D['definition']>
+    ? {
+        [K in D['sortKey']]?: (
+          sortKey: KeyComparisonBuilder<
+            TypeFromDefinition<D['definition']>[D['sortKey']]
+          >,
+        ) => any;
+      }
+    : {};
 
-type RangeComparison<R extends keyof T, T> = {
-  [K in R]?: (sortKey: KeyComparisonBuilder<T[R]>) => any;
-};
-
-type RangeComparisonIfExists<R extends keyof T | null, T> = R extends string
-  ? RangeComparison<R, T>
-  : {};
-
-type Filter<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-> = {
-  filter?: DynamoFilter<DEFINITION, HASH, RANGE>;
-};
-
-type ExcessParameters = Omit<
-  QueryInput,
-  | 'TableName'
-  | 'IndexName'
-  | 'KeyConditionExpression'
-  | 'FilterExpression'
-  | 'ExclusiveStartKey'
+export type QueryKeys<D extends DynamoInfo> = HashCompare<D> & SortCompare<D>;
+export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
+  filter?: DynamoFilter2<D>;
+  projection?: Projection<D, PROJECTION>;
+  next?: string;
+} & Partial<
+  CamelCaseKeys<
+    Pick<
+      QueryInput,
+      | 'Limit'
+      | 'ConsistentRead'
+      | 'ScanIndexForward'
+      | 'ReturnConsumedCapacity'
+      | 'ExpressionAttributeNames'
+      | 'ExpressionAttributeValues'
+    >
+  >
 >;
 
-export type QueryParametersInput<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  PROJECTED = null,
-> = HashComparison<HASH, DynamoEntry<DEFINITION>> &
-  RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>> &
-  Filter<DEFINITION, HASH, RANGE> & {
-    projection?: Projection<DEFINITION, PROJECTED>;
-    next?: string;
-    dynamo?: ExcessParameters;
-  };
-
-export type QueryAllParametersInput<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  PROJECTED = null,
-> = QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED> & {
-  queryLimit?: number;
+export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
+  member: PROJECTION extends null
+    ? TypeFromDefinition<D['definition']>[]
+    : PROJECTION[];
+  next?: string;
+  consumedCapacity?: ConsumedCapacity;
+  count?: number;
+  scannedCount?: number;
 };
 
-export class DynamoQuerier {
-  private static keyPart<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
-    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
-  >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
+export interface QueryExecutor<D extends DynamoInfo, PROJECTION> {
+  input: QueryInput;
+  execute: () => Promise<QuerierReturn<D, PROJECTION>>;
+}
+
+export class DynamoQuerier<
+  D extends DynamoInfo = any,
+  I extends Record<string, DynamoIndex> = {},
+> {
+  constructor(
+    private readonly info: D,
+    private readonly config: DynamoConfig,
+  ) {}
+
+  private keyExpression(
+    keys: QueryKeys<D>,
     attributeBuilder: AttributeBuilder,
-    queryParameters: HashComparison<HASH, DynamoEntry<DEFINITION>> &
-      RangeComparisonIfExists<RANGE, DynamoEntry<DEFINITION>>,
   ): string {
-    attributeBuilder.addNames(definition.hash as string);
-    const hashValue = queryParameters[definition.hash];
+    const partitionKey = this.info.partitionKey as keyof QueryKeys<D>;
+    const sortKey = this.info.sortKey as keyof QueryKeys<D>;
+    attributeBuilder.addNames(partitionKey as string);
+    const hashValue = keys[partitionKey];
     const valueKey = attributeBuilder.addValue(hashValue);
     const expression = `${attributeBuilder.nameFor(
-      definition.hash as string,
+      partitionKey as string,
     )} = ${valueKey}`;
-    if (definition.range && (queryParameters as any)[definition.range]) {
+    if (sortKey && keys[sortKey]) {
       const keyOperation = new KeyOperation(
-        definition.range as string,
+        sortKey as string,
         new Wrapper(attributeBuilder),
       );
-      (queryParameters as any)[definition.range](keyOperation);
+      (keys[sortKey] as any)(keyOperation);
       return `${expression} AND ${keyOperation.wrapper.expression}`;
     }
     return expression;
   }
 
-  static async query<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
-    PROJECTED = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-    options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
-  ): Promise<{
-    next?: string;
-    member: (PROJECTED extends null
-      ? {
-          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-        }
-      : PROJECTED)[];
-  }> {
+  query<PROJECTION = null>(
+    keys: QueryKeys<D>,
+    options: QuerierInput<D, PROJECTION> = {},
+  ): Promise<QuerierReturn<D, PROJECTION>> {
+    const executor = this.queryExecutor(keys, options);
+    if (this.config.logStatements) {
+      console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    return executor.execute();
+  }
+
+  async queryAll<PROJECTION = null>(
+    keys: QueryKeys<D>,
+    options: QuerierInput<D, PROJECTION> = {},
+  ): Promise<Omit<QuerierReturn<D, PROJECTION>, 'next'>> {
+    const executor = this.queryExecutor(keys, options);
+    if (this.config.logStatements) {
+      console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    let result = await executor.execute();
+    let scannedCount = result.scannedCount ?? 0;
+    const member = result.member;
+    while (result.next) {
+      executor.input.ExclusiveStartKey = JSON.parse(
+        Buffer.from(result.next, 'base64').toString('ascii'),
+      );
+      if (this.config.logStatements) {
+        console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+      }
+      result = await executor.execute();
+      member.push(...(result.member as any[]));
+      scannedCount = scannedCount + (result.scannedCount ?? 0);
+    }
+    return {
+      member,
+      count: member.length,
+      scannedCount,
+      consumedCapacity: result.consumedCapacity,
+    };
+  }
+
+  queryExecutor<PROJECTION = null>(
+    keys: QueryKeys<D>,
+    options: QuerierInput<D, PROJECTION> = {},
+  ): QueryExecutor<D, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const keyExpression = this.keyPart(definition, attributeBuilder, options);
+    const keyExpression = this.keyExpression(keys, attributeBuilder);
     const filterPart =
       options.filter &&
-      filterParts(definition, attributeBuilder, options.filter);
+      filterParts(this.info, attributeBuilder, options.filter);
     const projection = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      config.definition,
+      this.info,
       options.projection,
     );
-    const queryInput = {
-      TableName: config.tableName,
-      ...(config.indexName ? { IndexName: config.indexName } : {}),
+    const input: QueryInput = {
+      TableName: this.config.tableName,
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
       ProjectionExpression: projection,
-      ...attributeBuilder.asInput(options.dynamo),
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ScanIndexForward: options.scanIndexForward,
+      ConsistentRead: options.consistentRead,
+      Limit: options.limit,
+      ...attributeBuilder.asInput(options),
       ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
@@ -138,184 +167,23 @@ export class DynamoQuerier {
           }
         : {}),
     };
-    if (config.logStatements) {
-      console.log(`QueryInput: ${JSON.stringify(queryInput, null, 2)}`);
-    }
-
-    const result = await config.client.query(queryInput).promise();
+    const client = this.config.client;
     return {
-      member: (result.Items ?? []) as any[],
-      next: result.LastEvaluatedKey
-        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
-            'base64',
-          )
-        : undefined,
-    } as any;
-  }
-
-  static async queryAll<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
-    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
-    PROJECTED = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
-    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
-  ): Promise<{
-    next?: string;
-    member: (PROJECTED extends null
-      ? {
-          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-        }
-      : PROJECTED)[];
-  }> {
-    const attributeBuilder = AttributeBuilder.create();
-    const keyExpression = this.keyPart(definition, attributeBuilder, options);
-    const filterPart =
-      options.filter &&
-      filterParts(definition, attributeBuilder, options.filter);
-
-    const [projection, enrichedFields] =
-      ProjectionHandler.projectionWithKeysFor(
-        attributeBuilder,
-        config.definition,
-        definition.hash,
-        definition.range,
-        definition.baseKeys?.hash ?? null,
-        definition?.baseKeys?.range ?? null,
-        options.projection,
-      );
-    const queryInput = {
-      TableName: config.tableName,
-      KeyConditionExpression: keyExpression,
-      ...(config.indexName ? { IndexName: config.indexName } : {}),
-      ...(options.filter ? { FilterExpression: filterPart } : {}),
-      ProjectionExpression: projection,
-      ...attributeBuilder.asInput(options.dynamo),
-      ...(options.next
-        ? {
-            ExclusiveStartKey: JSON.parse(
-              Buffer.from(options.next, 'base64').toString('ascii'),
-            ),
-          }
-        : {}),
-      ...(options.dynamo ? options.dynamo : {}),
+      input,
+      execute: async () => {
+        const result = await client.query(input).promise();
+        return {
+          member: (result.Items ?? []) as any,
+          next: result.LastEvaluatedKey
+            ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
+                'base64',
+              )
+            : undefined,
+          consumedCapacity: result.ConsumedCapacity,
+          count: result.Count,
+          scannedCount: result.ScannedCount,
+        };
+      },
     };
-    if (config.logStatements) {
-      console.log(`QueryInput: ${JSON.stringify(queryInput, null, 2)}`);
-    }
-    const baseKeys = definition.baseKeys
-      ? {
-        baseHashKey: definition.baseKeys.hash as string,
-        baseRangeKey: definition.baseKeys.range
-          ? (definition.baseKeys.range as string)
-          : undefined,
-      }
-      : {}
-    const keyFields = {
-      hashKey: definition.hash as string,
-      rangeKey: definition.range ? (definition.range as string) : undefined,
-      ...baseKeys,
-    }
-    const result = await this._recQuery(
-      config.client,
-      queryInput,
-      keyFields,
-      enrichedFields,
-      options.queryLimit,
-    );
-    return {
-      member: (result.Items ?? []) as any[],
-      next: result.LastEvaluatedKey,
-    } as any;
-  }
-
-  private static buildNext(
-    lastItem: AttributeMap,
-    keyFields: {
-      hashKey: string;
-      rangeKey?: string;
-      baseHashKey?: string;
-      baseRangeKey?: string;
-    },
-  ): string {
-    const nextKey = { [keyFields.hashKey]: lastItem[keyFields.hashKey] };
-    if (keyFields.rangeKey)
-      nextKey[keyFields.rangeKey] = lastItem[keyFields.rangeKey];
-    if (keyFields.baseHashKey)
-      nextKey[keyFields.baseHashKey] = lastItem[keyFields.baseHashKey];
-    if (keyFields.baseRangeKey)
-      nextKey[keyFields.baseRangeKey] = lastItem[keyFields.baseRangeKey];
-    return Buffer.from(JSON.stringify(nextKey)).toString('base64');
-  }
-
-  private static removeFields(
-    lastItems: AttributeMap[],
-    enrichedFields: string[],
-  ): void {
-    lastItems.forEach((lastItem) =>
-      enrichedFields.forEach((field) => delete lastItem[field]),
-    );
-  }
-
-  private static async _recQuery(
-    client: DocumentClient,
-    queryInput: QueryInput,
-    keyFields: {
-      hashKey: string;
-      rangeKey?: string;
-      baseHashKey?: string;
-      baseRangeKey?: string;
-    },
-    enrichedFields?: string[],
-    queryLimit?: number,
-    accumulation: AttributeMap[] = [],
-    accumulationCount?: number,
-  ): Promise<{ Items: AttributeMap[]; LastEvaluatedKey?: string }> {
-    const res = await client.query(queryInput).promise();
-
-    const resLength = res?.Items?.length ?? 0;
-    const accLength = accumulationCount ?? 0;
-    const updatedAccLength = accLength + resLength;
-    const limit = queryLimit ?? 0;
-
-    if (limit > 0 && limit <= updatedAccLength) {
-      const nextKey = this.buildNext(
-        res.Items![limit - accLength - 1],
-        keyFields,
-      );
-      const accumulatedResults = [
-        ...res.Items!.slice(0, limit - accLength),
-        ...accumulation,
-      ];
-      if (enrichedFields) {
-        this.removeFields(accumulatedResults, enrichedFields);
-      }
-      return {
-        Items: accumulatedResults,
-        LastEvaluatedKey: nextKey,
-      };
-    } else if (!res.LastEvaluatedKey) {
-      const accumulatedResults = [...(res.Items ?? []), ...accumulation];
-      if (enrichedFields) {
-        this.removeFields(accumulatedResults, enrichedFields);
-      }
-      return {
-        Items: accumulatedResults,
-      };
-    } else {
-      return await this._recQuery(
-        client,
-        { ...queryInput, ExclusiveStartKey: res.LastEvaluatedKey },
-        keyFields,
-        enrichedFields,
-        queryLimit,
-        [...accumulation, ...(res.Items ?? [])],
-        updatedAccLength,
-      );
-    }
   }
 }

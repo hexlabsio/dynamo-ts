@@ -1,100 +1,106 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import GetItemInput = DocumentClient.GetItemInput;
-import {
-  DynamoEntry,
-  DynamoKeysFrom,
-  DynamoMapDefinition,
-  DynamoRangeKey,
-} from './type-mapping';
-import { DynamoClientConfig } from './dynamo-client-config';
+import { DynamoDB } from 'aws-sdk';
+import GetItemInput = DynamoDB.DocumentClient.GetItemInput;
+import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
 import { AttributeBuilder } from './attribute-builder';
-import ConsumedCapacity = DocumentClient.ConsumedCapacity;
-import BatchGetItemInput = DocumentClient.BatchGetItemInput;
 import { Projection, ProjectionHandler } from './projector';
+import {
+  CamelCaseKeys,
+  DynamoConfig,
+  DynamoInfo,
+  PickKeys,
+  TypeFromDefinition,
+} from './types';
 
-export type GetItemExtras<
-  DEFINITION extends DynamoMapDefinition,
-  PROJECTED,
-> = Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity'> & {
-  projection?: Projection<DEFINITION, PROJECTED>;
+export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = Partial<
+  CamelCaseKeys<Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>>
+> & {
+  projection?: Projection<INFO, PROJECTION>;
+};
+export type GetItemReturn<INFO extends DynamoInfo, PROJECTION> = {
+  item:
+    | (PROJECTION extends null
+        ? TypeFromDefinition<INFO['definition']>
+        : PROJECTION)
+    | undefined;
+  consumedCapacity?: ConsumedCapacity;
 };
 
-export class DynamoGetter {
-  static async get<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-    PROJECTED = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
-    options: GetItemExtras<DEFINITION, PROJECTED> = {},
-  ): Promise<{
-    item:
-      | (PROJECTED extends null
-          ? DynamoClientConfig<DEFINITION>['tableType']
-          : PROJECTED)
-      | undefined;
-    consumedCapacity?: ConsumedCapacity;
-  }> {
+export interface GetExecutor<T extends DynamoInfo, PROJECTION> {
+  input: GetItemInput;
+  execute(): Promise<GetItemReturn<T, PROJECTION>>;
+}
+
+export class DynamoGetter<T extends DynamoInfo> {
+  constructor(
+    private readonly info: T,
+    private readonly config: DynamoConfig,
+  ) {}
+
+  async get<PROJECTION = null>(
+    keys: PickKeys<T>,
+    options: GetItemOptions<T, PROJECTION> = {},
+  ): Promise<GetItemReturn<T, PROJECTION>> {
+    const getInput = this.getExecutor(keys, options);
+    if (this.config.logStatements) {
+      console.log(`GetItemInput: ${JSON.stringify(getInput.input, null, 2)}`);
+    }
+    return await getInput.execute();
+  }
+
+  getExecutor<PROJECTION = null>(
+    keys: PickKeys<T>,
+    options: GetItemOptions<T, PROJECTION>,
+  ): GetExecutor<T, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      config.definition,
+      this.info,
       options.projection,
     );
-    const getInput: GetItemInput = {
-      TableName: config.tableName,
-      Key: key,
-      ...options,
+    const input = {
+      TableName: this.config.tableName,
+      Key: keys,
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ConsistentRead: options.consistentRead,
       ProjectionExpression: expression,
       ...attributeBuilder.asInput(),
     };
-    if (config.logStatements) {
-      console.log(`GetItemInput: ${JSON.stringify(getInput, null, 2)}`);
-    }
-    const result = await config.client.get(getInput).promise();
+    const client = this.config.client;
     return {
-      item: result.Item as any,
-      consumedCapacity: result.ConsumedCapacity,
+      input,
+      async execute(): Promise<GetItemReturn<T, PROJECTION>> {
+        const result = await client.get(input).promise();
+        return {
+          item: result.Item as any,
+          consumedCapacity: result.ConsumedCapacity,
+        };
+      },
     };
   }
 
-  async batchGet<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends DynamoRangeKey<DEFINITION, HASH>,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    keys: DynamoKeysFrom<DEFINITION, HASH, RANGE>[],
-    returnConsumedCapacity?: BatchGetItemInput['ReturnConsumedCapacity'],
-    consistent?: boolean,
-  ): Promise<{
-    items: DynamoClientConfig<DEFINITION>['tableType'][];
-    consumedCapacity?: ConsumedCapacity;
-  }> {
-    const attributeBuilder = AttributeBuilder.create();
-    const [, projection] = ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      config.definition,
-    );
-    const batchGetInput: BatchGetItemInput = {
-      ReturnConsumedCapacity: returnConsumedCapacity,
-      RequestItems: {
-        [config.tableName]: {
-          ...attributeBuilder.asInput(),
-          Keys: keys,
-          ...(projection ? { ProjectionExpression: projection } : {}),
-          ...(consistent !== undefined ? { ConsistentRead: consistent } : {}),
-        },
-      },
-    };
-    if (config.logStatements) {
-      console.log(
-        `BatchGetItemInput: ${JSON.stringify(batchGetInput, null, 2)}`,
-      );
-    }
-    const result = await config.client.batchGet(batchGetInput).promise();
-    return result.Responses![config.tableName] as any;
-  }
+  // transactGetExecutor<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION>): TransactGetExecutor<T, PROJECTION> {
+  //   const input: TransactGetItemsInput = {
+  //     TransactItems: keys.map(key => ({ Get: {Key: key, TableName: this.config.tableName }})),
+  //     ReturnConsumedCapacity: options.returnConsumedCapacity
+  //   };
+  //   const client = this.config.client;
+  //   return {
+  //     input,
+  //     async execute(): Promise<BatchGetItemReturn<T, PROJECTION>> {
+  //       const result = await client.transactGet(input).promise();
+  //       return {
+  //         items: result.Responses?.map(it => it.Item) ?? [] as any,
+  //         consumedCapacity: result.ConsumedCapacity?.[0]
+  //       }
+  //     }
+  //   }
+  // }
+  //
+  // async transactGet<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION> = {}): Promise<BatchGetItemReturn<T, PROJECTION>> {
+  //   const executor = this.transactGetExecutor(keys, options);
+  //   if (this.config.logStatements) {
+  //     console.log(`BatchGetItemInput: ${JSON.stringify(executor.input, null, 2)}`);
+  //   }
+  //   return await executor.execute();
+  // }
 }

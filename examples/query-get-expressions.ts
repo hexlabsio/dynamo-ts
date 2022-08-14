@@ -1,8 +1,8 @@
-import {DynamoEntry} from "../src";
+import { DynamoTypeFrom } from '../src/types';
 import {exampleCarTable} from "./example-table";
 import {tableClient} from "./query-filter-expressions";
 
-type Car = DynamoEntry<typeof exampleCarTable.definition>;
+type Car = DynamoTypeFrom<typeof exampleCarTable>;
 
 export async function getModelS(): Promise<Car | undefined> {
     const result = await tableClient.get({identifier: '1234', make: 'Tesla'})

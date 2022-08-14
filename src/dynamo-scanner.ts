@@ -1,89 +1,136 @@
-import {
-  DynamoEntry,
-  DynamoIndexes,
-  DynamoMapDefinition,
-} from './type-mapping';
-import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
+import { DynamoDB } from 'aws-sdk';
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import { ComparisonBuilder, conditionalParts } from './comparison';
+import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
 import { AttributeBuilder } from './attribute-builder';
-import { CompareWrapperOperator } from './operation';
-import QueryInput = DocumentClient.QueryInput;
-import ScanInput = DocumentClient.ScanInput;
+import { DynamoFilter2 } from './filter';
 import { Projection, ProjectionHandler } from './projector';
+import {
+  CamelCaseKeys,
+  DynamoConfig,
+  DynamoInfo,
+  TypeFromDefinition,
+} from './types';
+import ScanInput = DocumentClient.ScanInput;
 
-export type ScanOptions<
-  DEFINITION extends DynamoMapDefinition,
-  PROJECTED,
-> = Omit<QueryInput, 'TableName'> & {
-  projection?: Projection<DEFINITION, PROJECTED>;
-  filter?: (
-    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
-  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>;
+export type ScanOptions<INFO extends DynamoInfo, PROJECTION> = CamelCaseKeys<
+  Pick<
+    ScanInput,
+    | 'Limit'
+    | 'ReturnConsumedCapacity'
+    | 'TotalSegments'
+    | 'Segment'
+    | 'ConsistentRead'
+  >
+> & {
+  projection?: Projection<INFO, PROJECTION>;
+  filter?: DynamoFilter2<INFO>;
   next?: string;
 };
 
-export class DynamoScanner {
-  static async scan<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
-    RETURN_OLD extends boolean = false,
-    PROJECTED = null,
-  >(
-    config: DynamoClientConfig<DEFINITION>,
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
-    options: ScanOptions<DEFINITION, PROJECTED> = {},
-  ): Promise<{
-    next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
-  }> {
+export type ScanReturn<INFO extends DynamoInfo, PROJECTION> = {
+  member: PROJECTION extends null
+    ? TypeFromDefinition<INFO['definition']>[]
+    : PROJECTION[];
+  consumedCapacity?: ConsumedCapacity;
+  count?: number;
+  scannedCount?: number;
+  next?: string;
+};
+
+export interface ScanExecutor<T extends DynamoInfo, PROJECTION> {
+  input: ScanInput;
+  execute(): Promise<ScanReturn<T, PROJECTION>>;
+}
+
+export class DynamoScanner<T extends DynamoInfo> {
+  constructor(
+    private readonly info: T,
+    private readonly config: DynamoConfig,
+  ) {}
+
+  async scan<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<ScanReturn<T, PROJECTION>> {
+    const scanInput = this.scanExecutor(options);
+    if (this.config.logStatements) {
+      console.log(`ScanInput: ${JSON.stringify(scanInput.input, null, 2)}`);
+    }
+    return await scanInput.execute();
+  }
+
+  async scanAll<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
+    const executor = this.scanExecutor(options);
+    if (this.config.logStatements) {
+      console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
+    }
+    let result = await executor.execute();
+    let scannedCount = result.scannedCount ?? 0;
+    const member = result.member;
+    while (result.next) {
+      executor.input.ExclusiveStartKey = JSON.parse(
+        Buffer.from(result.next, 'base64').toString('ascii'),
+      );
+      if (this.config.logStatements) {
+        console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
+      }
+      result = await executor.execute();
+      member.push(...(result.member as any[]));
+      scannedCount = scannedCount + (result.scannedCount ?? 0);
+    }
+    return {
+      member,
+      count: member.length,
+      scannedCount,
+      consumedCapacity: result.consumedCapacity,
+    };
+  }
+
+  scanExecutor<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION>,
+  ): ScanExecutor<T, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const projection = ProjectionHandler.projectionExpressionFor(
+    const expression = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      config.definition,
+      this.info,
       options.projection,
     );
-    const {
-      filter,
-      next,
-      ExpressionAttributeNames,
-      ExpressionAttributeValues,
-      ...extras
-    } = options;
-    const conditionPart =
-      filter && conditionalParts(definition, attributeBuilder, filter);
-    const scanInput: ScanInput = {
-      TableName: config.tableName,
-      ...(conditionPart ? { FilterExpression: conditionPart } : {}),
-      ProjectionExpression: projection,
-      ...(next
+    const input = {
+      TableName: this.config.tableName,
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+      Limit: options.limit,
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
+      ConsistentRead: options.consistentRead,
+      TotalSegments: options.totalSegments,
+      Segment: options.segment,
+      ProjectionExpression: expression,
+      ...attributeBuilder.asInput(),
+      ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
-              Buffer.from(next, 'base64').toString('ascii'),
+              Buffer.from(options.next, 'base64').toString('ascii'),
             ),
           }
         : {}),
-      ...extras,
-      ...attributeBuilder.asInput({
-        ExpressionAttributeNames,
-        ExpressionAttributeValues,
-      }),
     };
-    if (config.logStatements) {
-      console.log(`ScanInput: ${JSON.stringify(scanInput, null, 2)}`);
-    }
-    const result = await config.client.scan(scanInput).promise();
+    const client = this.config.client;
     return {
-      member: (result.Items ?? []) as any,
-      next: result.LastEvaluatedKey
-        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
-            'base64',
-          )
-        : undefined,
+      input,
+      async execute(): Promise<ScanReturn<T, PROJECTION>> {
+        const result = await client.scan(input).promise();
+        return {
+          member: (result.Items as any) ?? [],
+          consumedCapacity: result.ConsumedCapacity,
+          count: result.Count,
+          scannedCount: result.ScannedCount,
+          next: result.LastEvaluatedKey
+            ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
+                'base64',
+              )
+            : undefined,
+        };
+      },
     };
   }
 }

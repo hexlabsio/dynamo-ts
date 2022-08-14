@@ -1,278 +1,149 @@
+import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import {
-  DynamoEntry,
-  DynamoIndexBaseKeys,
-  DynamoIndexes,
-  DynamoKeysFrom,
-  DynamoMapDefinition,
-  DynamoNestedKV,
-} from './type-mapping';
-import { DynamoClientConfig, DynamoDefinition } from './dynamo-client-config';
-import { DynamoGetter, GetItemExtras } from './dynamo-getter';
-import { DynamoPutter, PutItemExtras, PutItemResult } from './dynamo-putter';
+  BatchWriteExecutor,
+  BatchWriteItemOptions,
+  DynamoBatchWriter,
+} from './dynamo-batch-writer';
+import {
+  DeleteItemOptions,
+  DeleteItemReturn,
+  DeleteReturnValues,
+  DynamoDeleter,
+} from './dynamo-deleter';
+import { DynamoGetter, GetItemOptions, GetItemReturn } from './dynamo-getter';
+import {
+  DynamoBatchGetter,
+  BatchGetExecutor,
+  BatchGetItemOptions,
+} from './dynamo-batch-getter';
+import {
+  DynamoPuter,
+  PutItemOptions,
+  PutItemReturn,
+  PutReturnValues,
+} from './dynamo-puter';
 import {
   DynamoQuerier,
-  QueryParametersInput,
-  QueryAllParametersInput,
+  QuerierInput,
+  QuerierReturn,
+  QueryKeys,
 } from './dynamo-querier';
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import ConsumedCapacity = DocumentClient.ConsumedCapacity;
-import { DynamoScanner, ScanOptions } from './dynamo-scanner';
-import { DeleteItemOptions, DynamoDeleter } from './dynamo-deleter';
-import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
+import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
 import {
   DynamoUpdater,
   UpdateItemOptions,
-  UpdateReturnType,
+  UpdateResult,
 } from './dynamo-updater';
-import ReturnValue = DocumentClient.ReturnValue;
+import IndexClient from './index-client';
+import { DynamoNestedKV } from './type-mapping';
 import {
-  BatchWrite,
-  BatchWriteOutput,
-  DeleteWriteItem,
-  DynamoBatchWriter,
-} from './dynamo-batch-writer';
+  DynamoConfig,
+  DynamoInfo,
+  PickKeys,
+  TypeFromDefinition,
+} from './types';
+import ReturnValue = DocumentClient.ReturnValue;
 
-export interface Queryable<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-> {
-  query(options: QueryParametersInput<DEFINITION, HASH, RANGE>): Promise<{
-    next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
-  }>;
-  queryAll(options: QueryAllParametersInput<DEFINITION, HASH, RANGE>): Promise<{
-    next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
-  }>;
-}
+export default class TableClient<T extends DynamoInfo> {
+  constructor(public readonly info: T, private readonly config: DynamoConfig) {}
 
-export class TableClient<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  INDEXES extends DynamoIndexes<DEFINITION> = null,
-  BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
-> implements Queryable<DEFINITION, HASH, RANGE>
-{
-  private readonly baseDefinition: DynamoDefinition<
-    DEFINITION,
-    HASH,
-    RANGE,
-    INDEXES
-    >
-  constructor(
-    protected readonly config: DynamoClientConfig<DEFINITION>,
-    protected readonly definition: DynamoDefinition<
-      DEFINITION,
-      HASH,
-      RANGE,
-      INDEXES,
-      BASEKEYS
-    >,
-  ) {
-    this.baseDefinition = { ...this.definition, baseKeys: null }
+  scan<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<ScanReturn<T, PROJECTION>> {
+    return new DynamoScanner(this.info, this.config).scan(options);
   }
 
-  logStatements(on: boolean): void {
-    this.config.logStatements = on;
+  scanAll<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
+    return new DynamoScanner(this.info, this.config).scanAll(options);
   }
 
-  async scan<R = null>(
-    options: ScanOptions<DEFINITION, R> = {},
-  ): Promise<{
-    next?: string;
-    member: {
-      [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-    }[];
-  }> {
-    return DynamoScanner.scan(
-      this.config,
-      this.baseDefinition,
-      options,
-    );
+  get<PROJECTION = null>(
+    keys: PickKeys<T>,
+    options: GetItemOptions<T, PROJECTION> = {},
+  ): Promise<GetItemReturn<T, PROJECTION>> {
+    return new DynamoGetter(this.info, this.config).get(keys, options);
   }
 
-  async get<R = null>(
-    key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
-    options: GetItemExtras<DEFINITION, R> = {},
-  ): Promise<{
-    item:
-      | (R extends null ? DynamoClientConfig<DEFINITION>['tableType'] : R)
-      | undefined;
-    consumedCapacity?: ConsumedCapacity;
-  }> {
-    return DynamoGetter.get(this.config, key, options);
+  put<RETURN extends PutReturnValues = 'NONE'>(
+    item: TypeFromDefinition<T['definition']>,
+    options: PutItemOptions<T, RETURN> = {},
+  ): Promise<PutItemReturn<T, RETURN>> {
+    return new DynamoPuter(this.info, this.config).put(item, options);
   }
 
-  async put<RETURN_OLD extends boolean = false>(
-    item: DynamoEntry<DEFINITION>,
-    options: PutItemExtras<DEFINITION, RETURN_OLD> = {},
-  ): Promise<PutItemResult<DEFINITION, RETURN_OLD>> {
-    return DynamoPutter.put(
-      this.config,
-      this.baseDefinition,
-      item,
-      options,
-    );
+  delete<RETURN extends DeleteReturnValues = 'NONE'>(
+    keys: PickKeys<T>,
+    options: DeleteItemOptions<T, RETURN> = {},
+  ): Promise<DeleteItemReturn<T, RETURN>> {
+    return new DynamoDeleter(this.info, this.config).delete(keys, options);
   }
 
-  async batchPut(items: DynamoEntry<DEFINITION>[]): Promise<BatchWriteOutput> {
-    return DynamoBatchWriter.batchPut(this.config, items);
+  query<PROJECTION = null>(
+    keys: QueryKeys<T>,
+    options: QuerierInput<T, PROJECTION> = {},
+  ): Promise<QuerierReturn<T, PROJECTION>> {
+    return new DynamoQuerier(this.info, this.config).query(keys, options);
   }
 
-  async batchWrite(
-    items: BatchWrite<DEFINITION, HASH, RANGE>[],
-  ): Promise<BatchWriteOutput> {
-    return DynamoBatchWriter.batchWrite(this.config, items);
+  queryAll<PROJECTION = null>(
+    keys: QueryKeys<T>,
+    options: QuerierInput<T, PROJECTION> = {},
+  ): Promise<Omit<QuerierReturn<T, PROJECTION>, 'next'>> {
+    return new DynamoQuerier(this.info, this.config).query(keys, options);
   }
 
-  async query<PROJECTED = null>(
-    options: QueryParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
-  ): Promise<{
-    next?: string;
-    member: (PROJECTED extends null
-      ? {
-          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-        }
-      : PROJECTED)[];
-  }> {
-    return DynamoQuerier.query(
-      this.config,
-      this.baseDefinition,
-      options,
-    );
-  }
-
-  async queryAll<PROJECTED = null>(
-    options: QueryAllParametersInput<DEFINITION, HASH, RANGE, PROJECTED>,
-  ): Promise<{
-    next?: string;
-    member: (PROJECTED extends null
-      ? {
-          [K in keyof DynamoEntry<DEFINITION>]: DynamoEntry<DEFINITION>[K];
-        }
-      : PROJECTED)[];
-  }> {
-    return DynamoQuerier.queryAll(this.config, this.definition, options);
-  }
-
-  async update<
-    KEY extends keyof DynamoNestedKV<DynamoEntry<DEFINITION>>,
+  update<
+    KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
     RETURN_ITEMS extends ReturnValue | null = null,
   >(
-    options: UpdateItemOptions<DEFINITION, HASH, RANGE, KEY, RETURN_ITEMS>,
-  ): Promise<{
-    item: UpdateReturnType<DEFINITION, RETURN_ITEMS>;
-    consumedCapacity?: ConsumedCapacity;
-    itemCollectionMetrics?: ItemCollectionMetrics;
-  }> {
-    return DynamoUpdater.update(this.config, options);
+    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
+  ): Promise<UpdateResult<T, RETURN_ITEMS>> {
+    return new DynamoUpdater(this.info, this.config).update(options);
   }
 
-  async delete<RETURN_OLD extends boolean = false>(
-    key: DynamoKeysFrom<DEFINITION, HASH, RANGE>,
-    options: DeleteItemOptions<DEFINITION, RETURN_OLD> = {},
-  ): Promise<
-    {
-      consumedCapacity?: ConsumedCapacity;
-      itemCollectionMetrics?: ItemCollectionMetrics;
-    } & (RETURN_OLD extends true
-      ? { item: DynamoClientConfig<DEFINITION>['tableType'] }
-      : {})
-  > {
-    return DynamoDeleter.delete(
-      this.config,
-      this.baseDefinition,
-      key,
+  batchGet<PROJECTION = null>(
+    keys: PickKeys<T>[],
+    options: BatchGetItemOptions<T, PROJECTION> = {},
+  ): BatchGetExecutor<T, PROJECTION> {
+    return new DynamoBatchGetter(this.info, this.config).batchGetExecutor(
+      keys,
       options,
     );
   }
-  index<INDEX extends keyof INDEXES>(
-    index: INDEX,
-  ): INDEXES extends {}
-    ? Queryable<
-        DEFINITION,
-        INDEXES[INDEX]['hashKey'],
-        INDEXES[INDEX]['rangeKey']
-      >
-    : never {
-    if (this.definition.indexes) {
-      const { hashKey, rangeKey } = this.definition.indexes[index as string];
-      return TableClient.build(
-        {
-          definition: this.config.definition,
-          hash: hashKey,
-          range: rangeKey as any,
-          indexes: null,
-          baseKeys: {
-            hash: this.definition.hash,
-            range: this.definition.range,
-          },
-        },
-        {
-          ...this.config,
-          indexName: index as string,
-        },
-      ) as any;
-    }
-    return undefined as any;
+
+  batchPut(
+    items: TypeFromDefinition<T['definition']>[],
+    options: BatchWriteItemOptions<T> = {},
+  ): BatchWriteExecutor<T> {
+    return new DynamoBatchWriter(this.config).batchPutExecutor(items, options);
   }
 
-  async batchDelete(
-    items: DeleteWriteItem<DEFINITION, HASH, RANGE>[],
-  ): Promise<BatchWriteOutput> {
-    return DynamoBatchWriter.batchDelete(this.config, items);
-  }
-
-  static build<
-    DEFINITION extends DynamoMapDefinition,
-    HASH extends keyof DynamoEntry<DEFINITION>,
-    RANGE extends keyof DynamoEntry<DEFINITION> | null,
-    INDEXES extends DynamoIndexes<DEFINITION> = null,
-    BASEKEYS extends DynamoIndexBaseKeys<DEFINITION> = null,
-  >(
-    definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS>,
-    config: Omit<DynamoClientConfig<DEFINITION>, 'tableType' | 'definition'>,
-  ): TableClient<DEFINITION, HASH, RANGE, INDEXES, BASEKEYS> {
-    return new TableClient(
-      {
-        ...config,
-        tableType: undefined as any,
-        definition: definition.definition,
-      },
-      definition,
+  batchDelete(
+    keys: PickKeys<T>[],
+    options: BatchWriteItemOptions<T> = {},
+  ): BatchWriteExecutor<T> {
+    return new DynamoBatchWriter(this.config).batchDeleteExecutor(
+      keys,
+      options,
     );
   }
-}
 
-export function defineTable<
-  DEFINITION extends DynamoMapDefinition,
-  HASH extends keyof DynamoEntry<DEFINITION>,
-  RANGE extends keyof DynamoEntry<DEFINITION> | null = null,
-  INDEXES extends Record<
-    string,
-    {
-      local?: boolean;
-      hashKey: keyof DynamoEntry<DEFINITION>;
-      rangeKey: keyof DynamoEntry<DEFINITION> | null;
-    }
-  > | null = null,
->(
-  definition: DEFINITION,
-  hash: HASH,
-  range: RANGE = null as RANGE,
-  indexes: INDEXES = null as INDEXES,
-): DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES> {
-  return {
-    definition,
-    hash,
-    range: range as RANGE,
-    indexes: indexes,
-    baseKeys: null,
-  };
+  index<Index extends keyof T['indexes']>(
+    indexName: Index,
+  ): IndexClient<T['indexes'][Index] & { definition: T['definition'] }, T> {
+    return new IndexClient(
+      this.info,
+      { ...this.info, ...this.info.indexes[indexName] },
+      { ...this.config, indexName: indexName as string },
+    );
+  }
+
+  static build<T extends DynamoInfo>(
+    params: T,
+    config: DynamoConfig,
+  ): TableClient<T> {
+    return new TableClient<T>(params, config);
+  }
 }

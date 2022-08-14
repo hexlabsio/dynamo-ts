@@ -1,5 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
-import { TableClient } from '../src/table-client';
+import { DynamoGetter } from '../src/dynamo-getter';
+import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinition } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -10,19 +11,26 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-const testTable = TableClient.build(complexTableDefinition, {
+type TableType = DynamoTypeFrom<typeof complexTableDefinition>;
+
+const testTable = new DynamoGetter(complexTableDefinition, {
   tableName: 'complexTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-describe('Dynamo Table', () => {
+const preInserts: TableType[] = [
+  { hash: 'get-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } },
+  { hash: 'get-item-test-2', text: 'some other text' },
+];
+
+describe('Dynamo Getter', () => {
+  const TableName = 'complexTableDefinition';
+
   beforeAll(async () => {
-    await testTable.put({
-      hash: 'get-item-test',
-      text: 'some text',
-      obj: { abc: 'xyz', def: 2 },
-    });
+    await Promise.all(
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+    );
   });
 
   describe('Get', () => {
@@ -34,26 +42,29 @@ describe('Dynamo Table', () => {
         obj: { abc: 'xyz', def: 2 },
       });
     });
+
     it('should return consumed capacity', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
-        { ReturnConsumedCapacity: 'TOTAL' },
+        { returnConsumedCapacity: 'TOTAL' },
       );
       expect(result.consumedCapacity).toEqual({
-        TableName: 'complexTableDefinition',
+        TableName,
         CapacityUnits: 0.5,
       });
     });
+
     it('should allow consistent read', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
-        { ReturnConsumedCapacity: 'TOTAL', ConsistentRead: true },
+        { returnConsumedCapacity: 'TOTAL', consistentRead: true },
       );
       expect(result.consumedCapacity).toEqual({
-        TableName: 'complexTableDefinition',
+        TableName,
         CapacityUnits: 1,
       });
     });
+
     it('should project result', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
