@@ -7,6 +7,7 @@ type DynamoPrimitive =
   | 'undefined'
   | 'map'
   | 'list'
+  | 'boolean'
   | `"${string}"`;
 export type Definition =
   | DynamoPrimitive
