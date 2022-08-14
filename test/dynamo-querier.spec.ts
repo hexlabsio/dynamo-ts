@@ -1,7 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
-import { CompareWrapperOperator, Operation } from '../src';
+import { CompareWrapperOperator, Operation, TableClient } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
-import TableClient from '../src/table-client';
 import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinitionQuery, simpleTableDefinition2 } from './tables';
 

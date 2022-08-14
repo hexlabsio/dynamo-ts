@@ -1,4 +1,4 @@
-import { defineTable } from '../src/types';
+import { defineTable } from '../src';
 
 export const simpleTableDefinition = defineTable(
   {
@@ -34,7 +34,7 @@ export const complexTableDefinitionQuery = defineTable(
     text: 'string?',
     obj: { optional: true, object: { abc: 'string', def: 'number?' } },
     arr: { optional: true, array: { object: { ghi: 'number?' } } },
-    jkl: 'number?',
+    jkl: 'boolean?',
     mno: 'string | number | undefined',
     pqr: '"xxx" | "yyy" | "123 456"',
   },

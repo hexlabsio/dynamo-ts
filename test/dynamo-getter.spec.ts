@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
 import { DynamoGetter } from '../src/dynamo-getter';
-import { DynamoTypeFrom } from '../src/types';
+import { DynamoTypeFrom } from '../src';
 import { complexTableDefinition } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({

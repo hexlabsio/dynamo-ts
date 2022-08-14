@@ -1,5 +1,5 @@
 import { DynamoDB } from 'aws-sdk';
-import TableClient from '../src/table-client';
+import { TableClient } from '../src';
 import { DynamoTypeFrom } from '../src/types';
 import { simpleTableDefinition3 } from './tables';
 

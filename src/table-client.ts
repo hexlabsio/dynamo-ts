@@ -44,7 +44,7 @@ import {
 } from './types';
 import ReturnValue = DocumentClient.ReturnValue;
 
-export default class TableClient<T extends DynamoInfo> {
+export class TableClient<T extends DynamoInfo> {
   constructor(public readonly info: T, private readonly config: DynamoConfig) {}
 
   scan<PROJECTION = null>(
