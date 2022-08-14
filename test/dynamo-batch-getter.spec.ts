@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
+import { DynamoTypeFrom } from '../src';
 import { DynamoBatchGetter } from '../src/dynamo-batch-getter';
-import { DynamoType } from '../src/types';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -11,8 +11,8 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-type TableType = DynamoType<typeof simpleTableDefinition>;
-type TableType2 = DynamoType<typeof simpleTableDefinition2>;
+type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
+type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
 const testTable = new DynamoBatchGetter(simpleTableDefinition, {
   tableName: 'simpleTableDefinition',

@@ -14,7 +14,7 @@ export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
   filter?: DynamoFilter2<D>;
   projection?: Projection<D, PROJECTION>;
   next?: string;
-} & CamelCaseKeys<Pick<QueryInput, 'Limit' | 'ConsistentRead' | 'ScanIndexForward' | 'ReturnConsumedCapacity' | 'ExpressionAttributeNames' | 'ExpressionAttributeValues'>>
+} & Partial<CamelCaseKeys<Pick<QueryInput, 'Limit' | 'ConsistentRead' | 'ScanIndexForward' | 'ReturnConsumedCapacity' | 'ExpressionAttributeNames' | 'ExpressionAttributeValues'>>>
 
 export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
   member: PROJECTION extends null ? TypeFromDefinition<D['definition']>[] : PROJECTION[];

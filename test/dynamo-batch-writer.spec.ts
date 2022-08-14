@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
 import TableClient from '../src/table-client';
-import { DynamoType } from '../src/types';
+import { DynamoTypeFrom } from '../src/types';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -11,8 +11,8 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-type TableType = DynamoType<typeof simpleTableDefinition>;
-type TableType2 = DynamoType<typeof simpleTableDefinition2>;
+type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
+type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
 const testTable = new TableClient(simpleTableDefinition, {
   tableName: 'simpleTableDefinition',

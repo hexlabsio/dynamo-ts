@@ -2,7 +2,7 @@ import { DynamoDB } from 'aws-sdk';
 import { CompareWrapperOperator, Operation } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
 import TableClient from '../src/table-client';
-import { DynamoType } from '../src/types';
+import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinitionQuery, simpleTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -13,8 +13,8 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-type TableType = DynamoType<typeof complexTableDefinitionQuery>;
-type TableType2 = DynamoType<typeof simpleTableDefinition2>;
+type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
+type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
 const TableName = 'complexTableDefinitionQuery';
 const TableName2 = 'simpleTableDefinition2';

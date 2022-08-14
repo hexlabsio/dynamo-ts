@@ -48,6 +48,33 @@ module.exports = {
       }
     },
     {
+      "TableName": "simpleTableDefinition3",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "identifier"
+        },
+        {
+          "KeyType": "RANGE",
+          "AttributeName": "sort"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "identifier",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "sort",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
       "TableName": "complexTableDefinitionQuery",
       "KeySchema": [
         {

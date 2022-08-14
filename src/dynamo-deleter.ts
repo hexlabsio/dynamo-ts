@@ -8,7 +8,7 @@ import DeleteItemOutput = DocumentClient.DeleteItemOutput;
 
 export type DeleteReturnValues = 'NONE' | 'ALL_OLD';
 
-export type DeleteItemOptions<INFO extends DynamoInfo, RETURN extends DeleteReturnValues> = CamelCaseKeys<Pick<DeleteItemInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>> & {
+export type DeleteItemOptions<INFO extends DynamoInfo, RETURN extends DeleteReturnValues> = Partial<CamelCaseKeys<Pick<DeleteItemInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>>> & {
   returnValues?: RETURN;
   condition?: DynamoFilter2<INFO>
 }

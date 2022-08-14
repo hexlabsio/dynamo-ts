@@ -1,4 +1,3 @@
-
 import {tableClient} from "./query-filter-expressions";
 import {DynamoEntry} from "../src";
 import {exampleCarTable} from "./example-table";

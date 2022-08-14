@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
 import { DynamoUpdater } from '../src/dynamo-updater';
-import { DynamoType } from '../src/types';
+import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinitionQuery } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -11,7 +11,7 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-type TableType = DynamoType<typeof complexTableDefinitionQuery>;
+type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
 
 const TableName = 'complexTableDefinitionQuery';
 

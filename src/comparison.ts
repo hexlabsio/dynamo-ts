@@ -8,7 +8,7 @@ import {
 import { DynamoFilter2 } from './filter';
 import { AttributeBuilder } from './attribute-builder';
 import { DynamoDefinition } from './dynamo-client-config';
-import { DynamoInfo, TypeFromDefinition } from './types';
+import { DynamoInfo, DynamoTypeFrom } from './types';
 
 export type KeyComparisonBuilder<T> = {
   eq(value: T): void;
@@ -20,9 +20,7 @@ export type KeyComparisonBuilder<T> = {
   // eslint-disable-next-line @typescript-eslint/ban-types
 } & (T extends string ? { beginsWith(value: string): void } : {});
 
-type WithoutKeys<T, HASH extends keyof T, RANGE extends keyof T | null> = Omit<T, RANGE extends string ? HASH | RANGE : HASH>;
-
-export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<Required<TypeFromDefinition<WithoutKeys<INFO['definition'], INFO['partitionKey'], INFO['sortKey']>>>>;
+export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<Required<DynamoTypeFrom<INFO>>>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   exists(key: keyof T): CompareWrapperOperator<T>;

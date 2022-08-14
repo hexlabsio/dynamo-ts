@@ -1,8 +1,8 @@
-import {DynamoEntry} from "../src";
+import { DynamoTypeFrom } from "../src";
 import {exampleCarTable} from "./example-table";
 import {tableClient} from "./query-filter-expressions";
 
-type Car = DynamoEntry<typeof exampleCarTable.definition>;
+type Car = DynamoTypeFrom<typeof exampleCarTable>;
 
 export async function getAllCars(): Promise<Car[]> {
     const result = await tableClient.scan();

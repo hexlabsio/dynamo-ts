@@ -5,7 +5,7 @@ import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
 import { CamelCaseKeys, DynamoConfig, DynamoInfo, PickKeys, TypeFromDefinition } from './types';
 
-export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = CamelCaseKeys<Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>> & {
+export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = Partial<CamelCaseKeys<Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>>> & {
   projection?: Projection<INFO, PROJECTION>;
 }
 export type GetItemReturn<INFO extends DynamoInfo, PROJECTION> = {

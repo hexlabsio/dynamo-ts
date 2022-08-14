@@ -50,7 +50,7 @@ type MakeOptionalsObject<T> = { [K in keyof T]: T[K] extends (infer A)[] ? MakeO
 type MakeOptionals<T> = RequiredParts<MakeOptionalsObject<T>> & OptionalParts<MakeOptionalsObject<T>>
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>
 
-export type DynamoType<D extends DynamoInfo> = TypeFromDefinition<D['definition']>;
+export type DynamoTypeFrom<D extends DynamoInfo> = { [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<D['definition']>[K] };
 
 export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {
   partitionKey: keyof DEFINITION,

@@ -1,6 +1,6 @@
 import { DynamoDB } from 'aws-sdk';
 import { DynamoGetter } from '../src/dynamo-getter';
-import { DynamoType } from '../src/types';
+import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinition } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -11,7 +11,7 @@ const dynamoClient = new DynamoDB.DocumentClient({
   region: 'local-env',
 });
 
-type TableType = DynamoType<typeof complexTableDefinition>;
+type TableType = DynamoTypeFrom<typeof complexTableDefinition>;
 
 const testTable = new DynamoGetter(complexTableDefinition, {
   tableName: 'complexTableDefinition',

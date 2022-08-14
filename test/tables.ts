@@ -10,9 +10,19 @@ export const simpleTableDefinition = defineTable(
 
 export const simpleTableDefinition2 = defineTable(
   {
-      identifier: 'string',
-      sort: 'string',
-      text: 'string',
+    identifier: 'string',
+    sort: 'string',
+    text: 'string',
+  },
+  'identifier',
+  'sort'
+);
+
+export const simpleTableDefinition3 = defineTable(
+  {
+    identifier: 'string',
+    sort: 'string',
+    text: 'string',
   },
   'identifier',
   'sort'

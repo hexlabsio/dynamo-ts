@@ -66,4 +66,8 @@ export default class TableClient<T extends DynamoInfo> {
   index<Index extends keyof T['indexes']>(indexName: Index): IndexClient<T['indexes'][Index] & { definition: T['definition'] }, T> {
     return new IndexClient(this.info, {...this.info, ...this.info.indexes[indexName]}, {...this.config, indexName: indexName as string});
   }
+
+  static build<T extends DynamoInfo>(params: T, config: DynamoConfig): TableClient<T> {
+    return new TableClient<T>(params, config);
+  }
 }
