@@ -15,7 +15,7 @@ export const simpleTableDefinition2 = defineTable(
     text: 'string',
   },
   'identifier',
-  'sort'
+  'sort',
 );
 
 export const simpleTableDefinition3 = defineTable(
@@ -25,7 +25,7 @@ export const simpleTableDefinition3 = defineTable(
     text: 'string',
   },
   'identifier',
-  'sort'
+  'sort',
 );
 
 export const complexTableDefinitionQuery = defineTable(
@@ -36,11 +36,11 @@ export const complexTableDefinitionQuery = defineTable(
     arr: { optional: true, array: { object: { ghi: 'number?' } } },
     jkl: 'number?',
     mno: 'string | number | undefined',
-    pqr: '"xxx" | "yyy" | "123 456"'
+    pqr: '"xxx" | "yyy" | "123 456"',
   },
   'hash',
   null,
-  {'abc': {partitionKey: 'text'}}
+  { abc: { partitionKey: 'text' } },
 );
 
 export const complexTableDefinition = defineTable(

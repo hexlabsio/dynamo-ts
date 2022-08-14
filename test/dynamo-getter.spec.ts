@@ -25,15 +25,15 @@ const preInserts: TableType[] = [
 ];
 
 describe('Dynamo Getter', () => {
-
   const TableName = 'complexTableDefinition';
 
   beforeAll(async () => {
-    await Promise.all(preInserts.map(Item => dynamoClient.put({TableName, Item}).promise()));
+    await Promise.all(
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+    );
   });
 
   describe('Get', () => {
-
     it('should get item', async () => {
       const result = await testTable.get({ hash: 'get-item-test' });
       expect(result.item).toEqual({

@@ -4,33 +4,53 @@ import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
 import { AttributeBuilder } from './attribute-builder';
 import { DynamoFilter2 } from './filter';
 import { Projection, ProjectionHandler } from './projector';
-import { CamelCaseKeys, DynamoConfig, DynamoInfo, TypeFromDefinition } from './types';
+import {
+  CamelCaseKeys,
+  DynamoConfig,
+  DynamoInfo,
+  TypeFromDefinition,
+} from './types';
 import ScanInput = DocumentClient.ScanInput;
 
-export type ScanOptions<INFO extends DynamoInfo, PROJECTION> =
-  CamelCaseKeys<Pick<ScanInput, 'Limit' | 'ReturnConsumedCapacity' | 'TotalSegments' | 'Segment' | 'ConsistentRead'>> & {
+export type ScanOptions<INFO extends DynamoInfo, PROJECTION> = CamelCaseKeys<
+  Pick<
+    ScanInput,
+    | 'Limit'
+    | 'ReturnConsumedCapacity'
+    | 'TotalSegments'
+    | 'Segment'
+    | 'ConsistentRead'
+  >
+> & {
   projection?: Projection<INFO, PROJECTION>;
   filter?: DynamoFilter2<INFO>;
   next?: string;
-}
+};
 
 export type ScanReturn<INFO extends DynamoInfo, PROJECTION> = {
-  member: PROJECTION extends null ? TypeFromDefinition<INFO['definition']>[] : PROJECTION[];
+  member: PROJECTION extends null
+    ? TypeFromDefinition<INFO['definition']>[]
+    : PROJECTION[];
   consumedCapacity?: ConsumedCapacity;
   count?: number;
   scannedCount?: number;
   next?: string;
-}
+};
 
 export interface ScanExecutor<T extends DynamoInfo, PROJECTION> {
   input: ScanInput;
-  execute(): Promise<ScanReturn<T, PROJECTION>>
+  execute(): Promise<ScanReturn<T, PROJECTION>>;
 }
 
 export class DynamoScanner<T extends DynamoInfo> {
-  constructor(private readonly info: T, private readonly config: DynamoConfig) {}
+  constructor(
+    private readonly info: T,
+    private readonly config: DynamoConfig,
+  ) {}
 
-  async scan<PROJECTION = null>(options: ScanOptions<T, PROJECTION> = {}): Promise<ScanReturn<T, PROJECTION>> {
+  async scan<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<ScanReturn<T, PROJECTION>> {
     const scanInput = this.scanExecutor(options);
     if (this.config.logStatements) {
       console.log(`ScanInput: ${JSON.stringify(scanInput.input, null, 2)}`);
@@ -38,7 +58,9 @@ export class DynamoScanner<T extends DynamoInfo> {
     return await scanInput.execute();
   }
 
-  async scanAll<PROJECTION = null>(options: ScanOptions<T, PROJECTION> = {}): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
+  async scanAll<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION> = {},
+  ): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
     const executor = this.scanExecutor(options);
     if (this.config.logStatements) {
       console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
@@ -46,26 +68,28 @@ export class DynamoScanner<T extends DynamoInfo> {
     let result = await executor.execute();
     let scannedCount = result.scannedCount ?? 0;
     const member = result.member;
-    while(result.next) {
+    while (result.next) {
       executor.input.ExclusiveStartKey = JSON.parse(
         Buffer.from(result.next, 'base64').toString('ascii'),
-      )
+      );
       if (this.config.logStatements) {
         console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
       }
       result = await executor.execute();
-      member.push(...result.member as any[]);
+      member.push(...(result.member as any[]));
       scannedCount = scannedCount + (result.scannedCount ?? 0);
     }
     return {
       member,
       count: member.length,
       scannedCount,
-      consumedCapacity: result.consumedCapacity
-    }
+      consumedCapacity: result.consumedCapacity,
+    };
   }
 
-  scanExecutor<PROJECTION = null>(options: ScanOptions<T, PROJECTION>): ScanExecutor<T, PROJECTION> {
+  scanExecutor<PROJECTION = null>(
+    options: ScanOptions<T, PROJECTION>,
+  ): ScanExecutor<T, PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression = ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
@@ -74,7 +98,7 @@ export class DynamoScanner<T extends DynamoInfo> {
     );
     const input = {
       TableName: this.config.tableName,
-      ...(this.config.indexName ? {IndexName: this.config.indexName}: {}),
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       Limit: options.limit,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ConsistentRead: options.consistentRead,
@@ -84,10 +108,10 @@ export class DynamoScanner<T extends DynamoInfo> {
       ...attributeBuilder.asInput(),
       ...(options.next
         ? {
-          ExclusiveStartKey: JSON.parse(
-            Buffer.from(options.next, 'base64').toString('ascii'),
-          ),
-        }
+            ExclusiveStartKey: JSON.parse(
+              Buffer.from(options.next, 'base64').toString('ascii'),
+            ),
+          }
         : {}),
     };
     const client = this.config.client;
@@ -100,9 +124,13 @@ export class DynamoScanner<T extends DynamoInfo> {
           consumedCapacity: result.ConsumedCapacity,
           count: result.Count,
           scannedCount: result.ScannedCount,
-          next: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString('base64') : undefined,
+          next: result.LastEvaluatedKey
+            ? Buffer.from(JSON.stringify(result.LastEvaluatedKey!)).toString(
+                'base64',
+              )
+            : undefined,
         };
-      }
-    }
+      },
+    };
   }
 }

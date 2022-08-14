@@ -1,11 +1,15 @@
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import { filterParts } from './comparison';
 import { DynamoFilter2 } from './filter';
-import {
-  DynamoNestedKV,
-} from './type-mapping';
+import { DynamoNestedKV } from './type-mapping';
 import { AttributeBuilder } from './attribute-builder';
-import { CamelCaseKeys, DynamoConfig, DynamoInfo, PickKeys, TypeFromDefinition } from './types';
+import {
+  CamelCaseKeys,
+  DynamoConfig,
+  DynamoInfo,
+  PickKeys,
+  TypeFromDefinition,
+} from './types';
 import ConsumedCapacity = DocumentClient.ConsumedCapacity;
 import UpdateItemInput = DocumentClient.UpdateItemInput;
 import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
@@ -20,54 +24,81 @@ export type UpdateItemOptions<
   T extends DynamoInfo,
   KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
   RETURN_ITEMS extends ReturnValue | null = null,
-  > = Partial<
-  CamelCaseKeys<Pick<
-    UpdateItemInput,
-    'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
+> = Partial<
+  CamelCaseKeys<
+    Pick<
+      UpdateItemInput,
+      'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
     >
-  >> & {
+  >
+> & {
   key: PickKeys<T>;
-  updates: DynamoNestedKV<Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>>;
+  updates: DynamoNestedKV<
+    Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
+  >;
   condition?: DynamoFilter2<T>;
-  increments?: Array<Increment<DynamoNestedKV<Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>>, KEY>>;
+  increments?: Array<
+    Increment<
+      DynamoNestedKV<
+        Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
+      >,
+      KEY
+    >
+  >;
   return?: RETURN_ITEMS;
 };
 
 export type UpdateReturnType<
   T extends DynamoInfo,
   RETURN_ITEMS extends ReturnValue | null,
-  > = RETURN_ITEMS extends null
+> = RETURN_ITEMS extends null
   ? undefined
   : RETURN_ITEMS extends 'NONE'
-    ? undefined
-    : RETURN_ITEMS extends 'UPDATED_OLD'
-      ? Partial<TypeFromDefinition<T['definition']>>
-      : RETURN_ITEMS extends 'UPDATED_NEW'
-        ? Partial<TypeFromDefinition<T['definition']>>
-        : TypeFromDefinition<T['definition']>;
+  ? undefined
+  : RETURN_ITEMS extends 'UPDATED_OLD'
+  ? Partial<TypeFromDefinition<T['definition']>>
+  : RETURN_ITEMS extends 'UPDATED_NEW'
+  ? Partial<TypeFromDefinition<T['definition']>>
+  : TypeFromDefinition<T['definition']>;
 
-export type UpdateResult<T extends DynamoInfo, RETURN_ITEMS extends ReturnValue | null> = {
+export type UpdateResult<
+  T extends DynamoInfo,
+  RETURN_ITEMS extends ReturnValue | null,
+> = {
   item: UpdateReturnType<T, RETURN_ITEMS>;
   consumedCapacity?: ConsumedCapacity;
   itemCollectionMetrics?: ItemCollectionMetrics;
-}
+};
 
-export interface UpdateExecutor<T extends DynamoInfo, RETURN_ITEMS extends ReturnValue | null = null> {
+export interface UpdateExecutor<
+  T extends DynamoInfo,
+  RETURN_ITEMS extends ReturnValue | null = null,
+> {
   input: UpdateItemInput;
-  execute(): Promise<UpdateResult<T, RETURN_ITEMS>>
+  execute(): Promise<UpdateResult<T, RETURN_ITEMS>>;
 }
 
 export class DynamoUpdater<T extends DynamoInfo> {
-
-  constructor(private readonly info: T, private readonly config: DynamoConfig) {
-  }
+  constructor(
+    private readonly info: T,
+    private readonly config: DynamoConfig,
+  ) {}
 
   private updateExpression<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-    >(
+  >(
     attributeBuilder: AttributeBuilder,
-    properties: DynamoNestedKV<Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>>,
-    increment?: Array<Increment<DynamoNestedKV<Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>>, KEY>>,
+    properties: DynamoNestedKV<
+      Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
+    >,
+    increment?: Array<
+      Increment<
+        DynamoNestedKV<
+          Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
+        >,
+        KEY
+      >
+    >,
   ): string {
     const props = properties as any;
     const propKeys = Object.keys(properties);
@@ -81,8 +112,8 @@ export class DynamoUpdater<T extends DynamoInfo> {
           `${attributeBuilder.buildPath(key)} = ` +
           (inc.start !== undefined
             ? `if_not_exists(${attributeBuilder.buildPath(
-              key,
-            )}, ${attributeBuilder.addValue(inc.start)})`
+                key,
+              )}, ${attributeBuilder.addValue(inc.start)})`
             : `${attributeBuilder.buildPath(key)}`) +
           ` + ${attributeBuilder.addValue(props[key])}`
         );
@@ -94,15 +125,15 @@ export class DynamoUpdater<T extends DynamoInfo> {
     const setExpression =
       validKeys.length > 0
         ? `SET ${validKeys
-          .map((key) => setterFor(key))
-          .filter((it) => !!it)
-          .join(', ')}`
+            .map((key) => setterFor(key))
+            .filter((it) => !!it)
+            .join(', ')}`
         : undefined;
     const removeExpression =
       removes.length > 0
         ? `REMOVE ${removes
-          .map((key) => `${attributeBuilder.buildPath(key)} `)
-          .join(', ')}`
+            .map((key) => `${attributeBuilder.buildPath(key)} `)
+            .join(', ')}`
         : undefined;
     return [setExpression, removeExpression].filter((it) => !!it).join(' ');
   }
@@ -110,16 +141,20 @@ export class DynamoUpdater<T extends DynamoInfo> {
   updateExecutor<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
     RETURN_ITEMS extends ReturnValue | null = null,
-    >(options: UpdateItemOptions<T, KEY, RETURN_ITEMS>): UpdateExecutor<T,RETURN_ITEMS> {
+  >(
+    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
+  ): UpdateExecutor<T, RETURN_ITEMS> {
     const attributeBuilder = AttributeBuilder.create();
-    const condition = options.condition && filterParts(this.info, attributeBuilder, options.condition);
+    const condition =
+      options.condition &&
+      filterParts(this.info, attributeBuilder, options.condition);
     const {
       key,
       updates,
       increments,
       return: returnValues,
       returnItemCollectionMetrics,
-      returnConsumedCapacity
+      returnConsumedCapacity,
     } = options;
     const updateInput: UpdateItemInput = {
       TableName: this.config.tableName,
@@ -145,17 +180,21 @@ export class DynamoUpdater<T extends DynamoInfo> {
           consumedCapacity: result.ConsumedCapacity,
           itemCollectionMetrics: result.ItemCollectionMetrics,
         };
-      }
-    }
+      },
+    };
   }
 
   update<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
     RETURN_ITEMS extends ReturnValue | null = null,
-    >(options: UpdateItemOptions<T, KEY, RETURN_ITEMS>): Promise<UpdateResult<T, RETURN_ITEMS>>{
+  >(
+    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
+  ): Promise<UpdateResult<T, RETURN_ITEMS>> {
     const executor = this.updateExecutor(options);
     if (this.config.logStatements) {
-      console.log(`UpdateItemInput: ${JSON.stringify(executor.input, null, 2)}`);
+      console.log(
+        `UpdateItemInput: ${JSON.stringify(executor.input, null, 2)}`,
+      );
     }
     return executor.execute();
   }

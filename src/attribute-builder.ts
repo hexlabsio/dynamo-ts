@@ -54,10 +54,12 @@ export class AttributeBuilder {
   }
 
   asInput(
-    provided?: CamelCaseKeys<Pick<
-      PutItemInput,
-      'ExpressionAttributeNames' | 'ExpressionAttributeValues'
-    >>,
+    provided?: CamelCaseKeys<
+      Pick<
+        PutItemInput,
+        'ExpressionAttributeNames' | 'ExpressionAttributeValues'
+      >
+    >,
   ): Pick<
     PutItemInput,
     'ExpressionAttributeNames' | 'ExpressionAttributeValues'

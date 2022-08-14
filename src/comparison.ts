@@ -20,7 +20,9 @@ export type KeyComparisonBuilder<T> = {
   // eslint-disable-next-line @typescript-eslint/ban-types
 } & (T extends string ? { beginsWith(value: string): void } : {});
 
-export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<Required<DynamoTypeFrom<INFO>>>;
+export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<
+  Required<DynamoTypeFrom<INFO>>
+>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   exists(key: keyof T): CompareWrapperOperator<T>;
@@ -194,7 +196,11 @@ export function filterParts<DEFINITION extends DynamoInfo>(
     .filter((it) => it !== definition.partitionKey && it !== definition.sortKey)
     .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});
   const { expression } = filter(
-    () => new ComparisonBuilderType(updatedDefinition, new Wrapper(attributeBuilder)).builder() as any,
+    () =>
+      new ComparisonBuilderType(
+        updatedDefinition,
+        new Wrapper(attributeBuilder),
+      ).builder() as any,
   ) as unknown as Wrapper;
   return expression;
 }

@@ -2,11 +2,11 @@ import * as fs from 'fs';
 import { Definition, DynamoDefinition } from './types';
 
 type DynamoDetails = {
-  definition: DynamoDefinition,
-  partitionKey: string,
-  sortKey?: string | null,
-  indexes: Record<string, {partitionKey: string, sortKey?: string | null}>
-}
+  definition: DynamoDefinition;
+  partitionKey: string;
+  sortKey?: string | null;
+  indexes: Record<string, { partitionKey: string; sortKey?: string | null }>;
+};
 
 export function dynamoTable(
   definition: DynamoDetails,
@@ -77,7 +77,8 @@ export function dynamoTable(
                 KeySchema: [
                   {
                     KeyType: 'HASH',
-                    AttributeName: definition.indexes![key].partitionKey as string,
+                    AttributeName: definition.indexes![key]
+                      .partitionKey as string,
                   },
                   ...(definition.indexes![key].sortKey
                     ? [
@@ -102,9 +103,9 @@ export function dynamoTable(
   };
 }
 
-export function tableDefinition(
-  definitions: Record<string, DynamoDetails>,
-): { tables: unknown[] } {
+export function tableDefinition(definitions: Record<string, DynamoDetails>): {
+  tables: unknown[];
+} {
   return {
     tables: Object.keys(definitions).map((table) =>
       dynamoTable(definitions[table], table),

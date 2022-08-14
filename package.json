@@ -1,7 +1,7 @@
 {
   "name": "@hexlabs/dynamo-ts",
   "sideEfects": false,
-  "version": "1.0.0",
+  "version": "3.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -87,8 +87,10 @@
     "jest": "^27.0.3",
     "jest-junit": "^13.0.0",
     "json-loader": "^0.5.7",
+    "minimist": "^1.2.6",
     "node-loader": "^0.6.0",
     "prettier": "^2.5.1",
+    "terser": "^5.14.2",
     "ts-jest": "^27.0.2",
     "ts-loader": "^6.2.2",
     "ts-node": "^10.4.0",
