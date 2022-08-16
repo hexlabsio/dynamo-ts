@@ -2,6 +2,7 @@ import { DynamoDB } from 'aws-sdk';
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
 import { AttributeBuilder } from './attribute-builder';
+import { filterParts } from './comparison';
 import { DynamoFilter2 } from './filter';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -96,6 +97,9 @@ export class DynamoScanner<T extends DynamoInfo> {
       this.info,
       options.projection,
     );
+    const filterPart =
+      options.filter &&
+      filterParts(this.info, attributeBuilder, options.filter);
     const input = {
       TableName: this.config.tableName,
       ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
@@ -105,6 +109,7 @@ export class DynamoScanner<T extends DynamoInfo> {
       TotalSegments: options.totalSegments,
       Segment: options.segment,
       ProjectionExpression: expression,
+      ...(options.filter ? { FilterExpression: filterPart } : {}),
       ...attributeBuilder.asInput(),
       ...(options.next
         ? {
