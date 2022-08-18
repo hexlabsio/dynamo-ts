@@ -48,6 +48,9 @@ export class BatchGetExecutorHolder<T extends DynamoInfo, PROJECTION>
     public readonly input: BatchGetItemInput,
   ) {}
 
+  /**
+   * Execute the batch get request and get the results.
+   */
   async execute(): Promise<BatchGetItemReturn<T, PROJECTION>> {
     const result = await this.client.batchGet(this.input).promise();
     return {
@@ -56,6 +59,10 @@ export class BatchGetExecutorHolder<T extends DynamoInfo, PROJECTION>
     };
   }
 
+  /**
+   * Append another set of requests to apply alongside these requests.
+   * @param other
+   */
   and<B extends BatchGetExecutor<any, any>>(
     other: B,
   ): BatchGetClient<[this, B]> {
