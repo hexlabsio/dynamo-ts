@@ -1,6 +1,5 @@
 import { DynamoDB } from 'aws-sdk';
-import { DynamoTypeFrom } from '../src';
-import { DynamoBatchGetter } from '../src/dynamo-batch-getter';
+import { DynamoTypeFrom, TableClient } from '../src';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
@@ -14,13 +13,13 @@ const dynamoClient = new DynamoDB.DocumentClient({
 type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
-const testTable = new DynamoBatchGetter(simpleTableDefinition, {
+const testTable = new TableClient(simpleTableDefinition, {
   tableName: 'simpleTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-const testTable2 = new DynamoBatchGetter(simpleTableDefinition2, {
+const testTable2 = new TableClient(simpleTableDefinition2, {
   tableName: 'simpleTableDefinition2',
   client: dynamoClient,
   logStatements: true,
@@ -53,7 +52,7 @@ describe('Dynamo Getter', () => {
 
   describe('Single Table', () => {
     it('should batch get single table', async () => {
-      const executor = testTable.batchGetExecutor([
+      const executor = testTable.batchGet([
         { identifier: '0' },
         { identifier: '3' },
         { identifier: '4' },
@@ -71,13 +70,13 @@ describe('Dynamo Getter', () => {
   describe('Multi Table', () => {
     it('should batch get multi table', async () => {
       const result = await testTable
-        .batchGetExecutor([
+        .batchGet([
           { identifier: '0' },
           { identifier: '3' },
           { identifier: '4' },
         ])
         .and(
-          testTable2.batchGetExecutor(
+          testTable2.batchGet(
             [
               { identifier: '10000', sort: '0' },
               { identifier: '10008', sort: '8' },

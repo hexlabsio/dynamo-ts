@@ -122,7 +122,7 @@ await tableClient.index('model-index').query({
 await tableClient.query({make: 'Nissan', filter: compare => compare().year.between(2006, 2022)});
 
 // Combining Filter Comparisons (and / or)
-// Get all Nissan Cars between 2006 & 2022 AND with colour 'Metallic Black'
+// Get all Nissan Cars between 2006 & 2007 AND with colour 'Metallic Black'
 await tableClient.query({
     make: 'Nissan',
     filter: compare => compare().year.between(2006, 2007).and(compare().colour.eq('Metallic Black'))
@@ -146,4 +146,36 @@ await tableClient.update({key: {identifier: '1234', make: 'Tesla'}, updates: {ye
 //Return Old Values
 const result = await tableClient.update({key: {identifier: '1234', make: 'Tesla'}, updates: {year: 2022, colour: undefined}, return: 'ALL_OLD'});
 // typeof result.item = {identifier: string; make: string; model: string; year: number; colour: string}
+```
+
+# Multi-Table Batch Gets (With Projections)
+```typescript
+const result = await testTable
+        .batchGet([
+          { identifier: '0' },
+          { identifier: '3' },
+          { identifier: '4' },
+        ])
+        //Use and() to combine other operations against other tables
+        .and(
+          testTable2.batchGet(
+            [
+              { identifier: '10000', sort: '0' },
+              { identifier: '10008', sort: '8' },
+            ],
+            { projection: (projector) => projector.project('sort') },
+          ),
+        )
+        .execute();
+```
+
+# Multi-Table Batch Writes 
+```typescript
+const executor = testTable
+        //Choose batchPut or Delete to begin the operation agains an initial table
+        .batchDelete({ identifier: 'id1' })
+        //Then, use and() to combine other operations against other tables
+        .and(testTable.batchPut([{ identifier: 'id2', text: 'text' }]))
+        .and(testTable2.batchPut([{ identifier: 'id3', text: 'text' }]))
+        .execute();
 ```
