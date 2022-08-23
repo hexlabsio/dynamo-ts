@@ -187,7 +187,11 @@ export class TableClient<T extends DynamoInfo> {
    */
   index<Index extends keyof T['indexes']>(
     indexName: Index,
-  ): IndexClient<T['indexes'][Index] & { definition: T['definition'] }, T> {
+  ): IndexClient<
+    T['definition'],
+    T['indexes'][Index] & { definition: T['definition'] },
+    T
+  > {
     return new IndexClient(
       this.info,
       { ...this.info, ...this.info.indexes[indexName] },

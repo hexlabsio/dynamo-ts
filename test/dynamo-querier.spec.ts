@@ -36,6 +36,9 @@ const testTableClient = new TableClient(complexTableDefinitionQuery, {
   logStatements: true,
 });
 
+const identifier = 'query-items-test';
+const indexIdentifier = 'query-items-index-test';
+
 const preInserts: TableType[] = [
   {
     hash: 'query-items-test',
@@ -50,9 +53,25 @@ const preInserts: TableType[] = [
     mno: 'abc',
     pqr: '123 456',
   },
+  {
+    hash: 'hash333',
+    text: indexIdentifier,
+    mno: 'abc',
+    pqr: '123 456',
+  },
+  {
+    hash: 'hash444',
+    text: indexIdentifier,
+    mno: 'abc',
+    pqr: '123 456',
+  },
+  {
+    hash: 'hash555',
+    text: indexIdentifier,
+    mno: 'abc',
+    pqr: '123 456',
+  },
 ];
-
-const identifier = 'query-items-test';
 
 const preInserts2: TableType2[] = [
   { identifier, sort: '1', text: 'some text' },
@@ -338,6 +357,32 @@ describe('Dynamo Querier', () => {
       });
     });
   });
-});
 
-testTableClient.index('abc').query({ text: '2' });
+  describe('Query All', () => {
+    it('should fetch all items', async () => {
+      const result = await testTable2.queryAll({ identifier }, { limit: 5 });
+      expect(result.member.length).toEqual(4);
+    });
+    it('should fetch exact number of items', async () => {
+      const result = await testTable2.queryAll({ identifier }, { limit: 2 });
+      expect(result.member.length).toEqual(2);
+    });
+    it('should fetch all from index items', async () => {
+      const result = await testTableClient
+        .index('abc')
+        .queryAll({ text: indexIdentifier }, { limit: 100 });
+      expect(result.member).toEqual(
+        expect.arrayContaining(
+          preInserts.filter((item) => item.text === indexIdentifier),
+        ),
+      );
+    });
+    it('should fetch exact number from index items', async () => {
+      const result = await testTableClient
+        .index('abc')
+        .queryAll({ text: indexIdentifier }, { limit: 1 });
+      expect(result.member.length).toEqual(1);
+      expect(result.member[0].text).toEqual(indexIdentifier);
+    });
+  });
+});

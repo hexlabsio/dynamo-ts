@@ -5,14 +5,15 @@ import {
   QueryKeys,
 } from './dynamo-querier';
 import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
-import { DynamoConfig, DynamoInfo } from './types';
+import { DynamoConfig, DynamoDefinition, DynamoInfo } from './types';
 
 export default class IndexClient<
-  T extends DynamoInfo,
-  Parent extends DynamoInfo,
+  D extends DynamoDefinition,
+  T extends DynamoInfo<D>,
+  P extends DynamoInfo<D>,
 > {
   constructor(
-    public readonly parent: Parent,
+    public readonly parent: P,
     public readonly info: T,
     private readonly config: DynamoConfig,
   ) {}
@@ -28,7 +29,13 @@ export default class IndexClient<
     keys: QueryKeys<T>,
     options: QuerierInput<T, PROJECTION> = {},
   ): Promise<Omit<QuerierReturn<T, PROJECTION>, 'next'>> {
-    return new DynamoQuerier(this.info, this.config).query(keys, options);
+    const pk: keyof D = this.parent.partitionKey;
+    const sk: keyof D | undefined =
+      this.parent?.sortKey === null ? undefined : this.parent?.sortKey;
+    return new DynamoQuerier(this.info, this.config, {
+      partitionKey: pk,
+      sortKey: sk,
+    }).queryAll(keys, options);
   }
 
   scan<PROJECTION = null>(

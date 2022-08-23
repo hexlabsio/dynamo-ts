@@ -1,4 +1,8 @@
-import { ConsumedCapacity, QueryInput } from 'aws-sdk/clients/dynamodb';
+import {
+  ConsumedCapacity,
+  QueryInput,
+  AttributeMap,
+} from 'aws-sdk/clients/dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
 import { DynamoFilter2 } from './filter';
@@ -7,6 +11,7 @@ import { Projection, ProjectionHandler } from './projector';
 import {
   CamelCaseKeys,
   DynamoConfig,
+  DynamoDefinition,
   DynamoIndex,
   DynamoInfo,
   TypeFromDefinition,
@@ -44,6 +49,10 @@ export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
     >
   >
 >;
+export type QueryAllInput<D extends DynamoInfo, PROJECTION> = QuerierInput<
+  D,
+  PROJECTION
+>;
 
 export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
   member: PROJECTION extends null
@@ -53,6 +62,10 @@ export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
   consumedCapacity?: ConsumedCapacity;
   count?: number;
   scannedCount?: number;
+};
+export type ParentKeys<D extends DynamoDefinition> = {
+  partitionKey: keyof D;
+  sortKey?: keyof D;
 };
 
 export interface QueryExecutor<D extends DynamoInfo, PROJECTION> {
@@ -67,6 +80,7 @@ export class DynamoQuerier<
   constructor(
     private readonly info: D,
     private readonly config: DynamoConfig,
+    private readonly parentKeys?: ParentKeys<D['definition']>,
   ) {}
 
   private keyExpression(
@@ -105,32 +119,13 @@ export class DynamoQuerier<
 
   async queryAll<PROJECTION = null>(
     keys: QueryKeys<D>,
-    options: QuerierInput<D, PROJECTION> = {},
+    options: QueryAllInput<D, PROJECTION>,
   ): Promise<Omit<QuerierReturn<D, PROJECTION>, 'next'>> {
-    const executor = this.queryExecutor(keys, options);
+    const executor = this.queryAllExecutor(keys, options);
     if (this.config.logStatements) {
-      console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
+      console.log(`QueryAllInput: ${JSON.stringify(executor.input, null, 2)}`);
     }
-    let result = await executor.execute();
-    let scannedCount = result.scannedCount ?? 0;
-    const member = result.member;
-    while (result.next) {
-      executor.input.ExclusiveStartKey = JSON.parse(
-        Buffer.from(result.next, 'base64').toString('ascii'),
-      );
-      if (this.config.logStatements) {
-        console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
-      }
-      result = await executor.execute();
-      member.push(...(result.member as any[]));
-      scannedCount = scannedCount + (result.scannedCount ?? 0);
-    }
-    return {
-      member,
-      count: member.length,
-      scannedCount,
-      consumedCapacity: result.consumedCapacity,
-    };
+    return executor.execute();
   }
 
   queryExecutor<PROJECTION = null>(
@@ -149,7 +144,6 @@ export class DynamoQuerier<
     );
     const input: QueryInput = {
       TableName: this.config.tableName,
-      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
@@ -184,6 +178,192 @@ export class DynamoQuerier<
           scannedCount: result.ScannedCount,
         };
       },
+    };
+  }
+
+  queryAllExecutor<PROJECTION = null>(
+    keys: QueryKeys<D>,
+    options: QueryAllInput<D, PROJECTION> = {},
+  ): QueryExecutor<D, PROJECTION> {
+    return new QueryAllExecutor(
+      this.info,
+      this.config,
+      keys,
+      options,
+      (keys, builder) => this.keyExpression(keys, builder),
+      this.parentKeys,
+    );
+  }
+}
+
+class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
+  implements QueryExecutor<D, PROJECTION>
+{
+  constructor(
+    private readonly info: D,
+    private readonly config: DynamoConfig,
+    private readonly keys: QueryKeys<D>,
+    private readonly options: QueryAllInput<D, PROJECTION>,
+    private readonly createKeyExpression: (
+      keys: QueryKeys<D>,
+      builder: AttributeBuilder,
+    ) => string,
+    readonly parentKeys?: ParentKeys<D['definition']>,
+    private readonly attributeBuilder = AttributeBuilder.create(),
+    private readonly projectionWithEnrichedKeys = ProjectionHandler.projectionWithKeysFor(
+      attributeBuilder,
+      info,
+      parentKeys?.partitionKey ?? null,
+      parentKeys?.sortKey ?? null,
+      options.projection,
+    ),
+  ) {}
+
+  private buildNext(
+    lastItem: AttributeMap,
+    keyFields: {
+      partitionKey: string;
+      sortKey?: string;
+      parentPartitionKey?: string;
+      parentSortKey?: string;
+    },
+  ): string {
+    const nextKey = {
+      [keyFields.partitionKey]: lastItem[keyFields.partitionKey],
+    };
+    if (keyFields.sortKey)
+      nextKey[keyFields.sortKey] = lastItem[keyFields.sortKey];
+    if (keyFields.parentPartitionKey)
+      nextKey[keyFields.parentPartitionKey] =
+        lastItem[keyFields.parentPartitionKey];
+    if (keyFields.parentSortKey)
+      nextKey[keyFields.parentSortKey] = lastItem[keyFields.parentSortKey];
+    return Buffer.from(JSON.stringify(nextKey)).toString('base64');
+  }
+
+  private removeFields(
+    lastItems: AttributeMap[],
+    enrichedFields: string[],
+  ): void {
+    lastItems.forEach((lastItem) =>
+      enrichedFields.forEach((field) => delete lastItem[field]),
+    );
+  }
+
+  private async _recQuery(
+    queryInput: QueryInput,
+    keyFields: {
+      partitionKey: string;
+      sortKey?: string;
+      parentPartitionKey?: string;
+      parentSortKey?: string;
+    },
+    enrichedFields?: string[],
+    queryLimit?: number,
+    accumulation: AttributeMap[] = [],
+    accumulationCount?: number,
+  ): Promise<{
+    Items: AttributeMap[];
+    LastEvaluatedKey?: string;
+  }> {
+    const res = await this.config.client.query(queryInput).promise();
+
+    const resLength = res?.Items?.length ?? 0;
+    const accLength = accumulationCount ?? 0;
+    const updatedAccLength = accLength + resLength;
+    const limit = queryLimit ?? 0;
+
+    if (limit > 0 && limit <= updatedAccLength) {
+      const nextKey = this.buildNext(
+        res.Items![limit - accLength - 1],
+        keyFields,
+      );
+      const accumulatedResults = [
+        ...res.Items!.slice(0, limit - accLength),
+        ...accumulation,
+      ];
+      if (enrichedFields) {
+        this.removeFields(accumulatedResults, enrichedFields);
+      }
+      return {
+        Items: accumulatedResults,
+        LastEvaluatedKey: nextKey,
+      };
+    } else if (!res.LastEvaluatedKey) {
+      const accumulatedResults = [...(res.Items ?? []), ...accumulation];
+      if (enrichedFields) {
+        this.removeFields(accumulatedResults, enrichedFields);
+      }
+      return {
+        Items: accumulatedResults,
+      };
+    } else {
+      return await this._recQuery(
+        { ...queryInput, ExclusiveStartKey: res.LastEvaluatedKey },
+        keyFields,
+        enrichedFields,
+        queryLimit,
+        [...accumulation, ...(res.Items ?? [])],
+        updatedAccLength,
+      );
+    }
+  }
+
+  input: QueryInput = {
+    TableName: this.config.tableName,
+    ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+    ...{
+      KeyConditionExpression: this.createKeyExpression(
+        this.keys,
+        this.attributeBuilder,
+      ),
+    },
+    ...(this.options.filter
+      ? {
+          FilterExpression: filterParts(
+            this.info,
+            this.attributeBuilder,
+            this.options.filter,
+          ),
+        }
+      : {}),
+    ProjectionExpression: this.projectionWithEnrichedKeys[0],
+    ReturnConsumedCapacity: this.options.returnConsumedCapacity,
+    ScanIndexForward: this.options.scanIndexForward,
+    ConsistentRead: this.options.consistentRead,
+    ...this.attributeBuilder.asInput(this.options),
+    ...(this.options.next
+      ? {
+          ExclusiveStartKey: JSON.parse(
+            Buffer.from(this.options.next, 'base64').toString('ascii'),
+          ),
+        }
+      : {}),
+  };
+
+  async execute(): Promise<QuerierReturn<D, PROJECTION>> {
+    const result = await this._recQuery(
+      this.input,
+      {
+        partitionKey: this.info.partitionKey as string,
+        sortKey: this.info.sortKey as string | undefined,
+        parentPartitionKey: this.parentKeys?.partitionKey as string | undefined,
+        parentSortKey: this.parentKeys?.sortKey as string | undefined,
+      },
+      this.projectionWithEnrichedKeys[1],
+      this.options.limit,
+    );
+
+    return {
+      member: (result.Items ?? []) as any,
+      next: result.LastEvaluatedKey
+        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString(
+            'base64',
+          )
+        : undefined,
+      count: result.Items.length,
+      // consumedCapacity: result.ConsumedCapacity,
+      // scannedCount: result.ScannedCount,
     };
   }
 }

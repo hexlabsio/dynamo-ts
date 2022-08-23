@@ -104,23 +104,27 @@ export class ProjectionHandler {
   static projectionWithKeysFor<DEFINITION extends DynamoInfo>(
     attributeBuilder: AttributeBuilder,
     definition: DEFINITION,
-    hashKey: keyof TypeFromDefinition<DEFINITION['definition']>,
-    rangeKey: keyof TypeFromDefinition<DEFINITION['definition']> | null,
-    indexHashKey: keyof TypeFromDefinition<DEFINITION['definition']> | null,
-    indexRangKey: keyof TypeFromDefinition<DEFINITION['definition']> | null,
+    indexHashKey: keyof DEFINITION['definition'] | null,
+    indexRangKey: keyof DEFINITION['definition'] | null,
     projection?: Projection<DEFINITION, any>,
   ): [string, string[]] {
     if (projection) {
       const projector = this.projectionFor(attributeBuilder, projection);
       const baseProjectionFields = projector.projectionFields;
-      const enrichedFields = [rangeKey, indexHashKey, indexRangKey].reduce(
+      const enrichedFields = [
+        definition.sortKey,
+        indexHashKey,
+        indexRangKey,
+      ].reduce(
         (acc, elem) =>
           elem &&
           !acc.includes(elem) &&
           !baseProjectionFields.includes(elem as any)
             ? [elem, ...acc]
             : acc,
-        baseProjectionFields.includes(hashKey as any) ? [] : [hashKey],
+        baseProjectionFields.includes(definition.partitionKey as any)
+          ? []
+          : [definition.partitionKey],
       );
       const updatedProjector = enrichedFields.reduce(
         (p, ef) => p.project(ef as any) as any,
