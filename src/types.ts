@@ -59,7 +59,7 @@ type UndefinedKeys<T> = {
 type RequiredKeys<T> = {
   [K in keyof T]: IsOptional<T[K]> extends true ? never : K;
 }[keyof T];
-type RequiredParts<T> = { [K in RequiredKeys<T>]: T[K] };
+type RequiredParts<T> = { [K in RequiredKeys<T>]: T[K] extends { optional: false, type: infer R } ? R : T[K] };
 type OptionalParts<T> = {
   [K in UndefinedKeys<T>]?: T[K] extends { type: infer R } ? R : never;
 };
@@ -75,11 +75,11 @@ type MakeOptionals<T> = RequiredParts<MakeOptionalsObject<T>> &
   OptionalParts<MakeOptionalsObject<T>>;
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>;
 
-export type DynamoTypeFrom<D extends DynamoInfo> = {
-  [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<
-    D['definition']
-  >[K];
-};
+export type Expand<T> = T extends {} ? { [K in keyof T]: Expand<T[K]> } : T;
+
+export type DynamoTypeFrom<D extends DynamoInfo> = Expand<{
+  [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<D['definition']>[K];
+}>;
 
 export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {
   partitionKey: keyof DEFINITION;
