@@ -8,6 +8,14 @@ A library to make interacting with DynamoDb simpler with a typed interface.
 
 ![Version](https://img.shields.io/npm/v/@hexlabs/dynamo-ts?label=%40hexlabs%2Fdynamo-ts)
 
+
+## Installation
+
+Using npm:
+```shell
+$ npm i @hexlabs/dynamo-ts
+```
+
 ## Get Started
 
 Create a definition for your table
