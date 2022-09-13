@@ -71,8 +71,7 @@ type MakeOptionalsObject<T> = {
     ? MakeOptionals<T[K]>
     : T[K];
 };
-type MakeOptionals<T> = RequiredParts<MakeOptionalsObject<T>> &
-  OptionalParts<MakeOptionalsObject<T>>;
+type MakeOptionals<T> = T extends Record<string | number, any> ? (RequiredParts<MakeOptionalsObject<T>> & OptionalParts<MakeOptionalsObject<T>>) : T;
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>;
 
 export type Expand<T> = T extends {} ? { [K in keyof T]: Expand<T[K]> } : T;

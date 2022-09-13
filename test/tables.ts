@@ -34,6 +34,7 @@ export const complexTableDefinitionQuery = defineTable(
     text: 'string?',
     obj: { optional: true, object: { abc: 'string', def: 'number?' } },
     arr: { optional: true, array: { object: { ghi: 'number?' } } },
+    arrx: { array: "string" } ,
     jkl: 'boolean?',
     mno: 'string | number | undefined',
     pqr: '"xxx" | "yyy" | "123 456"',
