@@ -13,7 +13,7 @@ A library to make interacting with DynamoDb simpler with a typed interface.
 
 Using npm:
 ```shell
-$ npm i @hexlabs/dynamo-ts
+$ npm i -S @hexlabs/dynamo-ts
 ```
 
 ## Get Started
