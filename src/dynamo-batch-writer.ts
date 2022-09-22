@@ -35,9 +35,13 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
   constructor(
     private readonly client: DynamoDB.DocumentClient,
     public readonly input: BatchWriteItemInput,
+    private readonly logStatements: undefined | boolean,
   ) {}
 
   async execute(): Promise<BatchWriteItemReturn<T>> {
+    if (this.logStatements) {
+      console.log(`BatchWriteInput: ${JSON.stringify(this.input, null, 2)}`);
+    }
     const result = await this.client.batchWrite(this.input).promise();
     return {
       itemCollectionMetrics: result.ItemCollectionMetrics,
@@ -134,7 +138,8 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
       ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
     };
     const client = this.config.client;
-    return new BatchWriteExecutorHolder(client, input);
+    const logStatements = this.config.logStatements;
+    return new BatchWriteExecutorHolder(client, input, logStatements);
   }
 
   batchDeleteExecutor(
@@ -151,6 +156,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
       ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
     };
     const client = this.config.client;
-    return new BatchWriteExecutorHolder(client, input);
+    const logStatements = this.config.logStatements;
+    return new BatchWriteExecutorHolder(client, input, logStatements);
   }
 }
