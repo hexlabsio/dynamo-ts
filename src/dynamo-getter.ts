@@ -77,30 +77,4 @@ export class DynamoGetter<T extends DynamoInfo> {
       },
     };
   }
-
-  // transactGetExecutor<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION>): TransactGetExecutor<T, PROJECTION> {
-  //   const input: TransactGetItemsInput = {
-  //     TransactItems: keys.map(key => ({ Get: {Key: key, TableName: this.config.tableName }})),
-  //     ReturnConsumedCapacity: options.returnConsumedCapacity
-  //   };
-  //   const client = this.config.client;
-  //   return {
-  //     input,
-  //     async execute(): Promise<BatchGetItemReturn<T, PROJECTION>> {
-  //       const result = await client.transactGet(input).promise();
-  //       return {
-  //         items: result.Responses?.map(it => it.Item) ?? [] as any,
-  //         consumedCapacity: result.ConsumedCapacity?.[0]
-  //       }
-  //     }
-  //   }
-  // }
-  //
-  // async transactGet<PROJECTION = null>(keys: PickKeys<T>[], options: GetItemOptions<T, PROJECTION> = {}): Promise<BatchGetItemReturn<T, PROJECTION>> {
-  //   const executor = this.transactGetExecutor(keys, options);
-  //   if (this.config.logStatements) {
-  //     console.log(`BatchGetItemInput: ${JSON.stringify(executor.input, null, 2)}`);
-  //   }
-  //   return await executor.execute();
-  // }
 }

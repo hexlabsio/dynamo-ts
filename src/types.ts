@@ -20,7 +20,47 @@ export type DynamoDefinition = { [key: string]: Definition };
 
 export type Obj<T> = { [K in keyof T]: TypeFrom<T[K]> };
 
-type TypeFrom<S> = S extends { object: infer O }
+export type RawUndefinedKeys<T> = { [K in keyof T]-?: undefined extends T[K] ? K : never }[keyof T];
+export type RawRequiredKeys<T> = { [K in keyof T]-?: undefined extends T[K] ? never : K }[keyof T];
+type AddQuestionMarks<T> = {
+  [K in RawUndefinedKeys<T>]?: T[K]
+} & {
+  [K in RawRequiredKeys<T>]: T[K]
+}
+
+export type RawObj<T> = AddQuestionMarks<{ [K in keyof T]: RawTypeFrom<T[K]> }>;
+
+export type RawTypeFrom<S> = S extends { object: infer O }
+  ? S extends { optional: infer B }
+    ? (RawObj<O> | undefined)
+    : RawObj<O>
+  : S extends { array: infer O }
+    ? RawTypeFrom<O>[]
+    : S extends 'number'
+      ? number
+      : S extends 'boolean'
+        ? boolean
+        : S extends 'null'
+          ? null
+          : S extends 'string'
+            ? string
+            : S extends 'undefined'
+              ? undefined
+              : S extends 'map'
+                ? Record<string, any>
+                : S extends 'list'
+                  ? any[]
+                  : S extends `${infer first} & ${infer rest}`
+                    ? RawTypeFrom<first> & RawTypeFrom<rest>
+                    : S extends `${infer first} | ${infer rest}`
+                      ? RawTypeFrom<first> | RawTypeFrom<rest>
+                      : S extends `"${infer CONST}"`
+                        ? CONST
+                        : S extends `${infer first}?`
+                          ? (RawTypeFrom<first> | undefined)
+                          : never;
+
+export type TypeFrom<S> = S extends { object: infer O }
   ? S extends { optional: infer B }
     ? { optional: B; type: Obj<O> }
     : Obj<O>
