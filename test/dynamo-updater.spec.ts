@@ -109,7 +109,7 @@ describe('Dynamo Updater', () => {
           key: { hash: hash + '4' },
           updates: { mno: 3 },
           increments: [{ key: 'mno' }],
-          condition: (compare) => compare().isType('mno', 'string'),
+          condition: (compare) => compare().mno.isType('string'),
           return: 'ALL_NEW',
         }),
       ).rejects.toThrow('The conditional request failed');

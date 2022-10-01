@@ -43,6 +43,19 @@ export const complexTableDefinitionQuery = defineTable(
   { abc: { partitionKey: 'text' } },
 );
 
+export const complexTableDefinitionFilter = defineTable(
+  {
+    hash: 'string',
+    string: 'string',
+    stringOptional: 'string?',
+    boolean: 'boolean',
+    booleanOptional: 'boolean?',
+    number: "number",
+    numberOptional: "number?"
+  },
+  'hash'
+);
+
 export const complexTableDefinition = defineTable(
   {
     hash: 'string',
