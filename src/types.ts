@@ -20,7 +20,53 @@ export type DynamoDefinition = { [key: string]: Definition };
 
 export type Obj<T> = { [K in keyof T]: TypeFrom<T[K]> };
 
-type TypeFrom<S> = S extends { object: infer O }
+export type RawUndefinedKeys<T> = {
+  [K in keyof T]-?: undefined extends T[K] ? K : never;
+}[keyof T];
+
+export type RawRequiredKeys<T> = {
+  [K in keyof T]-?: undefined extends T[K] ? never : K;
+}[keyof T];
+
+type AddQuestionMarks<T> = {
+  [K in RawUndefinedKeys<T>]?: T[K];
+} & {
+  [K in RawRequiredKeys<T>]: T[K];
+};
+
+export type RawObj<T> = AddQuestionMarks<{ [K in keyof T]: RawTypeFrom<T[K]> }>;
+
+export type RawTypeFrom<S> = S extends { object: infer O }
+  ? S extends { optional: infer B }
+    ? RawObj<O> | undefined
+    : RawObj<O>
+  : S extends { array: infer O }
+  ? RawTypeFrom<O>[]
+  : S extends 'number'
+  ? number
+  : S extends 'boolean'
+  ? boolean
+  : S extends 'null'
+  ? null
+  : S extends 'string'
+  ? string
+  : S extends 'undefined'
+  ? undefined
+  : S extends 'map'
+  ? Record<string, any>
+  : S extends 'list'
+  ? any[]
+  : S extends `${infer first} & ${infer rest}`
+  ? RawTypeFrom<first> & RawTypeFrom<rest>
+  : S extends `${infer first} | ${infer rest}`
+  ? RawTypeFrom<first> | RawTypeFrom<rest>
+  : S extends `"${infer CONST}"`
+  ? CONST
+  : S extends `${infer first}?`
+  ? RawTypeFrom<first> | undefined
+  : never;
+
+export type TypeFrom<S> = S extends { object: infer O }
   ? S extends { optional: infer B }
     ? { optional: B; type: Obj<O> }
     : Obj<O>
@@ -59,7 +105,13 @@ type UndefinedKeys<T> = {
 type RequiredKeys<T> = {
   [K in keyof T]: IsOptional<T[K]> extends true ? never : K;
 }[keyof T];
-type RequiredParts<T> = { [K in RequiredKeys<T>]: T[K] extends { optional: false, type: infer R } ? R : T[K] };
+
+type RequiredParts<T> = {
+  [K in RequiredKeys<T>]: T[K] extends { optional: false; type: infer R }
+    ? R
+    : T[K];
+};
+
 type OptionalParts<T> = {
   [K in UndefinedKeys<T>]?: T[K] extends { type: infer R } ? R : never;
 };
@@ -71,13 +123,20 @@ type MakeOptionalsObject<T> = {
     ? MakeOptionals<T[K]>
     : T[K];
 };
-type MakeOptionals<T> = T extends Record<string | number, any> ? (RequiredParts<MakeOptionalsObject<T>> & OptionalParts<MakeOptionalsObject<T>>) : T;
+
+type MakeOptionals<T> = T extends Record<string | number, any>
+  ? RequiredParts<MakeOptionalsObject<T>> &
+      OptionalParts<MakeOptionalsObject<T>>
+  : T;
+
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>;
 
 export type Expand<T> = T extends {} ? { [K in keyof T]: Expand<T[K]> } : T;
 
 export type DynamoTypeFrom<D extends DynamoInfo> = Expand<{
-  [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<D['definition']>[K];
+  [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<
+    D['definition']
+  >[K];
 }>;
 
 export type DynamoIndex<DEFINITION extends DynamoDefinition = any> = {

@@ -43,6 +43,35 @@ export const complexTableDefinitionQuery = defineTable(
   { abc: { partitionKey: 'text' } },
 );
 
+export const complexTableDefinitionFilter = defineTable(
+  {
+    hash: 'string',
+    string: 'string',
+    stringOptional: 'string?',
+    boolean: 'boolean',
+    booleanOptional: 'boolean?',
+    number: 'number',
+    numberOptional: 'number?',
+    nestedObject: { object: { name: 'string' } },
+    nestedObjectMultiple: { object: { nestedObject: { object: { name: 'string' } } } },
+    nestedObjectMultipleOptional: { optional: true, object: { nestedObject: { object: { name: 'string' } } } },
+    nestedObjectOptional: { optional: true, object: { name: 'string' } },
+    nestedObjectChildOptional: { object: { name: 'string?' } },
+    nestedObjectOptionalChildOptional: { optional: true, object: { name: 'string?' } },
+    arrayString: { array: "string" },
+    arrayStringOptional: { optional: true, array: "string" },
+    arrayObject: { array: { object: { name: 'string' } } },
+    arrayObjectOptional: { optional: true, array: { object: { name: 'string' } } },
+    nestedArrayString: { object: { items: { array: "string" } } },
+    nestedArrayStringOptional: { optional: true, object: { items: { array: "string" } } },
+    nestedArrayObject: { object: { items: { array: { object: { name: 'string' } } } } },
+    nestedArrayObjectOptional: { optional: true, object: { items: { array: { object: { name: 'string' } } } } },
+    mapType: "map",
+    listType: "list"
+  },
+  'hash',
+);
+
 export const complexTableDefinition = defineTable(
   {
     hash: 'string',

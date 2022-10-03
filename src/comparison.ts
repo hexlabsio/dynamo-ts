@@ -1,14 +1,14 @@
-import { CompareWrapperOperator, Operation, OperationType } from './operation';
+import { CompareWrapperOperator, Operation, OperationType } from "./operation";
 import {
   DynamoEntry,
   DynamoIndexes,
   DynamoMapDefinition,
-  SimpleDynamoType,
-} from './type-mapping';
-import { DynamoFilter2 } from './filter';
-import { AttributeBuilder } from './attribute-builder';
-import { DynamoDefinition } from './dynamo-client-config';
-import { DynamoInfo, DynamoTypeFrom } from './types';
+  SimpleDynamoType
+} from "./type-mapping";
+import { DynamoFilter2 } from "./filter";
+import { AttributeBuilder } from "./attribute-builder";
+import { DynamoDefinition } from "./dynamo-client-config";
+import { DynamoInfo, DynamoTypeFrom, RawTypeFrom } from "./types";
 
 export type KeyComparisonBuilder<T> = {
   eq(value: T): void;
@@ -20,9 +20,48 @@ export type KeyComparisonBuilder<T> = {
   // eslint-disable-next-line @typescript-eslint/ban-types
 } & (T extends string ? { beginsWith(value: string): void } : {});
 
-export type ComparisonBuilderFrom<INFO extends DynamoInfo> = ComparisonBuilder<
-  Required<DynamoTypeFrom<INFO>>
->;
+type NestedComparisonBuilder<Original, Type> = {
+  exists(): CompareWrapperOperator<Original>;
+  notExists(): CompareWrapperOperator<Original>;
+  isType(type: SimpleDynamoType): CompareWrapperOperator<Original>;
+  beginsWith(beginsWith: string): CompareWrapperOperator<Original>;
+  contains(
+    operand: Type extends (infer T)[] ? { [K in keyof T]: T[K] } : string
+  ): CompareWrapperOperator<Original>;
+};
+
+
+type Digger<T, Original = T> = T extends "///" ? {
+    get(key: string): Operation<Original, unknown> & Digger<"///", Original> & NestedComparisonBuilder<Original, unknown>,
+    getElement(index: number): Operation<Original, unknown> & Digger<"///", Original> & NestedComparisonBuilder<Original, unknown>
+  }
+  : T extends { optional: boolean; type: infer Type }
+    ? Digger<Type, Original>
+    : T extends "map" ? { get(key: string): Operation<Original, unknown> & Digger<"///", Original> & NestedComparisonBuilder<Original, unknown> }
+      : T extends "list" ? { getElement(index: number): Operation<Original, unknown> & Digger<"///", Original> & NestedComparisonBuilder<Original, unknown> }
+        : T extends { array: infer Type }
+          ? {
+            getElement(
+              index: number
+            ): Operation<Original, RawTypeFrom<Type>> &
+              Digger<Type, Original> &
+              NestedComparisonBuilder<Original, Type>;
+          }
+          : T extends { object: infer Type }
+            ? Digger<Type, Original>
+            : T extends Record<string, any>
+              ? {
+                [K in keyof T]: Operation<Original, RawTypeFrom<T[K]>> &
+                Digger<T[K], Original> &
+                NestedComparisonBuilder<Original, RawTypeFrom<T[K]>>;
+              }
+              : {};
+
+export type ComparisonBuilderFrom<INFO extends DynamoInfo> = {
+  not(
+    comparison: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
+  ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
+} & Digger<INFO["definition"]>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
   exists(key: keyof T): CompareWrapperOperator<T>;
@@ -41,10 +80,11 @@ export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
 export class Wrapper {
   constructor(
     public attributeBuilder: AttributeBuilder,
-    public expression: string = '',
-  ) {}
+    public expression: string = ""
+  ) {
+  }
 
-  add(expression = ''): Wrapper {
+  add(expression = ""): Wrapper {
     this.expression = expression;
     return this;
   }
@@ -62,119 +102,15 @@ export class Wrapper {
   }
 }
 
-export class ComparisonBuilderType<
-  D extends DynamoMapDefinition,
+export class ComparisonBuilderType<D extends DynamoMapDefinition,
   T extends DynamoEntry<D>,
-> {
+  > {
   constructor(definition: D, public wrapper: Wrapper) {
     Object.keys(definition).forEach((key) => {
-      (this as any)[key] = new OperationType(this.wrapper, key).operation();
+      (this as any)[key] = new OperationType(this.wrapper, definition[key], [
+        key
+      ]);
     });
-  }
-
-  existsPath(path: string): Wrapper {
-    return this.wrapper.add(
-      `attribute_exists(${this.wrapper.attributeBuilder.buildPath(path)})`,
-    );
-  }
-  exists(key: keyof T): Wrapper {
-    this.wrapper.attributeBuilder.addNames(key as string);
-    return this.wrapper.add(
-      `attribute_exists(${this.wrapper.attributeBuilder.nameFor(
-        key as string,
-      )})`,
-    );
-  }
-  notExistsPath(path: string): Wrapper {
-    return this.wrapper.add(
-      `attribute_not_exists(${this.wrapper.attributeBuilder.buildPath(path)})`,
-    );
-  }
-  notExists(key: keyof T): Wrapper {
-    this.wrapper.attributeBuilder.addNames(key as string);
-    return this.wrapper.add(
-      `attribute_not_exists(${this.wrapper.attributeBuilder.nameFor(
-        key as string,
-      )})`,
-    );
-  }
-
-  private typeFor(type: SimpleDynamoType): string {
-    const withoutOptional = type.endsWith('?')
-      ? type.substring(0, type.length - 2)
-      : type;
-    switch (withoutOptional) {
-      case 'string':
-        return 'S';
-      case 'string set':
-        return 'SS';
-      case 'number':
-        return 'N';
-      case 'number set':
-        return 'NS';
-      case 'binary':
-        return 'B';
-      case 'binary set':
-        return 'BS';
-      case 'boolean':
-        return 'BOOL';
-      case 'null':
-        return 'NULL';
-      case 'list':
-        return 'L';
-      default:
-        return 'M';
-    }
-  }
-
-  isType(key: keyof T, type: SimpleDynamoType): Wrapper {
-    this.wrapper.attributeBuilder.addNames(key as string);
-    return this.wrapper.add(
-      `attribute_type(${this.wrapper.attributeBuilder.nameFor(
-        key as string,
-      )}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,
-    );
-  }
-  isTypePath(path: string, type: SimpleDynamoType): Wrapper {
-    return this.wrapper.add(
-      `attribute_type(${this.wrapper.attributeBuilder.buildPath(
-        path,
-      )}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,
-    );
-  }
-
-  beginsWith(key: keyof T, beginsWith: string): Wrapper {
-    this.wrapper.attributeBuilder.addNames(key as string);
-    return this.wrapper.add(
-      `begins_with(${this.wrapper.attributeBuilder.nameFor(
-        key as string,
-      )}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`,
-    );
-  }
-
-  beginsWithPath(path: string, beginsWith: string): Wrapper {
-    return this.wrapper.add(
-      `begins_with(${this.wrapper.attributeBuilder.buildPath(
-        path,
-      )}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`,
-    );
-  }
-
-  contains(key: keyof T, operand: string): Wrapper {
-    this.wrapper.attributeBuilder.addNames(key as string);
-    return this.wrapper.add(
-      `contains(${this.wrapper.attributeBuilder.nameFor(
-        key as string,
-      )}, ${this.wrapper.attributeBuilder.addValue(operand)})`,
-    );
-  }
-
-  containsPath(path: string, operand: string): Wrapper {
-    return this.wrapper.add(
-      `contains(${this.wrapper.attributeBuilder.buildPath(
-        path,
-      )}, ${this.wrapper.attributeBuilder.addValue(operand)})`,
-    );
   }
 
   not(comparison: Wrapper): Wrapper {
@@ -190,7 +126,7 @@ export class ComparisonBuilderType<
 export function filterParts<DEFINITION extends DynamoInfo>(
   definition: DEFINITION,
   attributeBuilder: AttributeBuilder,
-  filter: DynamoFilter2<DEFINITION>,
+  filter: DynamoFilter2<DEFINITION>
 ): string {
   const updatedDefinition = Object.keys(definition.definition)
     .filter((it) => it !== definition.partitionKey && it !== definition.sortKey)
@@ -199,34 +135,33 @@ export function filterParts<DEFINITION extends DynamoInfo>(
     () =>
       new ComparisonBuilderType(
         updatedDefinition,
-        new Wrapper(attributeBuilder),
-      ).builder() as any,
+        new Wrapper(attributeBuilder)
+      ).builder() as any
   ) as unknown as Wrapper;
   return expression;
 }
 
-export function conditionalParts<
-  DEFINITION extends DynamoMapDefinition,
+export function conditionalParts<DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null,
   INDEXES extends DynamoIndexes<DEFINITION> = null,
->(
+  >(
   definition: DynamoDefinition<DEFINITION, HASH, RANGE, INDEXES>,
   attributeBuilder: AttributeBuilder,
   condition: (
-    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>,
-  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>,
+    compare: () => ComparisonBuilder<DynamoEntry<DEFINITION>>
+  ) => CompareWrapperOperator<DynamoEntry<DEFINITION>>
 ): string {
   const updatedDefinition = Object.keys(definition.definition).reduce(
     (acc, it) => ({ ...acc, [it]: definition.definition[it] }),
-    {},
+    {}
   );
   const parent = condition(
     () =>
       new ComparisonBuilderType(
         updatedDefinition,
-        new Wrapper(attributeBuilder),
-      ).builder() as any,
+        new Wrapper(attributeBuilder)
+      ).builder() as any
   ) as unknown as Wrapper;
   return parent.expression;
 }
