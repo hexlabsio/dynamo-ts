@@ -62,12 +62,10 @@ export type ComparisonBuilderFrom<INFO extends DynamoInfo> = {
     comparison: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
   ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
   and(
-    first: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>,
-    second: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
+    ...comparisons: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>[]
   ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
   or(
-    first: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>,
-    second: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
+    ...comparisons: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>[]
   ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
 } & Digger<INFO["definition"]>;
 
@@ -121,13 +119,13 @@ export class ComparisonBuilderType<D extends DynamoMapDefinition,
     });
   }
 
-  and(first: Wrapper, second: Wrapper): Wrapper {
-    this.wrapper.expression = `(${first.expression}) AND (${second.expression})`;
+  and(...comparisons: Wrapper[]): Wrapper {
+    this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" AND ");
     return this.wrapper;
   }
 
-  or(first: Wrapper, second: Wrapper): Wrapper {
-    this.wrapper.expression = `(${first.expression}) OR (${second.expression})`;
+  or(...comparisons: Wrapper[]): Wrapper {
+    this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" OR ");
     return this.wrapper;
   }
 
