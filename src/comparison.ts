@@ -61,6 +61,14 @@ export type ComparisonBuilderFrom<INFO extends DynamoInfo> = {
   not(
     comparison: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
   ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
+  and(
+    first: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>,
+    second: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
+  ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
+  or(
+    first: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>,
+    second: CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>
+  ): CompareWrapperOperator<Required<DynamoTypeFrom<INFO>>>;
 } & Digger<INFO["definition"]>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
@@ -111,6 +119,16 @@ export class ComparisonBuilderType<D extends DynamoMapDefinition,
         key
       ]);
     });
+  }
+
+  and(first: Wrapper, second: Wrapper): Wrapper {
+    this.wrapper.expression = `(${first.expression}) AND (${second.expression})`;
+    return this.wrapper;
+  }
+
+  or(first: Wrapper, second: Wrapper): Wrapper {
+    this.wrapper.expression = `(${first.expression}) OR (${second.expression})`;
+    return this.wrapper;
   }
 
   not(comparison: Wrapper): Wrapper {

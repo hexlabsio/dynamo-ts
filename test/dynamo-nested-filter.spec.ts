@@ -359,5 +359,16 @@ describe('Dynamo Nested Filter', () => {
         expect(result.member[0]).toEqual(itemWithOptionals);
       });
     });
+
+    describe("combine",() => {
+      it('and and or', async () => {
+        const result = await testTable.scan({
+          filter: (compare) => compare().and(
+            (compare().string.eq("string john").or(compare().string.eq("string required"))),
+            (compare().number.eq(10).and(compare().numberOptional.eq(100))))
+        });
+        expect(result.member).toEqual([itemWithOptionals]);
+      });
+    });
   });
 });
