@@ -63,19 +63,26 @@ export class OperationType {
   constructor(
     private readonly wrapper: Wrapper,
     readonly subtype: DynamoType,
-    readonly parentage: (string | number)[] = []
+    readonly parentage: (string | number)[] = [],
   ) {
-    if(typeof subtype === 'object') {
+    if (typeof subtype === 'object') {
       const keys = Object.keys(subtype);
-      if(keys.includes('object')) {
+      if (keys.includes('object')) {
         const sub = (subtype as any)['object'];
-        Object.keys(sub).forEach(key => {
-          (this as any)[key] = new OperationType(this.wrapper, sub[key], [...parentage, key]);
-        })
-      } else if(keys.includes('array')) {
+        Object.keys(sub).forEach((key) => {
+          (this as any)[key] = new OperationType(this.wrapper, sub[key], [
+            ...parentage,
+            key,
+          ]);
+        });
+      } else if (keys.includes('array')) {
         const sub = (subtype as any)['array'];
-        (this as any).get = (index: number) => new OperationType(this.wrapper, sub, [...parentage, index]);
+        (this as any).getElement = (index: number) => new OperationType(this.wrapper, sub, [...parentage, index]);
       }
+    }
+    if(subtype === "map" || subtype === 'list') {
+      (this as any).getElement = (index: number) => new OperationType(this.wrapper, subtype, [...parentage, index]);
+      (this as any).get = (key: string) => new OperationType(this.wrapper, subtype, [...parentage, key]);
     }
   }
 
@@ -88,8 +95,14 @@ export class OperationType {
     };
   }
   private getKey(): string {
-    this.wrapper.attributeBuilder.addNames(...this.parentage.filter((it): it is string => typeof it === 'string'));
-    const names = this.parentage.map(it => typeof it === 'number' ? `[${it}]` : this.wrapper.attributeBuilder.nameFor(it));
+    this.wrapper.attributeBuilder.addNames(
+      ...this.parentage.filter((it): it is string => typeof it === 'string'),
+    );
+    const names = this.parentage.map((it) =>
+      typeof it === 'number'
+        ? `[${it}]`
+        : this.wrapper.attributeBuilder.nameFor(it),
+    );
     return names.join('.').replace(/\.\[/g, '[');
   }
 
@@ -101,20 +114,18 @@ export class OperationType {
   gte = this.add((key, value) => `${key} >= ${value}`);
 
   exists(): Wrapper {
-    return this.wrapper.add(
-      `attribute_exists(${this.getKey()})`,
-    );
+    return this.wrapper.add(`attribute_exists(${this.getKey()})`);
   }
 
   notExists(): Wrapper {
-    return this.wrapper.add(
-      `attribute_not_exists(${this.getKey()})`,
-    );
+    return this.wrapper.add(`attribute_not_exists(${this.getKey()})`);
   }
 
   isType(type: SimpleDynamoType): Wrapper {
     return this.wrapper.add(
-      `attribute_type(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,
+      `attribute_type(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+        this.typeFor(type),
+      )})`,
     );
   }
 
@@ -148,13 +159,17 @@ export class OperationType {
 
   beginsWith(beginsWith: string): Wrapper {
     return this.wrapper.add(
-      `begins_with(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`,
+      `begins_with(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+        beginsWith,
+      )})`,
     );
   }
 
   contains(operand: any): Wrapper {
     return this.wrapper.add(
-      `contains(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(operand)})`,
+      `contains(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+        operand,
+      )})`,
     );
   }
 
@@ -171,6 +186,8 @@ export class OperationType {
     const valueKeys = list.map((it) =>
       this.wrapper.attributeBuilder.addValue(it),
     );
-    return this.wrapper.add(`${this.getKey()} IN (${valueKeys.join(',')})`) as any;
+    return this.wrapper.add(
+      `${this.getKey()} IN (${valueKeys.join(',')})`,
+    ) as any;
   }
 }
