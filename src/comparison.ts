@@ -120,12 +120,20 @@ export class ComparisonBuilderType<D extends DynamoMapDefinition,
   }
 
   and(...comparisons: Wrapper[]): Wrapper {
-    this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" AND ");
+    if(comparisons.length > 1) {
+      this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" AND ");
+    } else if (comparisons.length > 0) {
+      this.wrapper.expression = comparisons[0].expression;
+    }
     return this.wrapper;
   }
 
   or(...comparisons: Wrapper[]): Wrapper {
-    this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" OR ");
+    if(comparisons.length > 1) {
+      this.wrapper.expression = comparisons.map(comparison => `(${comparison.expression})`).join(" OR ");
+    } else if (comparisons.length > 0) {
+      this.wrapper.expression = comparisons[0].expression;
+    }
     return this.wrapper;
   }
 
