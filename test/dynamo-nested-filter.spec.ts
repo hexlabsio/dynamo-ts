@@ -361,6 +361,12 @@ describe('Dynamo Nested Filter', () => {
     });
 
     describe("combine",() => {
+      it('single and', async () => {
+        const result = await testTable.scan({
+          filter: (compare) => compare().and((compare().string.eq("string required")))
+        });
+        expect(result.member[0]).toEqual(itemMinimal);
+      });
       it('and and or', async () => {
         const result = await testTable.scan({
           filter: (compare) => compare().and(
