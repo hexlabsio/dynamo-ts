@@ -101,13 +101,14 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
       unprocessedItems: result.UnprocessedItems,
       consumedCapacity: result.ConsumedCapacity,
     };
-    while (reprocess && !!returnType.unprocessedItems && retry < maxRetries) {
+    while (reprocess && Object.keys(returnType.unprocessedItems ?? {}).length > 0 && retry < maxRetries) {
+      console.log('Reprocessing', returnType.unprocessedItems);
       await new Promise((resolve) => setTimeout(resolve, 2 ** retry * 10));
       retry = retry + 1;
       result = await this.client
         .batchWrite({
           ...this.executors[0].input,
-          RequestItems: returnType.unprocessedItems,
+          RequestItems: returnType.unprocessedItems!,
         })
         .promise();
       returnType = {
@@ -127,7 +128,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
   batchPutExecutor(
     items: TypeFromDefinition<T['definition']>[],
     options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteExecutor<T> {
+  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
     const input: BatchWriteItemInput = {
       RequestItems: {
         [this.config.tableName]: items.map((item) => ({
@@ -139,13 +140,15 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     };
     const client = this.config.client;
     const logStatements = this.config.logStatements;
-    return new BatchWriteExecutorHolder(client, input, logStatements);
+    return new BatchWriteClient(client, [
+      new BatchWriteExecutorHolder(client, input, logStatements),
+    ]);
   }
 
   batchDeleteExecutor(
     keys: PickKeys<T>[],
     options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteExecutor<T> {
+  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
     const input: BatchWriteItemInput = {
       RequestItems: {
         [this.config.tableName]: keys.map((key) => ({
@@ -157,6 +160,8 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     };
     const client = this.config.client;
     const logStatements = this.config.logStatements;
-    return new BatchWriteExecutorHolder(client, input, logStatements);
+    return new BatchWriteClient(client, [
+      new BatchWriteExecutorHolder(client, input, logStatements),
+    ]);
   }
 }

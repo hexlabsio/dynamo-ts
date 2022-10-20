@@ -1,5 +1,6 @@
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import {
+  BatchWriteClient,
   BatchWriteExecutor,
   BatchWriteItemOptions,
   DynamoBatchWriter,
@@ -163,7 +164,7 @@ export class TableClient<T extends DynamoInfo> {
   batchPut(
     items: TypeFromDefinition<T['definition']>[],
     options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteExecutor<T> {
+  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
     return new DynamoBatchWriter(this.config).batchPutExecutor(items, options);
   }
 
@@ -175,7 +176,7 @@ export class TableClient<T extends DynamoInfo> {
   batchDelete(
     keys: PickKeys<T>[],
     options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteExecutor<T> {
+  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
     return new DynamoBatchWriter(this.config).batchDeleteExecutor(
       keys,
       options,
