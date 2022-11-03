@@ -171,6 +171,59 @@ module.exports = {
         "ReadCapacityUnits": 1,
         "WriteCapacityUnits": 1
       }
+    },
+    {
+      "TableName": "indexTableDefinition",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "hash"
+        },
+        {
+          "KeyType": "RANGE",
+          "AttributeName": "sort"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "hash",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "sort",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "indexHash",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      },
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "index",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "indexHash"
+            },
+            {
+              "KeyType": "RANGE",
+              "AttributeName": "sort"
+            }
+          ],
+          "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+          },
+          "Projection": {
+            "ProjectionType": "ALL"
+          }
+        }
+      ]
     }
   ]
 };

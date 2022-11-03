@@ -48,7 +48,7 @@ describe('Dynamo Getter', () => {
         dynamoClient.put({ TableName: TableName2, Item }).promise(),
       ),
     );
-  });
+  }, 20000);
 
   describe('Single Table', () => {
     it('should batch get single table', async () => {

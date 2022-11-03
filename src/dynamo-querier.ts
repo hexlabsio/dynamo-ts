@@ -227,7 +227,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
       parentPartitionKey?: string;
       parentSortKey?: string;
     },
-  ): string {
+  ): any {
     const nextKey = {
       [keyFields.partitionKey]: lastItem[keyFields.partitionKey],
     };
@@ -238,7 +238,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
         lastItem[keyFields.parentPartitionKey];
     if (keyFields.parentSortKey)
       nextKey[keyFields.parentSortKey] = lastItem[keyFields.parentSortKey];
-    return Buffer.from(JSON.stringify(nextKey)).toString('base64');
+    return nextKey;
   }
 
   private removeFields(

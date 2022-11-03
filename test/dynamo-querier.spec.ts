@@ -2,7 +2,7 @@ import { DynamoDB } from 'aws-sdk';
 import { CompareWrapperOperator, Operation, TableClient } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
 import { DynamoTypeFrom } from '../src/types';
-import { complexTableDefinitionQuery, simpleTableDefinition2 } from './tables';
+import { complexTableDefinitionQuery, indexTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamoClient = new DynamoDB.DocumentClient({
   endpoint: 'localhost:5001',
@@ -14,9 +14,11 @@ const dynamoClient = new DynamoDB.DocumentClient({
 
 type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
+type TableType3 = DynamoTypeFrom<typeof indexTableDefinition>;
 
 const TableName = 'complexTableDefinitionQuery';
 const TableName2 = 'simpleTableDefinition2';
+const TableName3 = 'indexTableDefinition';
 
 const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
   tableName: TableName,
@@ -26,6 +28,12 @@ const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
 
 const testTable2 = new DynamoQuerier(simpleTableDefinition2, {
   tableName: TableName2,
+  client: dynamoClient,
+  logStatements: true,
+});
+
+const indexTable = new TableClient(indexTableDefinition, {
+  tableName: TableName3,
   client: dynamoClient,
   logStatements: true,
 });
@@ -83,6 +91,10 @@ const preInserts2: TableType2[] = [
   { identifier: 'query-items-test2', sort: '67', text: 'some text 7' },
 ];
 
+const preInserts3: TableType3[] = [...new Array(10).keys()].map(index => (
+  { hash: `${index + 1}`, sort: `${index + 1}`, indexHash: `1`}
+));
+
 describe('Dynamo Querier', () => {
   beforeAll(async () => {
     await Promise.all(
@@ -91,6 +103,11 @@ describe('Dynamo Querier', () => {
     await Promise.all(
       preInserts2.map((Item) =>
         dynamoClient.put({ TableName: TableName2, Item }).promise(),
+      ),
+    );
+    await Promise.all(
+      preInserts3.map((Item) =>
+        dynamoClient.put({ TableName: TableName3, Item }).promise(),
       ),
     );
   });
@@ -183,6 +200,15 @@ describe('Dynamo Querier', () => {
         count: 1,
         scannedCount: 1,
       });
+    });
+
+    it('should get next page when index', async () => {
+      const result = await indexTable.index('index').queryAll({ indexHash: '1' }, { limit: 1, next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9' });
+      expect(result).toEqual({
+        member: [ { indexHash: '1', hash: '4', sort: '4' } ],
+        next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9',
+        count: 1
+      })
     });
 
     it('should get rest of items after next token', async () => {
