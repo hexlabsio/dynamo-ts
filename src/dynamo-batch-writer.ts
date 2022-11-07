@@ -52,7 +52,7 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
   and<B extends BatchWriteExecutor<any>>(
     other: B,
   ): BatchWriteClient<[this, B]> {
-    return new BatchWriteClient(this.client, [this, other]);
+    return new BatchWriteClient(this.client, this.logStatements, [this, other]);
   }
 }
 
@@ -61,6 +61,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
 
   constructor(
     private readonly client: DynamoDB.DocumentClient,
+    private readonly logStatements: undefined | boolean,
     private readonly executors: T,
   ) {
     const RequestItems = this.executors.reduce((prev, next) => {
@@ -82,7 +83,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
   and<B extends BatchWriteExecutor<any>>(
     other: B,
   ): BatchWriteClient<[...T, B]> {
-    return new BatchWriteClient<[...T, B]>(this.client, [
+    return new BatchWriteClient<[...T, B]>(this.client, this.logStatements, [
       ...this.executors,
       other,
     ]);
@@ -95,6 +96,9 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
     consumedCapacity?: ConsumedCapacityMultiple;
     unprocessedItems?: BatchWriteItemRequestMap;
   }> {
+    if (this.logStatements) {
+      console.log(`GetItemInput: ${JSON.stringify(this.input, null, 2)}`);
+    }
     let result = await this.client.batchWrite(this.input).promise();
     let retry = 0;
     let returnType = {
@@ -140,7 +144,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     };
     const client = this.config.client;
     const logStatements = this.config.logStatements;
-    return new BatchWriteClient(client, [
+    return new BatchWriteClient(client, logStatements, [
       new BatchWriteExecutorHolder(client, input, logStatements),
     ]);
   }
@@ -160,7 +164,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     };
     const client = this.config.client;
     const logStatements = this.config.logStatements;
-    return new BatchWriteClient(client, [
+    return new BatchWriteClient(client, logStatements,[
       new BatchWriteExecutorHolder(client, input, logStatements),
     ]);
   }
