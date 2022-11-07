@@ -92,3 +92,16 @@ export const deleteTableDefinition = defineTable(
   },
   'hash',
 );
+
+export const indexTableDefinition = defineTable(
+  {
+      hash: 'string',
+      sort: 'string',
+      indexHash: 'string',
+  },
+  'hash',
+  'sort',
+  {
+      'index': { partitionKey: 'indexHash', sortKey: 'sort' }
+  }
+);
