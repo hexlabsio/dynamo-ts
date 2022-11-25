@@ -204,11 +204,9 @@ describe('Dynamo Querier', () => {
 
     it('should get next page when index', async () => {
       const result = await indexTable.index('index').queryAll({ indexHash: '1' }, { limit: 1, next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9' });
-      expect(result).toEqual({
-        member: [ { indexHash: '1', hash: '4', sort: '4' } ],
-        next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9',
-        count: 1
-      })
+      expect(result.member).toEqual([ { indexHash: '1', hash: '4', sort: '4' } ]);
+      expect(result.next).toEqual('eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9');
+      expect(result.count).toEqual(1);
     });
 
     it('should get rest of items after next token', async () => {

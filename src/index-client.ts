@@ -28,7 +28,7 @@ export default class IndexClient<
   queryAll<PROJECTION = null>(
     keys: QueryKeys<T>,
     options: QuerierInput<T, PROJECTION> = {},
-  ): Promise<Omit<QuerierReturn<T, PROJECTION>, 'next'>> {
+  ): Promise<QuerierReturn<T, PROJECTION>> {
     const pk: keyof D = this.parent.partitionKey;
     const sk: keyof D | undefined =
       this.parent?.sortKey === null ? undefined : this.parent?.sortKey;

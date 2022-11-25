@@ -120,7 +120,7 @@ export class DynamoQuerier<
   async queryAll<PROJECTION = null>(
     keys: QueryKeys<D>,
     options: QueryAllInput<D, PROJECTION>,
-  ): Promise<Omit<QuerierReturn<D, PROJECTION>, 'next'>> {
+  ): Promise<QuerierReturn<D, PROJECTION>> {
     const executor = this.queryAllExecutor(keys, options);
     if (this.config.logStatements) {
       console.log(`QueryAllInput: ${JSON.stringify(executor.input, null, 2)}`);
