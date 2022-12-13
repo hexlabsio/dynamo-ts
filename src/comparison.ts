@@ -165,6 +165,23 @@ export function filterParts<DEFINITION extends DynamoInfo>(
   return expression;
 }
 
+export function filterPartsWithKey<DEFINITION extends DynamoInfo>(
+  definition: DEFINITION,
+  attributeBuilder: AttributeBuilder,
+  filter: DynamoFilter2<DEFINITION>
+): string {
+  const updatedDefinition = Object.keys(definition.definition)
+    .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});
+  const { expression } = filter(
+    () =>
+      new ComparisonBuilderType(
+        updatedDefinition,
+        new Wrapper(attributeBuilder)
+      ).builder() as any
+  ) as unknown as Wrapper;
+  return expression;
+}
+
 export function conditionalParts<DEFINITION extends DynamoMapDefinition,
   HASH extends keyof DynamoEntry<DEFINITION>,
   RANGE extends keyof DynamoEntry<DEFINITION> | null,

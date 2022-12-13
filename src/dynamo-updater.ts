@@ -1,5 +1,5 @@
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import { filterParts } from './comparison';
+import { filterPartsWithKey } from "./comparison";
 import { DynamoFilter2 } from './filter';
 import { DynamoNestedKV } from './type-mapping';
 import { AttributeBuilder } from './attribute-builder';
@@ -147,7 +147,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterParts(this.info, attributeBuilder, options.condition);
+      filterPartsWithKey(this.info, attributeBuilder, options.condition);
     const {
       key,
       updates,

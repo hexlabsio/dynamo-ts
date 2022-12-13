@@ -103,6 +103,16 @@ describe('Dynamo Updater', () => {
       expect(result.item).toEqual({ ...preInserts[3], mno: 5 });
     });
 
+    it('should pass condition check hash check', async () => {
+      const result = await testTable.update({
+        key: { hash: hash + '4' },
+        updates: { mno: 3 },
+        return: 'ALL_NEW',
+        condition: compare => compare().hash.exists()
+      });
+      expect(result.item).toEqual({ ...preInserts[3], mno: 3 });
+    });
+
     it('should fail condition check', async () => {
       await expect(
         testTable.update({

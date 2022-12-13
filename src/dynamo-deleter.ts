@@ -1,6 +1,6 @@
 import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
 import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
+import { filterPartsWithKey } from "./comparison";
 import { DynamoFilter2 } from './filter';
 import {
   CamelCaseKeys,
@@ -73,7 +73,7 @@ export class DynamoDeleter<T extends DynamoInfo> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterParts(this.info, attributeBuilder, options.condition);
+      filterPartsWithKey(this.info, attributeBuilder, options.condition);
     const input: DeleteItemInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
