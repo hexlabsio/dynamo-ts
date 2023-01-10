@@ -4,6 +4,7 @@
   "version": "3.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "license": "MIT",
   "files": [
     "dist"
   ],
@@ -19,9 +20,6 @@
     "test": "ts-node ./jest-setup.ts && jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
     "lint": "eslint **/*.ts"
   },
-  "eslintIgnore": [
-    "webpack.config.js"
-  ],
   "eslintConfig": {
     "extends": [
       "eslint:recommended",
@@ -71,6 +69,9 @@
     "globalTeardown": "./node_modules/@shelf/jest-dynamodb/teardown.js"
   },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
+  "peerDependencies": {
+    "aws-sdk": "^2.1194.0"
+  },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.49.0",
     "@shelf/jest-dynamodb": "^2.2.3",
@@ -80,22 +81,16 @@
     "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
-    "aws-sdk": "^2.1194.0",
     "eslint": "^7.27.0",
     "eslint-plugin-jest": "^24.3.6",
     "husky": "^6.0.0",
     "jest": "^27.0.3",
     "jest-junit": "^13.0.0",
-    "json-loader": "^0.5.7",
     "minimist": "^1.2.6",
     "node-loader": "^0.6.0",
     "prettier": "^2.5.1",
     "terser": "^5.14.2",
     "ts-jest": "^27.0.2",
-    "ts-loader": "^6.2.2",
-    "ts-node": "^10.4.0",
-    "typescript": "^4.6.4",
-    "webpack": "^5.50.0",
-    "webpack-cli": "^4.7.0"
+    "typescript": "^4.6.4"
   }
 }

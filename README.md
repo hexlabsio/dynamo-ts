@@ -187,3 +187,11 @@ const executor = testTable
         .and(testTable2.batchPut([{ identifier: 'id3', text: 'text' }]))
         .execute();
 ```
+
+
+# Contributors
+Thanks to everyone who has contributed so far!
+
+<a href="https://github.com/hexlabsio/dynamo-ts/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hexlabsio/dynamo-ts"/>
+</a>
