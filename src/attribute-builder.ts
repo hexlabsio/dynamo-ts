@@ -1,4 +1,4 @@
-import { PutItemInput } from 'aws-sdk/clients/dynamodb';
+import { PutItemInput } from '@aws-sdk/client-dynamodb';
 import { AttributeNamer } from './naming';
 import { CamelCaseKeys } from './types';
 

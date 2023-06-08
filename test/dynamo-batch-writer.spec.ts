@@ -1,15 +1,14 @@
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { TableClient } from '../src';
 import { DynamoTypeFrom } from '../src/types';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
-const dynamoClient = new DynamoDB.DocumentClient({
-  endpoint: 'localhost:5001',
-  sslEnabled: false,
-  accessKeyId: 'xxxx',
-  secretAccessKey: 'xxxx',
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
 });
+const dynamoClient = DynamoDBDocument.from(dynamo);
 
 type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
@@ -42,7 +41,7 @@ describe('Dynamo Getter', () => {
 
   beforeAll(async () => {
     await Promise.all(
-      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item })),
     );
   });
 

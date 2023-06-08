@@ -1,15 +1,13 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import { PutCommandInput, PutCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts } from './comparison';
-import { DynamoFilter2 } from './filter';
+import { DynamoFilter } from './filter';
 import {
   CamelCaseKeys,
   DynamoConfig,
   DynamoInfo,
   TypeFromDefinition,
 } from './types';
-import PutItemInput = DocumentClient.PutItemInput;
-import PutItemOutput = DocumentClient.PutItemOutput;
 
 export type PutReturnValues = 'NONE' | 'ALL_OLD';
 
@@ -17,17 +15,17 @@ export type PutItemOptions<
   INFO extends DynamoInfo,
   RETURN extends PutReturnValues,
 > = CamelCaseKeys<
-  Pick<PutItemInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>
+  Pick<PutCommandInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>
 > & {
   returnValues?: RETURN;
-  condition?: DynamoFilter2<INFO>;
+  condition?: DynamoFilter<INFO>;
 };
 
 export type PutItemReturn<
   INFO extends DynamoInfo,
   RETURN extends PutReturnValues,
 > = CamelCaseKeys<
-  Pick<PutItemOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
+  Pick<PutCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
   (RETURN extends 'ALL_OLD'
     ? { item: TypeFromDefinition<INFO['definition']> | undefined }
@@ -37,7 +35,7 @@ export interface PutExecutor<
   T extends DynamoInfo,
   RETURN extends PutReturnValues,
 > {
-  input: PutItemInput;
+  input: PutCommandInput;
   execute(): Promise<PutItemReturn<T, RETURN>>;
 }
 
@@ -66,7 +64,7 @@ export class DynamoPuter<T extends DynamoInfo> {
     const condition =
       options.condition &&
       filterParts(this.info, attributeBuilder, options.condition);
-    const input: PutItemInput = {
+    const input: PutCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
       Item: item,
@@ -79,7 +77,7 @@ export class DynamoPuter<T extends DynamoInfo> {
     return {
       input,
       async execute(): Promise<PutItemReturn<T, RETURN>> {
-        const result = await client.put(input).promise();
+        const result = await client.put(input);
         return {
           item: result.Attributes as any,
           consumedCapacity: result.ConsumedCapacity,

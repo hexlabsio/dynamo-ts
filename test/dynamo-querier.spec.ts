@@ -1,16 +1,15 @@
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { CompareWrapperOperator, Operation, TableClient } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
 import { DynamoTypeFrom } from '../src/types';
 import { complexTableDefinitionQuery, indexTableDefinition, simpleTableDefinition2 } from './tables';
 
-const dynamoClient = new DynamoDB.DocumentClient({
-  endpoint: 'localhost:5001',
-  sslEnabled: false,
-  accessKeyId: 'xxxx',
-  secretAccessKey: 'xxxx',
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
 });
+const dynamoClient = DynamoDBDocument.from(dynamo);
 
 type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
@@ -98,16 +97,16 @@ const preInserts3: TableType3[] = [...new Array(10).keys()].map(index => (
 describe('Dynamo Querier', () => {
   beforeAll(async () => {
     await Promise.all(
-      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item })),
     );
     await Promise.all(
       preInserts2.map((Item) =>
-        dynamoClient.put({ TableName: TableName2, Item }).promise(),
+        dynamoClient.put({ TableName: TableName2, Item }),
       ),
     );
     await Promise.all(
       preInserts3.map((Item) =>
-        dynamoClient.put({ TableName: TableName3, Item }).promise(),
+        dynamoClient.put({ TableName: TableName3, Item }),
       ),
     );
   });

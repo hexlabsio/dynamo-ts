@@ -1,4 +1,4 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import { UpdateCommandInput } from "@aws-sdk/lib-dynamodb";
 import {
   BatchWriteClient,
   BatchWriteExecutor,
@@ -43,7 +43,6 @@ import {
   PickKeys,
   TypeFromDefinition,
 } from './types';
-import ReturnValue = DocumentClient.ReturnValue;
 
 export class TableClient<T extends DynamoInfo> {
   constructor(public readonly info: T, private readonly config: DynamoConfig) {}
@@ -134,7 +133,7 @@ export class TableClient<T extends DynamoInfo> {
    */
   update<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-    RETURN_ITEMS extends ReturnValue | null = null,
+    RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
     options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
   ): Promise<UpdateResult<T, RETURN_ITEMS>> {

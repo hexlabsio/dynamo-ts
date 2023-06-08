@@ -1,15 +1,14 @@
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoUpdater } from '../src/dynamo-updater';
 import { DynamoTypeFrom } from '../src';
 import { complexTableDefinitionQuery } from './tables';
 
-const dynamoClient = new DynamoDB.DocumentClient({
-  endpoint: 'localhost:5001',
-  sslEnabled: false,
-  accessKeyId: 'xxxx',
-  secretAccessKey: 'xxxx',
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
 });
+const dynamoClient = DynamoDBDocument.from(dynamo);
 
 type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
 
@@ -45,7 +44,7 @@ const preInserts: TableType[] = [
 describe('Dynamo Updater', () => {
   beforeAll(async () => {
     await Promise.all(
-      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item })),
     );
   });
 

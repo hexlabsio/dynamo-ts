@@ -1,9 +1,7 @@
-import { DynamoDB } from 'aws-sdk';
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
-import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
+import { ScanCommandInput, ScanCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts } from './comparison';
-import { DynamoFilter2 } from './filter';
+import { DynamoFilter } from './filter';
 import { Projection, ProjectionHandler } from './projector';
 import {
   CamelCaseKeys,
@@ -11,11 +9,10 @@ import {
   DynamoInfo,
   TypeFromDefinition,
 } from './types';
-import ScanInput = DocumentClient.ScanInput;
 
 export type ScanOptions<INFO extends DynamoInfo, PROJECTION> = CamelCaseKeys<
   Pick<
-    ScanInput,
+    ScanCommandInput,
     | 'Limit'
     | 'ReturnConsumedCapacity'
     | 'TotalSegments'
@@ -24,7 +21,7 @@ export type ScanOptions<INFO extends DynamoInfo, PROJECTION> = CamelCaseKeys<
   >
 > & {
   projection?: Projection<INFO, PROJECTION>;
-  filter?: DynamoFilter2<INFO>;
+  filter?: DynamoFilter<INFO>;
   next?: string;
 };
 
@@ -32,14 +29,14 @@ export type ScanReturn<INFO extends DynamoInfo, PROJECTION> = {
   member: PROJECTION extends null
     ? TypeFromDefinition<INFO['definition']>[]
     : PROJECTION[];
-  consumedCapacity?: ConsumedCapacity;
+  consumedCapacity?: ScanCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
   next?: string;
 };
 
 export interface ScanExecutor<T extends DynamoInfo, PROJECTION> {
-  input: ScanInput;
+  input: ScanCommandInput;
   execute(): Promise<ScanReturn<T, PROJECTION>>;
 }
 
@@ -123,7 +120,7 @@ export class DynamoScanner<T extends DynamoInfo> {
     return {
       input,
       async execute(): Promise<ScanReturn<T, PROJECTION>> {
-        const result = await client.scan(input).promise();
+        const result = await client.scan(input);
         return {
           member: (result.Items as any) ?? [],
           consumedCapacity: result.ConsumedCapacity,

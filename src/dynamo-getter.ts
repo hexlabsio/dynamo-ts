@@ -1,6 +1,5 @@
-import { DynamoDB } from 'aws-sdk';
-import GetItemInput = DynamoDB.DocumentClient.GetItemInput;
-import ConsumedCapacity = DynamoDB.DocumentClient.ConsumedCapacity;
+import { ConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+import { GetCommandInput } from "@aws-sdk/lib-dynamodb";
 import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -12,7 +11,7 @@ import {
 } from './types';
 
 export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = Partial<
-  CamelCaseKeys<Pick<GetItemInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>>
+  CamelCaseKeys<Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>>
 > & {
   projection?: Projection<INFO, PROJECTION>;
 };
@@ -26,7 +25,7 @@ export type GetItemReturn<INFO extends DynamoInfo, PROJECTION> = {
 };
 
 export interface GetExecutor<T extends DynamoInfo, PROJECTION> {
-  input: GetItemInput;
+  input: GetCommandInput;
   execute(): Promise<GetItemReturn<T, PROJECTION>>;
 }
 
@@ -69,7 +68,7 @@ export class DynamoGetter<T extends DynamoInfo> {
     return {
       input,
       async execute(): Promise<GetItemReturn<T, PROJECTION>> {
-        const result = await client.get(input).promise();
+        const result = await client.get(input);
         return {
           item: result.Item as any,
           consumedCapacity: result.ConsumedCapacity,

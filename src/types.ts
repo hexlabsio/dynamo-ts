@@ -1,4 +1,4 @@
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
 type DynamoPrimitive =
   | 'string'
@@ -158,7 +158,7 @@ export interface DynamoConfig {
   logStatements?: boolean;
   tableName: string;
   indexName?: string;
-  client: DynamoDB.DocumentClient;
+  client: DynamoDBDocument;
 }
 
 export type PickPartition<INFO extends DynamoInfo> = INFO extends {

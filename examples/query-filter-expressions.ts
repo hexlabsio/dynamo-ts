@@ -1,4 +1,4 @@
-import TableClient from "../src/table-client";
+import { TableClient } from "../src";
 import { DynamoTypeFrom } from '../src';
 import {exampleCarTable, exampleClient} from "./example-table";
 
