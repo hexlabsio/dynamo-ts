@@ -1,13 +1,12 @@
 import {defineTable} from "../src/types";
-import {DynamoDB} from "aws-sdk";
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
-export const exampleClient = new DynamoDB.DocumentClient({
-    endpoint: 'localhost:5001',
-    sslEnabled: false,
-    accessKeyId: 'xxxx',
-    secretAccessKey: 'xxxx',
-    region: 'local-env',
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  region: 'local-env',
 });
+export const exampleClient = DynamoDBDocument.from(dynamo);
 
 export const exampleCarTable = defineTable({
     make: 'string',

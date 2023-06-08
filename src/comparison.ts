@@ -5,7 +5,7 @@ import {
   DynamoMapDefinition,
   SimpleDynamoType
 } from "./type-mapping";
-import { DynamoFilter2 } from "./filter";
+import { DynamoFilter } from "./filter";
 import { AttributeBuilder } from "./attribute-builder";
 import { DynamoDefinition } from "./dynamo-client-config";
 import { DynamoInfo, DynamoTypeFrom, RawTypeFrom } from "./types";
@@ -150,7 +150,7 @@ export class ComparisonBuilderType<D extends DynamoMapDefinition,
 export function filterParts<DEFINITION extends DynamoInfo>(
   definition: DEFINITION,
   attributeBuilder: AttributeBuilder,
-  filter: DynamoFilter2<DEFINITION>
+  filter: DynamoFilter<DEFINITION>
 ): string {
   const updatedDefinition = Object.keys(definition.definition)
     .filter((it) => it !== definition.partitionKey && it !== definition.sortKey)
@@ -168,7 +168,7 @@ export function filterParts<DEFINITION extends DynamoInfo>(
 export function filterPartsWithKey<DEFINITION extends DynamoInfo>(
   definition: DEFINITION,
   attributeBuilder: AttributeBuilder,
-  filter: DynamoFilter2<DEFINITION>
+  filter: DynamoFilter<DEFINITION>
 ): string {
   const updatedDefinition = Object.keys(definition.definition)
     .reduce((acc, it) => ({ ...acc, [it]: definition.definition[it] }), {});

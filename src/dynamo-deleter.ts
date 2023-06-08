@@ -1,7 +1,7 @@
 import { DeleteCommandInput, DeleteCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { AttributeBuilder } from './attribute-builder';
 import { filterPartsWithKey } from "./comparison";
-import { DynamoFilter2 } from './filter';
+import { DynamoFilter } from './filter';
 import {
   CamelCaseKeys,
   DynamoConfig,
@@ -24,7 +24,7 @@ export type DeleteItemOptions<
   >
 > & {
   returnValues?: RETURN;
-  condition?: DynamoFilter2<INFO>;
+  condition?: DynamoFilter<INFO>;
 };
 
 export type DeleteItemReturn<

@@ -1,6 +1,6 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import { UpdateCommandInput, UpdateCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { filterPartsWithKey } from "./comparison";
-import { DynamoFilter2 } from './filter';
+import { DynamoFilter } from './filter';
 import { DynamoNestedKV } from './type-mapping';
 import { AttributeBuilder } from './attribute-builder';
 import {
@@ -10,10 +10,6 @@ import {
   PickKeys,
   TypeFromDefinition,
 } from './types';
-import ConsumedCapacity = DocumentClient.ConsumedCapacity;
-import UpdateItemInput = DocumentClient.UpdateItemInput;
-import ItemCollectionMetrics = DocumentClient.ItemCollectionMetrics;
-import ReturnValue = DocumentClient.ReturnValue;
 
 export type Increment<T, K extends keyof T> = {
   key: K;
@@ -23,11 +19,11 @@ export type Increment<T, K extends keyof T> = {
 export type UpdateItemOptions<
   T extends DynamoInfo,
   KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-  RETURN_ITEMS extends ReturnValue | null = null,
+  RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
 > = Partial<
   CamelCaseKeys<
     Pick<
-      UpdateItemInput,
+      UpdateCommandInput,
       'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
     >
   >
@@ -36,7 +32,7 @@ export type UpdateItemOptions<
   updates: DynamoNestedKV<
     Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
   >;
-  condition?: DynamoFilter2<T>;
+  condition?: DynamoFilter<T>;
   increments?: Array<
     Increment<
       DynamoNestedKV<
@@ -50,7 +46,7 @@ export type UpdateItemOptions<
 
 export type UpdateReturnType<
   T extends DynamoInfo,
-  RETURN_ITEMS extends ReturnValue | null,
+  RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null,
 > = RETURN_ITEMS extends null
   ? undefined
   : RETURN_ITEMS extends 'NONE'
@@ -63,18 +59,18 @@ export type UpdateReturnType<
 
 export type UpdateResult<
   T extends DynamoInfo,
-  RETURN_ITEMS extends ReturnValue | null,
+  RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null,
 > = {
   item: UpdateReturnType<T, RETURN_ITEMS>;
-  consumedCapacity?: ConsumedCapacity;
-  itemCollectionMetrics?: ItemCollectionMetrics;
+  consumedCapacity?: UpdateCommandOutput['ConsumedCapacity'];
+  itemCollectionMetrics?: UpdateCommandOutput['ItemCollectionMetrics'];
 };
 
 export interface UpdateExecutor<
   T extends DynamoInfo,
-  RETURN_ITEMS extends ReturnValue | null = null,
+  RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
 > {
-  input: UpdateItemInput;
+  input: UpdateCommandInput;
   execute(): Promise<UpdateResult<T, RETURN_ITEMS>>;
 }
 
@@ -140,7 +136,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
 
   updateExecutor<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-    RETURN_ITEMS extends ReturnValue | null = null,
+    RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
     options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
   ): UpdateExecutor<T, RETURN_ITEMS> {
@@ -156,7 +152,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
       returnItemCollectionMetrics,
       returnConsumedCapacity,
     } = options;
-    const updateInput: UpdateItemInput = {
+    const updateInput: UpdateCommandInput = {
       TableName: this.config.tableName,
       ConditionExpression: condition,
       Key: key,
@@ -174,7 +170,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
     return {
       input: updateInput,
       async execute(): Promise<UpdateResult<T, RETURN_ITEMS>> {
-        const result = await config.client.update(updateInput).promise();
+        const result = await config.client.update(updateInput);
         return {
           item: result.Attributes as any,
           consumedCapacity: result.ConsumedCapacity,
@@ -186,7 +182,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
 
   update<
     KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-    RETURN_ITEMS extends ReturnValue | null = null,
+    RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
     options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
   ): Promise<UpdateResult<T, RETURN_ITEMS>> {

@@ -1,8 +1,6 @@
-import { DynamoDB } from 'aws-sdk';
-import BatchWriteItemInput = DynamoDB.DocumentClient.BatchWriteItemInput;
-import ItemCollectionMetricsPerTable = DynamoDB.DocumentClient.ItemCollectionMetricsPerTable;
-import ConsumedCapacityMultiple = DynamoDB.DocumentClient.ConsumedCapacityMultiple;
-import BatchWriteItemRequestMap = DynamoDB.DocumentClient.BatchWriteItemRequestMap;
+import { ConsumedCapacity, WriteRequest } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+import { BatchWriteCommandInput, BatchWriteCommandOutput, DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+
 import {
   CamelCaseKeys,
   DynamoConfig,
@@ -13,18 +11,18 @@ import {
 
 export type BatchWriteItemOptions<INFO extends DynamoInfo> = CamelCaseKeys<
   Pick<
-    BatchWriteItemInput,
+    BatchWriteCommandInput,
     'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
   >
 >;
 
 export type BatchWriteItemReturn<INFO extends DynamoInfo> = {
-  itemCollectionMetrics?: ItemCollectionMetricsPerTable;
-  consumedCapacity?: ConsumedCapacityMultiple;
+  itemCollectionMetrics?: BatchWriteCommandOutput['ItemCollectionMetrics'];
+  consumedCapacity?: ConsumedCapacity[];
 };
 
 export interface BatchWriteExecutor<T extends DynamoInfo> {
-  input: BatchWriteItemInput;
+  input: BatchWriteCommandInput;
   execute(): Promise<BatchWriteItemReturn<T>>;
   and<B extends BatchWriteExecutor<any>>(other: B): BatchWriteClient<[this, B]>;
 }
@@ -33,8 +31,8 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
   implements BatchWriteExecutor<T>
 {
   constructor(
-    private readonly client: DynamoDB.DocumentClient,
-    public readonly input: BatchWriteItemInput,
+    private readonly client: DynamoDBDocument,
+    public readonly input: BatchWriteCommandInput,
     private readonly logStatements: undefined | boolean,
   ) {}
 
@@ -42,7 +40,7 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
     if (this.logStatements) {
       console.log(`BatchWriteInput: ${JSON.stringify(this.input, null, 2)}`);
     }
-    const result = await this.client.batchWrite(this.input).promise();
+    const result = await this.client.batchWrite(this.input);
     return {
       itemCollectionMetrics: result.ItemCollectionMetrics,
       consumedCapacity: result.ConsumedCapacity,
@@ -57,10 +55,10 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
 }
 
 export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
-  public readonly input: BatchWriteItemInput;
+  public readonly input: BatchWriteCommandInput;
 
   constructor(
-    private readonly client: DynamoDB.DocumentClient,
+    private readonly client: DynamoDBDocument,
     private readonly logStatements: undefined | boolean,
     private readonly executors: T,
   ) {
@@ -70,7 +68,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
         ...prev,
         [tables[0]]: [
           ...(prev[tables[0]] ?? []),
-          ...next.input.RequestItems[tables[0]],
+          ...next.input.RequestItems![tables[0]],
         ],
       };
     }, {} as Record<string, any>);
@@ -93,13 +91,13 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
     reprocess = false,
     maxRetries = 10,
   ): Promise<{
-    consumedCapacity?: ConsumedCapacityMultiple;
-    unprocessedItems?: BatchWriteItemRequestMap;
+    consumedCapacity?: ConsumedCapacity[];
+    unprocessedItems?: Record<string, WriteRequest[]>;
   }> {
     if (this.logStatements) {
       console.log(`GetItemInput: ${JSON.stringify(this.input, null, 2)}`);
     }
-    let result = await this.client.batchWrite(this.input).promise();
+    let result = await this.client.batchWrite(this.input);
     let retry = 0;
     let returnType = {
       unprocessedItems: result.UnprocessedItems,
@@ -113,8 +111,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
         .batchWrite({
           ...this.executors[0].input,
           RequestItems: returnType.unprocessedItems!,
-        })
-        .promise();
+        });
       returnType = {
         unprocessedItems: result.UnprocessedItems,
         consumedCapacity: returnType.consumedCapacity
@@ -133,7 +130,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     items: TypeFromDefinition<T['definition']>[],
     options: BatchWriteItemOptions<T> = {},
   ): BatchWriteClient<[BatchWriteExecutor<T>]> {
-    const input: BatchWriteItemInput = {
+    const input: BatchWriteCommandInput = {
       RequestItems: {
         [this.config.tableName]: items.map((item) => ({
           PutRequest: { Item: item },
@@ -153,7 +150,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     keys: PickKeys<T>[],
     options: BatchWriteItemOptions<T> = {},
   ): BatchWriteClient<[BatchWriteExecutor<T>]> {
-    const input: BatchWriteItemInput = {
+    const input: BatchWriteCommandInput = {
       RequestItems: {
         [this.config.tableName]: keys.map((key) => ({
           DeleteRequest: { Key: key },

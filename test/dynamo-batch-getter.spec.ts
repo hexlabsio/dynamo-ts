@@ -1,14 +1,14 @@
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoTypeFrom, TableClient } from '../src';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
-const dynamoClient = new DynamoDB.DocumentClient({
-  endpoint: 'localhost:5001',
-  sslEnabled: false,
-  accessKeyId: 'xxxx',
-  secretAccessKey: 'xxxx',
+
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
 });
+const dynamoClient = DynamoDBDocument.from(dynamo);
 
 type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
@@ -35,17 +35,17 @@ const preInserts2: TableType2[] = new Array(1000).fill(0).map((a, index) => ({
   text: 'test',
 }));
 
-describe('Dynamo Getter', () => {
+describe('Dynamo Batch Getter', () => {
   const TableName = 'simpleTableDefinition';
   const TableName2 = 'simpleTableDefinition2';
 
   beforeAll(async () => {
     await Promise.all(
-      preInserts.map((Item) => dynamoClient.put({ TableName, Item }).promise()),
+      preInserts.map((Item) => dynamoClient.put({ TableName, Item })),
     );
     await Promise.all(
       preInserts2.map((Item) =>
-        dynamoClient.put({ TableName: TableName2, Item }).promise(),
+        dynamoClient.put({ TableName: TableName2, Item }),
       ),
     );
   }, 20000);

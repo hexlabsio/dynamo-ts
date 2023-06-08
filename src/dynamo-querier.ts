@@ -1,11 +1,10 @@
-import {
-  ConsumedCapacity,
-  QueryInput,
-  AttributeMap,
-} from 'aws-sdk/clients/dynamodb';
+import { QueryCommandInput, QueryCommandOutput } from "@aws-sdk/lib-dynamodb";
+import { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
+
+
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
-import { DynamoFilter2 } from './filter';
+import { DynamoFilter } from './filter';
 import { KeyOperation } from './operation';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -33,13 +32,13 @@ export type SortCompare<D extends DynamoInfo> =
 
 export type QueryKeys<D extends DynamoInfo> = HashCompare<D> & SortCompare<D>;
 export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
-  filter?: DynamoFilter2<D>;
+  filter?: DynamoFilter<D>;
   projection?: Projection<D, PROJECTION>;
   next?: string;
 } & Partial<
   CamelCaseKeys<
     Pick<
-      QueryInput,
+      QueryCommandInput,
       | 'Limit'
       | 'ConsistentRead'
       | 'ScanIndexForward'
@@ -59,7 +58,7 @@ export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
     ? TypeFromDefinition<D['definition']>[]
     : PROJECTION[];
   next?: string;
-  consumedCapacity?: ConsumedCapacity;
+  consumedCapacity?: QueryCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
 };
@@ -69,7 +68,7 @@ export type ParentKeys<D extends DynamoDefinition> = {
 };
 
 export interface QueryExecutor<D extends DynamoInfo, PROJECTION> {
-  input: QueryInput;
+  input: QueryCommandInput;
   execute: () => Promise<QuerierReturn<D, PROJECTION>>;
 }
 
@@ -142,7 +141,7 @@ export class DynamoQuerier<
       this.info,
       options.projection,
     );
-    const input: QueryInput = {
+    const input: QueryCommandInput = {
       TableName: this.config.tableName,
       ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
@@ -165,7 +164,7 @@ export class DynamoQuerier<
     return {
       input,
       execute: async () => {
-        const result = await client.query(input).promise();
+        const result = await client.query(input);
         return {
           member: (result.Items ?? []) as any,
           next: result.LastEvaluatedKey
@@ -220,7 +219,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
   ) {}
 
   private buildNext(
-    lastItem: AttributeMap,
+    lastItem: Record<string, NativeAttributeValue>,
     keyFields: {
       partitionKey: string;
       sortKey?: string;
@@ -242,7 +241,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
   }
 
   private removeFields(
-    lastItems: AttributeMap[],
+    lastItems: Record<string, NativeAttributeValue>[],
     enrichedFields: string[],
   ): void {
     lastItems.forEach((lastItem) =>
@@ -251,7 +250,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
   }
 
   private async _recQuery(
-    queryInput: QueryInput,
+    queryInput: QueryCommandInput,
     keyFields: {
       partitionKey: string;
       sortKey?: string;
@@ -260,13 +259,13 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
     },
     enrichedFields?: string[],
     queryLimit?: number,
-    accumulation: AttributeMap[] = [],
+    accumulation: QueryCommandOutput['Items'] = [],
     accumulationCount?: number,
   ): Promise<{
-    Items: AttributeMap[];
+    Items: QueryCommandOutput['Items'];
     LastEvaluatedKey?: string;
   }> {
-    const res = await this.config.client.query(queryInput).promise();
+    const res = await this.config.client.query(queryInput);
 
     const resLength = res?.Items?.length ?? 0;
     const accLength = accumulationCount ?? 0;
@@ -309,7 +308,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
     }
   }
 
-  input: QueryInput = {
+  input: QueryCommandInput = {
     TableName: this.config.tableName,
     ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
     ...{
@@ -361,7 +360,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
             'base64',
           )
         : undefined,
-      count: result.Items.length,
+      count: result.Items?.length ?? 0,
       // consumedCapacity: result.ConsumedCapacity,
       // scannedCount: result.ScannedCount,
     };
