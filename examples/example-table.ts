@@ -5,6 +5,7 @@ import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
 });
 export const exampleClient = DynamoDBDocument.from(dynamo);
 

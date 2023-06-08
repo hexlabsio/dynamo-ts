@@ -8,6 +8,7 @@ import { complexTableDefinitionQuery, indexTableDefinition, simpleTableDefinitio
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
   region: 'local-env',
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
