@@ -1,4 +1,4 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import { DeleteCommandInput, DeleteCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { AttributeBuilder } from './attribute-builder';
 import { filterPartsWithKey } from "./comparison";
 import { DynamoFilter2 } from './filter';
@@ -9,8 +9,6 @@ import {
   PickKeys,
   TypeFromDefinition,
 } from './types';
-import DeleteItemInput = DocumentClient.DeleteItemInput;
-import DeleteItemOutput = DocumentClient.DeleteItemOutput;
 
 export type DeleteReturnValues = 'NONE' | 'ALL_OLD';
 
@@ -20,7 +18,7 @@ export type DeleteItemOptions<
 > = Partial<
   CamelCaseKeys<
     Pick<
-      DeleteItemInput,
+      DeleteCommandInput,
       'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'
     >
   >
@@ -33,7 +31,7 @@ export type DeleteItemReturn<
   INFO extends DynamoInfo,
   RETURN extends DeleteReturnValues,
 > = CamelCaseKeys<
-  Pick<DeleteItemOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
+  Pick<DeleteCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
   (RETURN extends 'ALL_OLD'
     ? { item?: TypeFromDefinition<INFO['definition']> }
@@ -43,7 +41,7 @@ export interface DeleteExecutor<
   T extends DynamoInfo,
   RETURN extends DeleteReturnValues,
 > {
-  input: DeleteItemInput;
+  input: DeleteCommandInput;
   execute(): Promise<DeleteItemReturn<T, RETURN>>;
 }
 
@@ -74,7 +72,7 @@ export class DynamoDeleter<T extends DynamoInfo> {
     const condition =
       options.condition &&
       filterPartsWithKey(this.info, attributeBuilder, options.condition);
-    const input: DeleteItemInput = {
+    const input: DeleteCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
       Key: keys,
@@ -87,7 +85,7 @@ export class DynamoDeleter<T extends DynamoInfo> {
     return {
       input,
       async execute(): Promise<DeleteItemReturn<T, RETURN>> {
-        const result = await client.delete(input).promise();
+        const result = await client.delete(input);
         return {
           item: result.Attributes as any,
           consumedCapacity: result.ConsumedCapacity,

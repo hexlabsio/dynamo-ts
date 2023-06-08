@@ -1,4 +1,4 @@
-import { defineTable } from '../src';
+import { defineTable } from '../src/types';
 
 export const simpleTableDefinition = defineTable(
   {

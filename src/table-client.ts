@@ -1,4 +1,4 @@
-import { DocumentClient } from 'aws-sdk/lib/dynamodb/document_client';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
 import {
   BatchWriteClient,
   BatchWriteExecutor,
@@ -43,7 +43,7 @@ import {
   PickKeys,
   TypeFromDefinition,
 } from './types';
-import ReturnValue = DocumentClient.ReturnValue;
+import ReturnValue = DynamoDB.DocumentClient.ReturnValue;
 
 export class TableClient<T extends DynamoInfo> {
   constructor(public readonly info: T, private readonly config: DynamoConfig) {}

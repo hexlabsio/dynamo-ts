@@ -65,17 +65,18 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "globalSetup": "./node_modules/@shelf/jest-dynamodb/setup.js",
-    "globalTeardown": "./node_modules/@shelf/jest-dynamodb/teardown.js"
+    "globalSetup": "./node_modules/@shelf/jest-dynamodb/lib/setup.js",
+    "globalTeardown": "./node_modules/@shelf/jest-dynamodb/lib/teardown.js",
+    "globals": {
+      "ts-jest": {
+        "isolatedModules": true
+      }
+    }
   },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
-  "peerDependencies": {
-    "aws-sdk": "^2.1194.0"
-  },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.49.0",
-    "@shelf/jest-dynamodb": "^2.2.3",
-    "@types/aws-sdk": "^2.7.0",
+    "@shelf/jest-dynamodb": "^3.4.1",
     "@types/jest": "^26.0.23",
     "@types/node": "^15.6.1",
     "@types/uuid": "^8.3.4",
