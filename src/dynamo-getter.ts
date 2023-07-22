@@ -1,5 +1,5 @@
 import { ConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
-import { GetCommandInput } from "@aws-sdk/lib-dynamodb";
+import { GetCommandInput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -11,7 +11,9 @@ import {
 } from './types';
 
 export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = Partial<
-  CamelCaseKeys<Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>>
+  CamelCaseKeys<
+    Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>
+  >
 > & {
   projection?: Projection<INFO, PROJECTION>;
 };

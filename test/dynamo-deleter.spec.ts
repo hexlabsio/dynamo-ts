@@ -1,13 +1,13 @@
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDeleter } from '../src/dynamo-deleter';
 import { DynamoTypeFrom } from '../src';
 import { complexTableDefinition } from './tables';
 
 const dynamo = new DynamoDB({
-  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
   region: 'local-env',
-  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 type TableType = DynamoTypeFrom<typeof complexTableDefinition>;
@@ -46,39 +46,37 @@ describe('Dynamo Deleter', () => {
   describe('Delete', () => {
     it('should delete item', async () => {
       const hash = 'delete-item-test';
-      const before = await dynamoClient
-        .get({ TableName, Key: { hash } })
-        ;
+      const before = await dynamoClient.get({ TableName, Key: { hash } });
       expect((before.Item as any).hash).toEqual(hash);
       await testTable.delete({ hash });
-      const after = await dynamoClient
-        .get({ TableName, Key: { hash }, ConsistentRead: true })
-        ;
+      const after = await dynamoClient.get({
+        TableName,
+        Key: { hash },
+        ConsistentRead: true,
+      });
       expect(after.Item).toBeUndefined();
     });
 
     it('should delete item and return old value', async () => {
       const hash = 'delete-item-test-2';
-      const before = await dynamoClient
-        .get({ TableName, Key: { hash } })
-        ;
+      const before = await dynamoClient.get({ TableName, Key: { hash } });
       expect((before.Item as any).hash).toEqual(hash);
       const deleted = await testTable.delete(
         { hash },
         { returnValues: 'ALL_OLD' },
       );
-      const after = await dynamoClient
-        .get({ TableName, Key: { hash }, ConsistentRead: true })
-        ;
+      const after = await dynamoClient.get({
+        TableName,
+        Key: { hash },
+        ConsistentRead: true,
+      });
       expect(after.Item).toBeUndefined();
       expect(deleted.item!.hash).toEqual(hash);
     });
 
     it('should throw when condition not met', async () => {
       const hash = 'delete-item-test-3';
-      const before = await dynamoClient
-        .get({ TableName, Key: { hash } })
-        ;
+      const before = await dynamoClient.get({ TableName, Key: { hash } });
       expect((before.Item as any).hash).toEqual(hash);
       await expect(
         testTable.delete(
@@ -99,17 +97,17 @@ describe('Dynamo Deleter', () => {
 
     it('should delete item when condition met', async () => {
       const hash = 'delete-item-test-3';
-      const before = await dynamoClient
-        .get({ TableName, Key: { hash } })
-        ;
+      const before = await dynamoClient.get({ TableName, Key: { hash } });
       expect((before.Item as any).hash).toEqual(hash);
       await testTable.delete(
         { hash },
         { condition: (compare) => compare().text.eq('some text') },
       );
-      const after = await dynamoClient
-        .get({ TableName, Key: { hash }, ConsistentRead: true })
-        ;
+      const after = await dynamoClient.get({
+        TableName,
+        Key: { hash },
+        ConsistentRead: true,
+      });
       expect(after.Item).toBeUndefined();
     });
 

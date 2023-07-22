@@ -1,6 +1,6 @@
-import { DeleteCommandInput, DeleteCommandOutput } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommandInput, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
-import { filterPartsWithKey } from "./comparison";
+import { filterPartsWithKey } from './comparison';
 import { DynamoFilter } from './filter';
 import {
   CamelCaseKeys,

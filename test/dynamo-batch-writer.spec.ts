@@ -1,13 +1,13 @@
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { TableClient } from '../src';
 import { DynamoTypeFrom } from '../src/types';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamo = new DynamoDB({
-  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
   region: 'local-env',
-  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
@@ -36,7 +36,7 @@ const preInserts2: TableType2[] = new Array(1000).fill(0).map((a, index) => ({
   text: 'test',
 }));
 
-describe('Dynamo Getter', () => {
+describe('Dynamo Batch Writer', () => {
   const TableName = 'simpleTableDefinition';
   // const TableName2 = 'simpleTableDefinition2';
 

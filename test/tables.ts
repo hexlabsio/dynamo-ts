@@ -43,6 +43,24 @@ export const complexTableDefinitionQuery = defineTable(
   { abc: { partitionKey: 'text' } },
 );
 
+export const setsTableDefinition = defineTable(
+  {
+    identifier: 'string',
+    uniqueStrings: 'string set',
+    uniqueNumbers: 'number set',
+  },
+  'identifier',
+);
+
+export const binaryTableDefinition = defineTable(
+  {
+    identifier: 'string',
+    bin: 'binary?',
+    binSet: 'binary set?',
+  },
+  'identifier',
+);
+
 export const complexTableDefinitionFilter = defineTable(
   {
     hash: 'string',
@@ -53,21 +71,40 @@ export const complexTableDefinitionFilter = defineTable(
     number: 'number',
     numberOptional: 'number?',
     nestedObject: { object: { name: 'string' } },
-    nestedObjectMultiple: { object: { nestedObject: { object: { name: 'string' } } } },
-    nestedObjectMultipleOptional: { optional: true, object: { nestedObject: { object: { name: 'string' } } } },
+    nestedObjectMultiple: {
+      object: { nestedObject: { object: { name: 'string' } } },
+    },
+    nestedObjectMultipleOptional: {
+      optional: true,
+      object: { nestedObject: { object: { name: 'string' } } },
+    },
     nestedObjectOptional: { optional: true, object: { name: 'string' } },
     nestedObjectChildOptional: { object: { name: 'string?' } },
-    nestedObjectOptionalChildOptional: { optional: true, object: { name: 'string?' } },
-    arrayString: { array: "string" },
-    arrayStringOptional: { optional: true, array: "string" },
+    nestedObjectOptionalChildOptional: {
+      optional: true,
+      object: { name: 'string?' },
+    },
+    arrayString: { array: 'string' },
+    arrayStringOptional: { optional: true, array: 'string' },
     arrayObject: { array: { object: { name: 'string' } } },
-    arrayObjectOptional: { optional: true, array: { object: { name: 'string' } } },
-    nestedArrayString: { object: { items: { array: "string" } } },
-    nestedArrayStringOptional: { optional: true, object: { items: { array: "string" } } },
-    nestedArrayObject: { object: { items: { array: { object: { name: 'string' } } } } },
-    nestedArrayObjectOptional: { optional: true, object: { items: { array: { object: { name: 'string' } } } } },
-    mapType: "map",
-    listType: "list"
+    arrayObjectOptional: {
+      optional: true,
+      array: { object: { name: 'string' } },
+    },
+    nestedArrayString: { object: { items: { array: 'string' } } },
+    nestedArrayStringOptional: {
+      optional: true,
+      object: { items: { array: 'string' } },
+    },
+    nestedArrayObject: {
+      object: { items: { array: { object: { name: 'string' } } } },
+    },
+    nestedArrayObjectOptional: {
+      optional: true,
+      object: { items: { array: { object: { name: 'string' } } } },
+    },
+    mapType: 'map',
+    listType: 'list',
   },
   'hash',
 );
@@ -95,13 +132,13 @@ export const deleteTableDefinition = defineTable(
 
 export const indexTableDefinition = defineTable(
   {
-      hash: 'string',
-      sort: 'string',
-      indexHash: 'string',
+    hash: 'string',
+    sort: 'string',
+    indexHash: 'string',
   },
   'hash',
   'sort',
   {
-      'index': { partitionKey: 'indexHash', sortKey: 'sort' }
-  }
+    index: { partitionKey: 'indexHash', sortKey: 'sort' },
+  },
 );

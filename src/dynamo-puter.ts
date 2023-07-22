@@ -1,4 +1,4 @@
-import { PutCommandInput, PutCommandOutput } from "@aws-sdk/lib-dynamodb";
+import { PutCommandInput, PutCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts } from './comparison';
 import { DynamoFilter } from './filter';
@@ -15,7 +15,10 @@ export type PutItemOptions<
   INFO extends DynamoInfo,
   RETURN extends PutReturnValues,
 > = CamelCaseKeys<
-  Pick<PutCommandInput, 'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'>
+  Pick<
+    PutCommandInput,
+    'ReturnItemCollectionMetrics' | 'ReturnConsumedCapacity'
+  >
 > & {
   returnValues?: RETURN;
   condition?: DynamoFilter<INFO>;

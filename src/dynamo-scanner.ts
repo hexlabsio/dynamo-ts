@@ -1,4 +1,4 @@
-import { ScanCommandInput, ScanCommandOutput } from "@aws-sdk/lib-dynamodb";
+import { ScanCommandInput, ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts } from './comparison';
 import { DynamoFilter } from './filter';

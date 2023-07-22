@@ -116,6 +116,44 @@ module.exports = {
       ]
     },
     {
+      "TableName": "setsTableDefinition",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "identifier"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "identifier",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
+      "TableName": "binaryTableDefinition",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "identifier"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "identifier",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      }
+    },
+    {
       "TableName": "complexTableDefinitionFilter",
       "KeySchema": [
         {
