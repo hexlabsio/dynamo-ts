@@ -190,8 +190,8 @@ const executor = testTable
 
 
 # Testing
-Testing is no different that how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb.
-If you would like us to generate a table definitions to initialize the local dynamo library, do the following:
+Testing is no different than how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb when we test.
+If you would like us to generate table definitions that can be used in this testing library, do the following:
 
 1. Create a file called jest-setup.ts
 
@@ -203,6 +203,8 @@ import {writeJestDynamoConfig} from "./src/dynamo-jest-setup";
 ```
 
 2. Then, in **package.json**, Update your scripts to include a pretest command which executes the setup file. Note that you may need to install ts-node as a dev dependency.
+
+This will create a file named `jest-dynamodb-config.js` at the root of the project which is the config file searched for by the testing library to build tables.
 
 ```json
 "scripts": {
