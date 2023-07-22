@@ -1,13 +1,12 @@
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoTypeFrom, TableClient } from '../src';
 import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
-
 const dynamo = new DynamoDB({
-  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
   region: 'local-env',
-  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 

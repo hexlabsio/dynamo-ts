@@ -77,12 +77,15 @@ export class OperationType {
         });
       } else if (keys.includes('array')) {
         const sub = (subtype as any)['array'];
-        (this as any).getElement = (index: number) => new OperationType(this.wrapper, sub, [...parentage, index]);
+        (this as any).getElement = (index: number) =>
+          new OperationType(this.wrapper, sub, [...parentage, index]);
       }
     }
-    if(subtype === "map" || subtype === 'list') {
-      (this as any).getElement = (index: number) => new OperationType(this.wrapper, subtype, [...parentage, index]);
-      (this as any).get = (key: string) => new OperationType(this.wrapper, subtype, [...parentage, key]);
+    if (subtype === 'map' || subtype === 'list') {
+      (this as any).getElement = (index: number) =>
+        new OperationType(this.wrapper, subtype, [...parentage, index]);
+      (this as any).get = (key: string) =>
+        new OperationType(this.wrapper, subtype, [...parentage, key]);
     }
   }
 

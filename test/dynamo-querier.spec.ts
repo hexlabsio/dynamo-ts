@@ -1,14 +1,18 @@
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { CompareWrapperOperator, Operation, TableClient } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
 import { DynamoTypeFrom } from '../src/types';
-import { complexTableDefinitionQuery, indexTableDefinition, simpleTableDefinition2 } from './tables';
+import {
+  complexTableDefinitionQuery,
+  indexTableDefinition,
+  simpleTableDefinition2,
+} from './tables';
 
 const dynamo = new DynamoDB({
-  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
   region: 'local-env',
-  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
@@ -91,9 +95,11 @@ const preInserts2: TableType2[] = [
   { identifier: 'query-items-test2', sort: '67', text: 'some text 7' },
 ];
 
-const preInserts3: TableType3[] = [...new Array(10).keys()].map(index => (
-  { hash: `${index + 1}`, sort: `${index + 1}`, indexHash: `1`}
-));
+const preInserts3: TableType3[] = [...new Array(10).keys()].map((index) => ({
+  hash: `${index + 1}`,
+  sort: `${index + 1}`,
+  indexHash: `1`,
+}));
 
 describe('Dynamo Querier', () => {
   beforeAll(async () => {
@@ -203,9 +209,19 @@ describe('Dynamo Querier', () => {
     });
 
     it('should get next page when index', async () => {
-      const result = await indexTable.index('index').queryAll({ indexHash: '1' }, { limit: 1, next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9' });
-      expect(result.member).toEqual([ { indexHash: '1', hash: '4', sort: '4' } ]);
-      expect(result.next).toEqual('eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9');
+      const result = await indexTable
+        .index('index')
+        .queryAll(
+          { indexHash: '1' },
+          {
+            limit: 1,
+            next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9',
+          },
+        );
+      expect(result.member).toEqual([{ indexHash: '1', hash: '4', sort: '4' }]);
+      expect(result.next).toEqual(
+        'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9',
+      );
       expect(result.count).toEqual(1);
     });
 

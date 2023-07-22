@@ -1,5 +1,8 @@
-import { ConsumedCapacity, KeysAndAttributes } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
-import { BatchGetCommandInput, DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import {
+  ConsumedCapacity,
+  KeysAndAttributes,
+} from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+import { BatchGetCommandInput, DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -78,7 +81,7 @@ type BatchGetExecutorResult<T extends BatchGetExecutor<any, any>[]> =
         BatchGetExecutorReturn<A>,
         ...(Tail extends BatchGetExecutor<any, any>[]
           ? BatchGetExecutorResult<Tail>
-          : [])
+          : []),
       ]
     : T extends [infer A]
     ? [BatchGetExecutorReturn<A>]
@@ -133,11 +136,10 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
     while (reprocess && !!returnType.unprocessedKeys && retry < maxRetries) {
       await new Promise((resolve) => setTimeout(resolve, 2 ** retry * 10));
       retry = retry + 1;
-      result = await this.client
-        .batchGet({
-          ...this.executors[0].input,
-          RequestItems: returnType.unprocessedKeys,
-        });
+      result = await this.client.batchGet({
+        ...this.executors[0].input,
+        RequestItems: returnType.unprocessedKeys,
+      });
       returnType = {
         items: tableNameList.map((tableName) => {
           const index = tableNameList.findIndex((it) => it === tableName);

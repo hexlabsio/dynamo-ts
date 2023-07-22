@@ -1,10 +1,14 @@
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 
 type DynamoPrimitive =
   | 'string'
   | 'number'
   | 'null'
   | 'undefined'
+  | 'binary'
+  | 'binary set'
+  | 'string set'
+  | 'number set'
   | 'map'
   | 'list'
   | 'boolean'
@@ -44,6 +48,14 @@ export type RawTypeFrom<S> = S extends { object: infer O }
   ? RawTypeFrom<O>[]
   : S extends 'number'
   ? number
+  : S extends 'number set'
+  ? Set<number>
+  : S extends 'string set'
+  ? Set<string>
+  : S extends 'binary'
+  ? Uint8Array
+  : S extends 'binary set'
+  ? Set<Uint8Array>
   : S extends 'boolean'
   ? boolean
   : S extends 'null'
@@ -76,6 +88,14 @@ export type TypeFrom<S> = S extends { object: infer O }
     : TypeFrom<O>[]
   : S extends 'number'
   ? number
+  : S extends 'number set'
+  ? Set<number>
+  : S extends 'string set'
+  ? Set<string>
+  : S extends 'binary'
+  ? Uint8Array
+  : S extends 'binary set'
+  ? Set<Uint8Array>
   : S extends 'boolean'
   ? boolean
   : S extends 'null'

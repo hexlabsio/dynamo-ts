@@ -1,5 +1,5 @@
-import { UpdateCommandInput, UpdateCommandOutput } from "@aws-sdk/lib-dynamodb";
-import { filterPartsWithKey } from "./comparison";
+import { UpdateCommandInput, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb';
+import { filterPartsWithKey } from './comparison';
 import { DynamoFilter } from './filter';
 import { DynamoNestedKV } from './type-mapping';
 import { AttributeBuilder } from './attribute-builder';

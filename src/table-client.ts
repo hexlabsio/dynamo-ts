@@ -1,4 +1,4 @@
-import { UpdateCommandInput } from "@aws-sdk/lib-dynamodb";
+import { UpdateCommandInput } from '@aws-sdk/lib-dynamodb';
 import {
   BatchWriteClient,
   BatchWriteExecutor,

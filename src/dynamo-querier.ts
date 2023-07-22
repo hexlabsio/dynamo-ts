@@ -1,6 +1,5 @@
-import { QueryCommandInput, QueryCommandOutput } from "@aws-sdk/lib-dynamodb";
-import { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
-
+import { QueryCommandInput, QueryCommandOutput } from '@aws-sdk/lib-dynamodb';
+import { NativeAttributeValue } from '@aws-sdk/util-dynamodb';
 
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';

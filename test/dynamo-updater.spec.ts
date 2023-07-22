@@ -1,13 +1,13 @@
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoUpdater } from '../src/dynamo-updater';
 import { DynamoTypeFrom } from '../src';
 import { complexTableDefinitionQuery } from './tables';
 
 const dynamo = new DynamoDB({
-  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
   region: 'local-env',
-  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
@@ -108,7 +108,7 @@ describe('Dynamo Updater', () => {
         key: { hash: hash + '4' },
         updates: { mno: 3 },
         return: 'ALL_NEW',
-        condition: compare => compare().hash.exists()
+        condition: (compare) => compare().hash.exists(),
       });
       expect(result.item).toEqual({ ...preInserts[3], mno: 3 });
     });

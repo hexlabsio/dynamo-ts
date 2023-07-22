@@ -1,5 +1,12 @@
-import { ConsumedCapacity, WriteRequest } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
-import { BatchWriteCommandInput, BatchWriteCommandOutput, DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import {
+  ConsumedCapacity,
+  WriteRequest,
+} from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+import {
+  BatchWriteCommandInput,
+  BatchWriteCommandOutput,
+  DynamoDBDocument,
+} from '@aws-sdk/lib-dynamodb';
 
 import {
   CamelCaseKeys,
@@ -103,15 +110,18 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
       unprocessedItems: result.UnprocessedItems,
       consumedCapacity: result.ConsumedCapacity,
     };
-    while (reprocess && Object.keys(returnType.unprocessedItems ?? {}).length > 0 && retry < maxRetries) {
+    while (
+      reprocess &&
+      Object.keys(returnType.unprocessedItems ?? {}).length > 0 &&
+      retry < maxRetries
+    ) {
       console.log('Reprocessing', returnType.unprocessedItems);
       await new Promise((resolve) => setTimeout(resolve, 2 ** retry * 10));
       retry = retry + 1;
-      result = await this.client
-        .batchWrite({
-          ...this.executors[0].input,
-          RequestItems: returnType.unprocessedItems!,
-        });
+      result = await this.client.batchWrite({
+        ...this.executors[0].input,
+        RequestItems: returnType.unprocessedItems!,
+      });
       returnType = {
         unprocessedItems: result.UnprocessedItems,
         consumedCapacity: returnType.consumedCapacity
@@ -161,7 +171,7 @@ export class DynamoBatchWriter<T extends DynamoInfo> {
     };
     const client = this.config.client;
     const logStatements = this.config.logStatements;
-    return new BatchWriteClient(client, logStatements,[
+    return new BatchWriteClient(client, logStatements, [
       new BatchWriteExecutorHolder(client, input, logStatements),
     ]);
   }

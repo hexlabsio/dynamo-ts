@@ -189,6 +189,44 @@ const executor = testTable
 ```
 
 
+# Testing
+Testing is no different that how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb.
+If you would like us to generate a table definitions to initialize the local dynamo library, do the following:
+
+1. Create a file called jest-setup.ts
+
+```typescript
+import {table1, table2}  from './test/tables';
+import {writeJestDynamoConfig} from "./src/dynamo-jest-setup";
+
+(async () => writeJestDynamoConfig({testTable: table1, 'ThisIsTheTableNameForTable2': table2}, 'jest-dynamodb-config.js',{port: 5001}))();
+```
+
+2. Then, in **package.json**, Update your scripts to include a pretest command which executes the setup file. Note that you may need to install ts-node as a dev dependency.
+
+```json
+"scripts": {
+  "pretest": "ts-node ./jest-setup.ts",
+  ...
+}
+```
+
+3. At the top of the test file you want to use dynamo in add the following to get a document client:
+
+```typescript
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+
+const dynamo = new DynamoDB({
+  endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/'  },
+  region: 'local-env',
+  credentials: { accessKeyId: 'x', secretAccessKey: 'x' }
+});
+const dynamoClient = DynamoDBDocument.from(dynamo);
+```
+
+4. Inject the client wherever you use dynamo, and you will have tables that match your dynamo definitions.
+
 # Contributors
 Thanks to everyone who has contributed so far!
 
