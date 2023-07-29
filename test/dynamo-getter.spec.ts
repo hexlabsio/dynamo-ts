@@ -124,9 +124,9 @@ describe('Dynamo Getter', () => {
   describe('Binary', () => {
     it('should get binary items as buffers', async () => {
       const result = await binaryTable.get({ identifier: 'get-bin-item-test' });
-      expect(
-        Buffer.from(result.item?.bin!, 'base64').toString('utf-8'),
-      ).toEqual('hello world');
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      expect( Buffer.from(result.item!.bin!, 'base64').toString('utf-8'),).toEqual('hello world');
     });
   });
 });
