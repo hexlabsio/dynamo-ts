@@ -119,7 +119,7 @@ export type TypeFrom<S> = S extends { object: infer O }
   : never;
 
 type IsOptional<T> = T extends { optional: true } ? true : false;
-type UndefinedKeys<T> = {
+type OptionalKeys<T> = {
   [K in keyof T]: IsOptional<T[K]> extends true ? K : never;
 }[keyof T];
 type RequiredKeys<T> = {
@@ -133,8 +133,8 @@ type RequiredParts<T> = {
 };
 
 type OptionalParts<T> = {
-  [K in UndefinedKeys<T>]?: T[K] extends { type: infer R } ? R : never;
-};
+  [K in OptionalKeys<T>]?: T[K] extends { type: infer R } ? R : never;
+}
 
 type MakeOptionalsObject<T> = {
   [K in keyof T]: T[K] extends (infer A)[]
@@ -144,14 +144,17 @@ type MakeOptionalsObject<T> = {
     : T[K];
 };
 
-type MakeOptionals<T> = T extends Record<string | number, any>
-  ? RequiredParts<MakeOptionalsObject<T>> &
-      OptionalParts<MakeOptionalsObject<T>>
-  : T;
+type MakeOptionals<T> =
+    T extends Set<any> ? T :
+    T extends Uint8Array ? T :
+    T extends Record<string | number, any>
+    ? RequiredParts<MakeOptionalsObject<T>> &
+        OptionalParts<MakeOptionalsObject<T>>
+    : T;
 
 export type TypeFromDefinition<T> = MakeOptionals<TypeFrom<{ object: T }>>;
 
-export type Expand<T> = T extends {} ? { [K in keyof T]: Expand<T[K]> } : T;
+export type Expand<T> = T extends Set<any> ? T : T extends Uint8Array ? T : T extends {} ? { [K in keyof T]: Expand<T[K]> } : T;
 
 export type DynamoTypeFrom<D extends DynamoInfo> = Expand<{
   [K in keyof TypeFromDefinition<D['definition']>]: TypeFromDefinition<
