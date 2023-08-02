@@ -68,7 +68,7 @@ export class DynamoScanner<T extends DynamoInfo> {
     const member = result.member;
     while (result.next) {
       executor.input.ExclusiveStartKey = JSON.parse(
-        Buffer.from(result.next, 'base64').toString('ascii'),
+        Buffer.from(result.next, 'base64').toString(),
       );
       if (this.config.logStatements) {
         console.log(`ScanInput: ${JSON.stringify(executor.input, null, 2)}`);
@@ -111,7 +111,7 @@ export class DynamoScanner<T extends DynamoInfo> {
       ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
-              Buffer.from(options.next, 'base64').toString('ascii'),
+              Buffer.from(options.next, 'base64').toString(),
             ),
           }
         : {}),
