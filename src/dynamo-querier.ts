@@ -154,7 +154,7 @@ export class DynamoQuerier<
       ...(options.next
         ? {
             ExclusiveStartKey: JSON.parse(
-              Buffer.from(options.next, 'base64').toString('ascii'),
+              Buffer.from(options.next, 'base64').toString(),
             ),
           }
         : {}),
@@ -333,7 +333,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
     ...(this.options.next
       ? {
           ExclusiveStartKey: JSON.parse(
-            Buffer.from(this.options.next, 'base64').toString('ascii'),
+            Buffer.from(this.options.next, 'base64').toString(),
           ),
         }
       : {}),
