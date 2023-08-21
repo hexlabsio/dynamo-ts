@@ -1,6 +1,6 @@
 import { PutCommandInput, PutCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
+import { filterPartsWithKey } from './comparison';
 import { DynamoFilter } from './filter';
 import {
   CamelCaseKeys,
@@ -66,7 +66,7 @@ export class DynamoPuter<T extends DynamoInfo> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterParts(this.info, attributeBuilder, options.condition);
+      filterPartsWithKey(this.info, attributeBuilder, options.condition);
     const input: PutCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
