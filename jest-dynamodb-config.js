@@ -116,6 +116,51 @@ module.exports = {
       ]
     },
     {
+      "TableName": "sortKeyAsIndexPartitionKeyTableDefinition",
+      "KeySchema": [
+        {
+          "KeyType": "HASH",
+          "AttributeName": "hash"
+        },
+        {
+          "KeyType": "RANGE",
+          "AttributeName": "text"
+        }
+      ],
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "hash",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "text",
+          "AttributeType": "S"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      },
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "abc",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "text"
+            }
+          ],
+          "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+          },
+          "Projection": {
+            "ProjectionType": "ALL"
+          }
+        }
+      ]
+    },
+    {
       "TableName": "setsTableDefinition",
       "KeySchema": [
         {
