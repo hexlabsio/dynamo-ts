@@ -43,6 +43,21 @@ export const complexTableDefinitionQuery = defineTable(
   { abc: { partitionKey: 'text' } },
 );
 
+export const sortKeyAsIndexPartitionKeyTableDefinition = defineTable(
+    {
+        hash: 'string',
+        text: 'string?',
+        obj: { optional: true, object: { abc: 'string', def: 'number?' } },
+        arr: { optional: true, array: { object: { ghi: 'number?' } } },
+        jkl: 'boolean?',
+        mno: 'string | number | undefined',
+        pqr: '"xxx" | "yyy" | "123 456"',
+    },
+    'hash',
+    'text',
+    { abc: { partitionKey: 'text' } }, // set partitionKey same as global sortKey
+);
+
 export const setsTableDefinition = defineTable(
   {
     identifier: 'string',

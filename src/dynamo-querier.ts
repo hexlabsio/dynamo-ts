@@ -93,7 +93,7 @@ export class DynamoQuerier<
     const expression = `${attributeBuilder.nameFor(
       partitionKey as string,
     )} = ${valueKey}`;
-    if (sortKey && keys[sortKey]) {
+    if (sortKey && typeof keys[sortKey] === 'function') {
       const keyOperation = new KeyOperation(
         sortKey as string,
         new Wrapper(attributeBuilder),

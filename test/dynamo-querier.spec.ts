@@ -7,6 +7,7 @@ import {
   complexTableDefinitionQuery,
   indexTableDefinition,
   simpleTableDefinition2,
+  sortKeyAsIndexPartitionKeyTableDefinition,
 } from './tables';
 
 const dynamo = new DynamoDB({
@@ -23,6 +24,7 @@ type TableType3 = DynamoTypeFrom<typeof indexTableDefinition>;
 const TableName = 'complexTableDefinitionQuery';
 const TableName2 = 'simpleTableDefinition2';
 const TableName3 = 'indexTableDefinition';
+const SortKeyAsIndexPartitionKeyTableName = 'sortKeyAsIndexPartitionKeyTableDefinition';
 
 const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
   tableName: TableName,
@@ -44,6 +46,12 @@ const indexTable = new TableClient(indexTableDefinition, {
 
 const testTableClient = new TableClient(complexTableDefinitionQuery, {
   tableName: TableName,
+  client: dynamoClient,
+  logStatements: true,
+});
+
+const sortKeyAsIndexPartitionKeyTableClient = new TableClient(sortKeyAsIndexPartitionKeyTableDefinition, {
+  tableName: SortKeyAsIndexPartitionKeyTableName,
   client: dynamoClient,
   logStatements: true,
 });
@@ -115,6 +123,9 @@ describe('Dynamo Querier', () => {
       preInserts3.map((Item) =>
         dynamoClient.put({ TableName: TableName3, Item }),
       ),
+    );
+    await Promise.all(
+        preInserts.map((Item) => dynamoClient.put({ TableName: SortKeyAsIndexPartitionKeyTableName, Item })),
     );
   });
 
@@ -421,6 +432,14 @@ describe('Dynamo Querier', () => {
       const result = await testTableClient
         .index('abc')
         .queryAll({ text: indexIdentifier }, { limit: 1 });
+      expect(result.member.length).toEqual(1);
+      expect(result.member[0].text).toEqual(indexIdentifier);
+    });
+
+    it('should fetch exact number from index items when partitionKey is same as sortKey in global index', async () => {
+      const result = await sortKeyAsIndexPartitionKeyTableClient
+          .index('abc')
+          .queryAll({ text: indexIdentifier }, { limit: 1 });
       expect(result.member.length).toEqual(1);
       expect(result.member[0].text).toEqual(indexIdentifier);
     });
