@@ -1,6 +1,6 @@
 import { ScanCommandInput, ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
-import {  filterPartsWithKey } from './comparison';
+import { filterPartsWithKey } from './comparison';
 import { DynamoFilter } from './filter';
 import { Projection, ProjectionHandler } from './projector';
 import {
@@ -96,7 +96,7 @@ export class DynamoScanner<T extends DynamoInfo> {
     );
     const filterPart =
       options.filter &&
-        filterPartsWithKey(this.info, attributeBuilder, options.filter);
+      filterPartsWithKey(this.info, attributeBuilder, options.filter);
     const input = {
       TableName: this.config.tableName,
       ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),

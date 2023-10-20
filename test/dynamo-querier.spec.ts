@@ -24,7 +24,8 @@ type TableType3 = DynamoTypeFrom<typeof indexTableDefinition>;
 const TableName = 'complexTableDefinitionQuery';
 const TableName2 = 'simpleTableDefinition2';
 const TableName3 = 'indexTableDefinition';
-const SortKeyAsIndexPartitionKeyTableName = 'sortKeyAsIndexPartitionKeyTableDefinition';
+const SortKeyAsIndexPartitionKeyTableName =
+  'sortKeyAsIndexPartitionKeyTableDefinition';
 
 const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
   tableName: TableName,
@@ -50,11 +51,14 @@ const testTableClient = new TableClient(complexTableDefinitionQuery, {
   logStatements: true,
 });
 
-const sortKeyAsIndexPartitionKeyTableClient = new TableClient(sortKeyAsIndexPartitionKeyTableDefinition, {
-  tableName: SortKeyAsIndexPartitionKeyTableName,
-  client: dynamoClient,
-  logStatements: true,
-});
+const sortKeyAsIndexPartitionKeyTableClient = new TableClient(
+  sortKeyAsIndexPartitionKeyTableDefinition,
+  {
+    tableName: SortKeyAsIndexPartitionKeyTableName,
+    client: dynamoClient,
+    logStatements: true,
+  },
+);
 
 const identifier = 'query-items-test';
 const indexIdentifier = 'query-items-index-test';
@@ -125,7 +129,12 @@ describe('Dynamo Querier', () => {
       ),
     );
     await Promise.all(
-        preInserts.map((Item) => dynamoClient.put({ TableName: SortKeyAsIndexPartitionKeyTableName, Item })),
+      preInserts.map((Item) =>
+        dynamoClient.put({
+          TableName: SortKeyAsIndexPartitionKeyTableName,
+          Item,
+        }),
+      ),
     );
   });
 
@@ -220,15 +229,13 @@ describe('Dynamo Querier', () => {
     });
 
     it('should get next page when index', async () => {
-      const result = await indexTable
-        .index('index')
-        .queryAll(
-          { indexHash: '1' },
-          {
-            limit: 1,
-            next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9',
-          },
-        );
+      const result = await indexTable.index('index').queryAll(
+        { indexHash: '1' },
+        {
+          limit: 1,
+          next: 'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjMiLCJoYXNoIjoiMyJ9',
+        },
+      );
       expect(result.member).toEqual([{ indexHash: '1', hash: '4', sort: '4' }]);
       expect(result.next).toEqual(
         'eyJpbmRleEhhc2giOiIxIiwic29ydCI6IjQiLCJoYXNoIjoiNCJ9',
@@ -438,8 +445,8 @@ describe('Dynamo Querier', () => {
 
     it('should fetch exact number from index items when partitionKey is same as sortKey in global index', async () => {
       const result = await sortKeyAsIndexPartitionKeyTableClient
-          .index('abc')
-          .queryAll({ text: indexIdentifier }, { limit: 1 });
+        .index('abc')
+        .queryAll({ text: indexIdentifier }, { limit: 1 });
       expect(result.member.length).toEqual(1);
       expect(result.member[0].text).toEqual(indexIdentifier);
     });

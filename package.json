@@ -1,9 +1,10 @@
 {
   "name": "@hexlabs/dynamo-ts",
   "sideEfects": false,
-  "version": "4.0.0",
+  "version": "5.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "license": "MIT",
   "files": [
     "dist"
