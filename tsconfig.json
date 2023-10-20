@@ -21,6 +21,10 @@
     "inlineSources": false,
     "esModuleInterop": true
   },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
   "include": [
     "src/**/*"
   ]
