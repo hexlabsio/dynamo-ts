@@ -1,5 +1,7 @@
 # @hexlabs/dynamo-ts
 
+> Note: Version 5.x is now an ES Module. If you need CommonJS please use version 4.x
+
 A library to make interacting with DynamoDb simpler with a typed interface.
 
 ![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)

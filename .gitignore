@@ -5,3 +5,4 @@ dist
 junit.xml
 coverage
 .husky
+dynamodb-tables.cjs

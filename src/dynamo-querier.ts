@@ -197,6 +197,8 @@ export class DynamoQuerier<
 class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
   implements QueryExecutor<D, PROJECTION>
 {
+
+  input: QueryCommandInput;
   constructor(
     private readonly info: D,
     private readonly config: DynamoConfig,
@@ -215,7 +217,39 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
       parentKeys?.sortKey ?? null,
       options.projection,
     ),
-  ) {}
+  ) {
+    this.input = {
+      TableName: this.config.tableName,
+      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+      ...{
+        KeyConditionExpression: this.createKeyExpression(
+          this.keys,
+          this.attributeBuilder,
+        ),
+      },
+      ...(this.options.filter
+        ? {
+          FilterExpression: filterParts(
+            this.info,
+            this.attributeBuilder,
+            this.options.filter,
+          ),
+        }
+        : {}),
+      ProjectionExpression: this.projectionWithEnrichedKeys[0],
+      ReturnConsumedCapacity: this.options.returnConsumedCapacity,
+      ScanIndexForward: this.options.scanIndexForward,
+      ConsistentRead: this.options.consistentRead,
+      ...this.attributeBuilder.asInput(this.options),
+      ...(this.options.next
+        ? {
+          ExclusiveStartKey: JSON.parse(
+            Buffer.from(this.options.next, 'base64').toString(),
+          ),
+        }
+        : {}),
+    };
+  }
 
   private buildNext(
     lastItem: Record<string, NativeAttributeValue>,
@@ -307,37 +341,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
     }
   }
 
-  input: QueryCommandInput = {
-    TableName: this.config.tableName,
-    ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
-    ...{
-      KeyConditionExpression: this.createKeyExpression(
-        this.keys,
-        this.attributeBuilder,
-      ),
-    },
-    ...(this.options.filter
-      ? {
-          FilterExpression: filterParts(
-            this.info,
-            this.attributeBuilder,
-            this.options.filter,
-          ),
-        }
-      : {}),
-    ProjectionExpression: this.projectionWithEnrichedKeys[0],
-    ReturnConsumedCapacity: this.options.returnConsumedCapacity,
-    ScanIndexForward: this.options.scanIndexForward,
-    ConsistentRead: this.options.consistentRead,
-    ...this.attributeBuilder.asInput(this.options),
-    ...(this.options.next
-      ? {
-          ExclusiveStartKey: JSON.parse(
-            Buffer.from(this.options.next, 'base64').toString(),
-          ),
-        }
-      : {}),
-  };
+
 
   async execute(): Promise<QuerierReturn<D, PROJECTION>> {
     const result = await this._recQuery(

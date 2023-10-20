@@ -18,6 +18,25 @@ export const simpleTableDefinition2 = defineTable(
   'sort',
 );
 
+export const simpleTableDefinitionBatch = defineTable(
+  {
+    identifier: 'string',
+    text: 'string',
+  },
+  'identifier',
+);
+
+export const simpleTableDefinitionBatch2 = defineTable(
+  {
+    identifier: 'string',
+    sort: 'string',
+    text: 'string',
+  },
+  'identifier',
+  'sort',
+);
+
+
 export const simpleTableDefinition3 = defineTable(
   {
     identifier: 'string',

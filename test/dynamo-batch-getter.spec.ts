@@ -14,13 +14,13 @@ type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
 type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
 const testTable = new TableClient(simpleTableDefinition, {
-  tableName: 'simpleTableDefinition',
+  tableName: 'simpleTableDefinitionBatch',
   client: dynamoClient,
   logStatements: true,
 });
 
 const testTable2 = new TableClient(simpleTableDefinition2, {
-  tableName: 'simpleTableDefinition2',
+  tableName: 'simpleTableDefinitionBatch2',
   client: dynamoClient,
   logStatements: true,
 });
@@ -36,8 +36,8 @@ const preInserts2: TableType2[] = new Array(1000).fill(0).map((a, index) => ({
 }));
 
 describe('Dynamo Batch Getter', () => {
-  const TableName = 'simpleTableDefinition';
-  const TableName2 = 'simpleTableDefinition2';
+  const TableName = 'simpleTableDefinitionBatch';
+  const TableName2 = 'simpleTableDefinitionBatch2';
 
   beforeAll(async () => {
     await Promise.all(

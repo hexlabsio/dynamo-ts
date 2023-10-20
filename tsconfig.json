@@ -26,6 +26,6 @@
     "experimentalSpecifierResolution": "node"
   },
   "include": [
-    "src/**/*"
+    "src/**/*", "jest.config.ts"
   ]
 }
