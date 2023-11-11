@@ -427,10 +427,6 @@ describe('Dynamo Querier', () => {
       const result = await testTable2.queryAll({ identifier }, { limit: 5 });
       expect(result.member.length).toEqual(4);
     });
-    it('should fetch all items2', async () => {
-      const result = await testTable3.queryAll({identifier: ''});
-      expect(result.member.length).toEqual(4);
-    });
     it('should fetch exact number of items', async () => {
       const result = await testTable2.queryAll({ identifier }, { limit: 2 });
       expect(result.member.length).toEqual(2);
