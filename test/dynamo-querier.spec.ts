@@ -424,7 +424,7 @@ describe('Dynamo Querier', () => {
 
   describe('Query All', () => {
     it('should fetch all items', async () => {
-      const result = await testTable2.queryAll({ identifier, sort: sortKey => sortKey. }, { limit: 5 });
+      const result = await testTable2.queryAll({ identifier }, { limit: 5 });
       expect(result.member.length).toEqual(4);
     });
     it('should fetch all items2', async () => {
