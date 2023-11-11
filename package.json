@@ -73,6 +73,7 @@
     "@shelf/jest-dynamodb": "^3.4.2",
     "@types/jest": "^29.5.2",
     "@types/node": "^18.16.16",
+    "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "debug": "^4.3.1",
@@ -85,8 +86,7 @@
     "node-loader": "^0.6.0",
     "prettier": "^2.5.1",
     "terser": "^5.14.2",
-    "ts-jest": "^29.1.0",
-    "ts-node": "^10.9.1",
+    "ts-jest": "^29.1.1",
     "typescript": "^5.1.3"
   }
 }

@@ -6,7 +6,7 @@ import { DynamoTypeFrom } from '../src/types';
 import {
   complexTableDefinitionQuery,
   indexTableDefinition,
-  simpleTableDefinition2,
+  simpleTableDefinition2, simpleTableDefinitionBatch,
   sortKeyAsIndexPartitionKeyTableDefinition,
 } from './tables';
 
@@ -35,6 +35,12 @@ const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
 
 const testTable2 = new DynamoQuerier(simpleTableDefinition2, {
   tableName: TableName2,
+  client: dynamoClient,
+  logStatements: true,
+});
+
+const testTable3 = new DynamoQuerier(simpleTableDefinitionBatch, {
+  tableName: 'simpleTableDefinitionBatch',
   client: dynamoClient,
   logStatements: true,
 });
@@ -418,7 +424,11 @@ describe('Dynamo Querier', () => {
 
   describe('Query All', () => {
     it('should fetch all items', async () => {
-      const result = await testTable2.queryAll({ identifier }, { limit: 5 });
+      const result = await testTable2.queryAll({ identifier, sort: sortKey => sortKey. }, { limit: 5 });
+      expect(result.member.length).toEqual(4);
+    });
+    it('should fetch all items2', async () => {
+      const result = await testTable3.queryAll({identifier: ''});
       expect(result.member.length).toEqual(4);
     });
     it('should fetch exact number of items', async () => {

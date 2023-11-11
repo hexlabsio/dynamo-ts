@@ -117,7 +117,7 @@ export class DynamoQuerier<
 
   async queryAll<PROJECTION = null>(
     keys: QueryKeys<D>,
-    options: QueryAllInput<D, PROJECTION>,
+    options: QueryAllInput<D, PROJECTION> = {},
   ): Promise<QuerierReturn<D, PROJECTION>> {
     const executor = this.queryAllExecutor(keys, options);
     if (this.config.logStatements) {
