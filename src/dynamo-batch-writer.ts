@@ -7,35 +7,30 @@ import {
   BatchWriteCommandOutput,
   DynamoDBDocument,
 } from '@aws-sdk/lib-dynamodb';
+import { TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys, DynamoConfig } from './types';
 
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
 
-export type BatchWriteItemOptions<INFO extends DynamoInfo> = CamelCaseKeys<
+export type BatchWriteItemOptions = CamelCaseKeys<
   Pick<
     BatchWriteCommandInput,
     'ReturnConsumedCapacity' | 'ReturnItemCollectionMetrics'
   >
 >;
 
-export type BatchWriteItemReturn<INFO extends DynamoInfo> = {
+export type BatchWriteItemReturn = {
   itemCollectionMetrics?: BatchWriteCommandOutput['ItemCollectionMetrics'];
   consumedCapacity?: ConsumedCapacity[];
 };
 
-export interface BatchWriteExecutor<T extends DynamoInfo> {
+export interface BatchWriteExecutor {
   input: BatchWriteCommandInput;
-  execute(): Promise<BatchWriteItemReturn<T>>;
-  and<B extends BatchWriteExecutor<any>>(other: B): BatchWriteClient<[this, B]>;
+  execute(): Promise<BatchWriteItemReturn>;
+  and<B extends BatchWriteExecutor>(other: B): BatchWriteClient<[this, B]>;
 }
 
-export class BatchWriteExecutorHolder<T extends DynamoInfo>
-  implements BatchWriteExecutor<T>
+export class BatchWriteExecutorHolder<TableConfig extends TableDefinition>
+  implements BatchWriteExecutor
 {
   constructor(
     private readonly client: DynamoDBDocument,
@@ -43,7 +38,7 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
     private readonly logStatements: undefined | boolean,
   ) {}
 
-  async execute(): Promise<BatchWriteItemReturn<T>> {
+  async execute(): Promise<BatchWriteItemReturn> {
     if (this.logStatements) {
       console.log(`BatchWriteInput: ${JSON.stringify(this.input, null, 2)}`);
     }
@@ -54,14 +49,14 @@ export class BatchWriteExecutorHolder<T extends DynamoInfo>
     };
   }
 
-  and<B extends BatchWriteExecutor<any>>(
+  and<B extends BatchWriteExecutor>(
     other: B,
   ): BatchWriteClient<[this, B]> {
     return new BatchWriteClient(this.client, this.logStatements, [this, other]);
   }
 }
 
-export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
+export class BatchWriteClient<T extends BatchWriteExecutor[]> {
   public readonly input: BatchWriteCommandInput;
 
   constructor(
@@ -85,7 +80,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
     };
   }
 
-  and<B extends BatchWriteExecutor<any>>(
+  and<B extends BatchWriteExecutor>(
     other: B,
   ): BatchWriteClient<[...T, B]> {
     return new BatchWriteClient<[...T, B]>(this.client, this.logStatements, [
@@ -133,44 +128,44 @@ export class BatchWriteClient<T extends BatchWriteExecutor<any>[]> {
   }
 }
 
-export class DynamoBatchWriter<T extends DynamoInfo> {
-  constructor(private readonly config: DynamoConfig) {}
+export class DynamoBatchWriter<TableConfig extends TableDefinition> {
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   batchPutExecutor(
-    items: TypeFromDefinition<T['definition']>[],
-    options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
+    items: TableConfig['type'][],
+    options: BatchWriteItemOptions = {},
+  ): BatchWriteClient<[BatchWriteExecutor]> {
     const input: BatchWriteCommandInput = {
       RequestItems: {
-        [this.config.tableName]: items.map((item) => ({
+        [this.clientConfig.tableName]: items.map((item) => ({
           PutRequest: { Item: item },
         })),
       },
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
     };
-    const client = this.config.client;
-    const logStatements = this.config.logStatements;
+    const client = this.clientConfig.client;
+    const logStatements = this.clientConfig.logStatements;
     return new BatchWriteClient(client, logStatements, [
       new BatchWriteExecutorHolder(client, input, logStatements),
     ]);
   }
 
   batchDeleteExecutor(
-    keys: PickKeys<T>[],
-    options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
+    keys: TableConfig['keys'][],
+    options: BatchWriteItemOptions = {},
+  ): BatchWriteClient<[BatchWriteExecutor]> {
     const input: BatchWriteCommandInput = {
       RequestItems: {
-        [this.config.tableName]: keys.map((key) => ({
+        [this.clientConfig.tableName]: keys.map((key) => ({
           DeleteRequest: { Key: key },
         })),
       },
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
     };
-    const client = this.config.client;
-    const logStatements = this.config.logStatements;
+    const client = this.clientConfig.client;
+    const logStatements = this.clientConfig.logStatements;
     return new BatchWriteClient(client, logStatements, [
       new BatchWriteExecutorHolder(client, input, logStatements),
     ]);

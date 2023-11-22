@@ -1,77 +1,44 @@
 import { AttributeBuilder } from './attribute-builder';
-import { DynamoInfo, TypeFromDefinition } from './types';
-
-type PathKeys<T> = T extends (infer X)[]
-  ? `[${number}]` | `[${number}].${PathKeys<X>}`
-  : T extends object
-  ? keyof T extends string
-    ? keyof T | SubKeys<T, keyof T>
-    : never
-  : never;
-
-type SubKeys<T, K extends keyof T> = K extends string
-  ? `${K}.${PathKeys<T[K]>}`
-  : never;
+import { JsonPath, ValueAtJsonPath } from './types/json-path';
 
 type TupleKeys<P extends string> = P extends `${infer A}.${infer TAIL}`
   ? [A, ...TupleKeys<TAIL>]
   : P extends `${infer A}`
-  ? [A]
-  : never;
-
-type ExtractPath<P extends string, T> = P extends `${infer A}.${infer TAIL}`
-  ? T extends any[]
-    ? ExtractPath<TAIL, T[number]>
-    : A extends keyof T
-    ? ExtractPath<TAIL, T[A]>
-    : any
-  : P extends `${infer A}`
-  ? T extends any[]
-    ? T[number]
-    : A extends keyof T
-    ? T[A]
-    : any
-  : never;
+    ? [A]
+    : never;
 
 type FromKeys<KEYS extends any[], V> = KEYS extends [infer K, ...infer KS]
   ? K extends `[${number}]`
     ? FromKeys<KS, V>[] | undefined
     : { [KEY in K extends string ? K : never]: FromKeys<KS, V> }
   : KEYS extends [infer K3]
-  ? { [KEY in K3 extends string ? K3 : never]: V }
-  : V;
-
-interface Projector<DEFINITION extends DynamoInfo, PROJECTED = {}> {
-  project<PATH extends PathKeys<TypeFromDefinition<DEFINITION['definition']>>>(
+    ? { [KEY in K3 extends string ? K3 : never]: V }
+    : V;
+interface Projector<T, PROJECTED = {}> {
+  project<PATH extends JsonPath<T>>(
     path: PATH,
   ): Projector<
-    DEFINITION,
+    T,
     PROJECTED &
-      FromKeys<
-        TupleKeys<PATH>,
-        ExtractPath<PATH, TypeFromDefinition<DEFINITION['definition']>>
-      >
+    FromKeys<TupleKeys<PATH>, ValueAtJsonPath<PATH, T>>
   >;
 }
 
-export class ProjectorType<DEFINITION extends DynamoInfo, PROJECTED = {}>
-  implements Projector<DEFINITION, PROJECTED>
+export class ProjectorType<TableType, PROJECTED = {}>
+  implements Projector<TableType, PROJECTED>
 {
   constructor(
     private readonly attributeBuilder: AttributeBuilder,
     readonly expression: string = '',
-    readonly projectionFields: (keyof DEFINITION)[] = [],
+    readonly projectionFields: (keyof TableType)[] = [],
   ) {}
 
-  project<PATH extends PathKeys<TypeFromDefinition<DEFINITION['definition']>>>(
+  project<PATH extends JsonPath<TableType>>(
     path: PATH,
   ): Projector<
-    DEFINITION,
+    TableType,
     PROJECTED &
-      FromKeys<
-        TupleKeys<PATH>,
-        ExtractPath<PATH, TypeFromDefinition<DEFINITION['definition']>>
-      >
+    ValueAtJsonPath<PATH, TableType>
   > {
     const projectionExpression = this.attributeBuilder.buildPath(path);
     return new ProjectorType(
@@ -79,79 +46,28 @@ export class ProjectorType<DEFINITION extends DynamoInfo, PROJECTED = {}>
       this.expression
         ? `${this.expression},${projectionExpression}`
         : projectionExpression,
-      [path as any, ...this.projectionFields],
-    );
+      [path, ...this.projectionFields] as any,
+    ) as any;
   }
 }
 
-export type Projection<DEFINITION extends DynamoInfo, R> = (
-  projector: Projector<DEFINITION>,
-) => Projector<DEFINITION, R>;
+export type Projection<TableType, R> = (
+  projector: Projector<TableType>,
+) => Projector<TableType, R>;
 
 export class ProjectionHandler {
-  static projectionExpressionFor<DEFINITION extends DynamoInfo>(
+  static projectionExpressionFor(
     attributeBuilder: AttributeBuilder,
-    definition: DEFINITION,
-    projection?: Projection<DEFINITION, any>,
+    projection: Projection<any, any>,
   ): string {
-    if (projection) {
-      return this.projectionFor(attributeBuilder, projection).expression;
-    } else {
-      return this.addDefinitionProjection(attributeBuilder, definition);
-    }
+    return this.projectionFor(attributeBuilder, projection).expression;
   }
 
-  static projectionWithKeysFor<DEFINITION extends DynamoInfo>(
+  static projectionFor(
     attributeBuilder: AttributeBuilder,
-    definition: DEFINITION,
-    indexHashKey: keyof DEFINITION['definition'] | null,
-    indexRangKey: keyof DEFINITION['definition'] | null,
-    projection?: Projection<DEFINITION, any>,
-  ): [string, string[]] {
-    if (projection) {
-      const projector = this.projectionFor(attributeBuilder, projection);
-      const baseProjectionFields = projector.projectionFields;
-      const enrichedFields = [
-        definition.sortKey,
-        indexHashKey,
-        indexRangKey,
-      ].reduce(
-        (acc, elem) =>
-          elem &&
-          !acc.includes(elem) &&
-          !baseProjectionFields.includes(elem as any)
-            ? [elem, ...acc]
-            : acc,
-        baseProjectionFields.includes(definition.partitionKey as any)
-          ? []
-          : [definition.partitionKey],
-      );
-      const updatedProjector = enrichedFields.reduce(
-        (p, ef) => p.project(ef as any) as any,
-        projector,
-      );
-      return [updatedProjector.expression, enrichedFields as string[]];
-    } else {
-      return [this.addDefinitionProjection(attributeBuilder, definition), []];
-    }
-  }
-
-  static projectionFor<DEFINITION extends DynamoInfo>(
-    attributeBuilder: AttributeBuilder,
-    projection: Projection<DEFINITION, any>,
-  ): ProjectorType<DEFINITION, any> {
-    return projection(new ProjectorType(attributeBuilder)) as ProjectorType<
-      any,
-      any
-    >;
-  }
-
-  static addDefinitionProjection<DEFINITION extends DynamoInfo>(
-    attributeBuilder: AttributeBuilder,
-    definition: DEFINITION,
-  ): string {
-    const keys = Object.keys(definition.definition);
-    const updatedAttributes = attributeBuilder.addNames(...keys);
-    return keys.map((key) => updatedAttributes.nameFor(key)).join(',');
+    projection: Projection<any, any>,
+  ): ProjectorType<any, any> {
+    const p = new ProjectorType(attributeBuilder)
+    return projection(p) as any;
   }
 }

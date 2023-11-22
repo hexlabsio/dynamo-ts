@@ -1,8 +1,7 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoUpdater } from '../src/dynamo-updater';
-import { DynamoTypeFrom } from '../src';
-import { complexTableDefinitionQuery } from './tables';
+import { ComplexTable2, complexTableDefinitionQuery } from './tables';
 
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
@@ -11,11 +10,10 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
 
 const TableName = 'complexTableDefinitionQuery';
 
-const testTable = new DynamoUpdater(complexTableDefinitionQuery, {
+const testTable = new DynamoUpdater<typeof complexTableDefinitionQuery>({
   tableName: TableName,
   client: dynamoClient,
   logStatements: true,
@@ -23,7 +21,7 @@ const testTable = new DynamoUpdater(complexTableDefinitionQuery, {
 
 const hash = 'update-items-test';
 
-const preInserts: TableType[] = [
+const preInserts: ComplexTable2[] = [
   { hash, text: 'some text', obj: { abc: 'xyz', def: 2 }, mno: 2, pqr: 'yyy' },
   {
     hash: hash + '2',
@@ -108,7 +106,7 @@ describe('Dynamo Updater', () => {
         key: { hash: hash + '4' },
         updates: { mno: 3 },
         return: 'ALL_NEW',
-        condition: (compare) => compare().hash.exists(),
+        condition: (compare) => compare().hash.exists,
       });
       expect(result.item).toEqual({ ...preInserts[3], mno: 3 });
     });

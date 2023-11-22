@@ -1,5 +1,5 @@
 import { Wrapper } from './comparison';
-import { DynamoType, SimpleDynamoType, TypeFor } from './type-mapping';
+import { SimpleDynamoType } from './table-builder/table-definition';
 
 export type CompareWrapperOperator<T> = {
   and(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;
@@ -59,84 +59,82 @@ export class KeyOperation<T> {
   }
 }
 
-export class OperationType {
+function getKey(wrapper: Wrapper, parentage: (string | number | symbol)[] = []): string {
+  wrapper.attributeBuilder.addNames(
+    ...parentage.filter((it): it is string => typeof it === 'string'),
+  );
+  const names = parentage.map((it) =>
+    typeof it === 'number'
+      ? `[${it}]`
+      : wrapper.attributeBuilder.nameFor(it),
+  );
+  return names.join('.').replace(/\.\[/g, '[');
+}
+
+export function operationProxy(wrapper: Wrapper, parentage: (string | number | symbol)[] = []): any {
+  return new Proxy({}, {
+    get(target, name, ...rest) {
+      if(name === 'notExists') {
+        return wrapper.add(`attribute_not_exists(${getKey(wrapper, parentage)})`);
+      }
+      if(name === 'exists') {
+        return wrapper.add(`attribute_exists(${getKey(wrapper, parentage)})`);
+      }
+      if(Object.getOwnPropertyNames(OperationType.prototype).includes(name.toString())) {
+        const fn = new OperationType(wrapper, parentage);
+        return (fn as any)[name].bind(fn);
+      }
+      const isNumber = !isNaN(name as any)
+      return operationProxy(wrapper, [...parentage, isNumber ? +name.toString() : name])
+    }
+  })
+}
+
+class OperationType{
   constructor(
     private readonly wrapper: Wrapper,
-    readonly subtype: DynamoType,
-    readonly parentage: (string | number)[] = [],
+    readonly parentage: (string | number | symbol)[] = [],
   ) {
-    if (typeof subtype === 'object') {
-      const keys = Object.keys(subtype);
-      if (keys.includes('object')) {
-        const sub = (subtype as any)['object'];
-        Object.keys(sub).forEach((key) => {
-          (this as any)[key] = new OperationType(this.wrapper, sub[key], [
-            ...parentage,
-            key,
-          ]);
-        });
-      } else if (keys.includes('array')) {
-        const sub = (subtype as any)['array'];
-        (this as any).getElement = (index: number) =>
-          new OperationType(this.wrapper, sub, [...parentage, index]);
-      }
-    }
-    if (subtype === 'map' || subtype === 'list') {
-      (this as any).getElement = (index: number) =>
-        new OperationType(this.wrapper, subtype, [...parentage, index]);
-      (this as any).get = (key: string) =>
-        new OperationType(this.wrapper, subtype, [...parentage, key]);
-    }
   }
-
   private add(
     expression: (key: string, value: string) => string,
-  ): (value: TypeFor<DynamoType>) => CompareWrapperOperator<any> {
+  ): (value: any) => CompareWrapperOperator<any> {
     return (value) => {
       const valueKey = this.wrapper.attributeBuilder.addValue(value);
-      return this.wrapper.add(expression(this.getKey(), valueKey));
+      return this.wrapper.add(expression(getKey(this.wrapper, this.parentage), valueKey));
     };
   }
-  private getKey(): string {
-    this.wrapper.attributeBuilder.addNames(
-      ...this.parentage.filter((it): it is string => typeof it === 'string'),
-    );
-    const names = this.parentage.map((it) =>
-      typeof it === 'number'
-        ? `[${it}]`
-        : this.wrapper.attributeBuilder.nameFor(it),
-    );
-    return names.join('.').replace(/\.\[/g, '[');
+
+  eq(value: any) {
+    return this.add((key, value) => `${key} = ${value}`)(value);
+  }
+  neq(value: any) {
+    return this.add((key, value) => `${key} <> ${value}`)(value);
+  }
+  lt(value: any) {
+    return this.add((key, value) => `${key} < ${value}`)(value);
+  }
+  lte(value: any) {
+    return this.add((key, value) => `${key} <= ${value}`)(value);
+  }
+  gt(value: any) {
+    return this.add((key, value) => `${key} > ${value}`)(value);
+  }
+  gte(value: any) {
+    return this.add((key, value) => `${key} >= ${value}`)(value);
   }
 
-  eq = this.add((key, value) => `${key} = ${value}`);
-  neq = this.add((key, value) => `${key} <> ${value}`);
-  lt = this.add((key, value) => `${key} < ${value}`);
-  lte = this.add((key, value) => `${key} <= ${value}`);
-  gt = this.add((key, value) => `${key} > ${value}`);
-  gte = this.add((key, value) => `${key} >= ${value}`);
-
-  exists(): Wrapper {
-    return this.wrapper.add(`attribute_exists(${this.getKey()})`);
-  }
-
-  notExists(): Wrapper {
-    return this.wrapper.add(`attribute_not_exists(${this.getKey()})`);
-  }
 
   isType(type: SimpleDynamoType): Wrapper {
     return this.wrapper.add(
-      `attribute_type(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+      `attribute_type(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
         this.typeFor(type),
       )})`,
     );
   }
 
   private typeFor(type: SimpleDynamoType): string {
-    const withoutOptional = type.endsWith('?')
-      ? type.substring(0, type.length - 2)
-      : type;
-    switch (withoutOptional) {
+    switch (type) {
       case 'string':
         return 'S';
       case 'string set':
@@ -162,7 +160,7 @@ export class OperationType {
 
   beginsWith(beginsWith: string): Wrapper {
     return this.wrapper.add(
-      `begins_with(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+      `begins_with(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
         beginsWith,
       )})`,
     );
@@ -170,27 +168,27 @@ export class OperationType {
 
   contains(operand: any): Wrapper {
     return this.wrapper.add(
-      `contains(${this.getKey()}, ${this.wrapper.attributeBuilder.addValue(
+      `contains(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
         operand,
       )})`,
     );
   }
 
   between(
-    a: TypeFor<DynamoType>,
-    b: TypeFor<DynamoType>,
+    a: any,
+    b:any,
   ): CompareWrapperOperator<any> {
     const aKey = this.wrapper.attributeBuilder.addValue(a);
     const bKey = this.wrapper.attributeBuilder.addValue(b);
-    return this.wrapper.add(`${this.getKey()} BETWEEN ${aKey} AND ${bKey}`);
+    return this.wrapper.add(`${getKey(this.wrapper, this.parentage)} BETWEEN ${aKey} AND ${bKey}`);
   }
 
-  in(list: TypeFor<DynamoType>[]): CompareWrapperOperator<any> {
+  in(list: any[]): CompareWrapperOperator<any> {
     const valueKeys = list.map((it) =>
       this.wrapper.attributeBuilder.addValue(it),
     );
     return this.wrapper.add(
-      `${this.getKey()} IN (${valueKeys.join(',')})`,
+      `${getKey(this.wrapper, this.parentage)} IN (${valueKeys.join(',')})`,
     ) as any;
   }
 }

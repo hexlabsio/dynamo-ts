@@ -1,7 +1,7 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { DynamoTypeFrom, TableClient } from '../src';
-import { simpleTableDefinition, simpleTableDefinition2 } from './tables';
+import { TableClient } from '../src';
+import { SimpleTable, SimpleTable2, simpleTableDefinition, simpleTableDefinition2 } from './tables';
 
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
@@ -9,9 +9,6 @@ const dynamo = new DynamoDB({
   credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
-
-type TableType = DynamoTypeFrom<typeof simpleTableDefinition>;
-type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
 
 const testTable = new TableClient(simpleTableDefinition, {
   tableName: 'simpleTableDefinitionBatch',
@@ -25,11 +22,11 @@ const testTable2 = new TableClient(simpleTableDefinition2, {
   logStatements: true,
 });
 
-const preInserts: TableType[] = new Array(1000).fill(0).map((a, index) => ({
+const preInserts: SimpleTable[] = new Array(1000).fill(0).map((a, index) => ({
   identifier: index.toString(),
-  text: index.toString(),
+  sort: index.toString(),
 }));
-const preInserts2: TableType2[] = new Array(1000).fill(0).map((a, index) => ({
+const preInserts2: SimpleTable2[] = new Array(1000).fill(0).map((a, index) => ({
   identifier: (10000 + index).toString(),
   sort: index.toString(),
   text: 'test',
@@ -60,9 +57,9 @@ describe('Dynamo Batch Getter', () => {
       console.log(JSON.stringify(executor.input, null, 2));
       const result = await executor.execute();
       expect(result.items).toEqual([
-        { identifier: '0', text: '0' },
-        { identifier: '3', text: '3' },
-        { identifier: '4', text: '4' },
+        { identifier: '0', sort: '0' },
+        { identifier: '3', sort: '3' },
+        { identifier: '4', sort: '4' },
       ]);
     });
   });
@@ -87,9 +84,9 @@ describe('Dynamo Batch Getter', () => {
         .execute();
       expect(result.items).toEqual([
         [
-          { identifier: '0', text: '0' },
-          { identifier: '3', text: '3' },
-          { identifier: '4', text: '4' },
+          { identifier: '0', sort: '0' },
+          { identifier: '3', sort: '3' },
+          { identifier: '4', sort: '4' },
         ],
         [{ sort: '8' }, { sort: '0' }],
       ]);

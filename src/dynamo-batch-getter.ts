@@ -5,41 +5,36 @@ import {
 import { BatchGetCommandInput, DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
+import { TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys, DynamoConfig } from './types';
 
 export type BatchGetItemOptions<
-  INFO extends DynamoInfo,
+  TableType,
   PROJECTION,
 > = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &
     Pick<BatchGetCommandInput, 'ReturnConsumedCapacity'>
 > & {
-  projection?: Projection<INFO, PROJECTION>;
+  projection?: Projection<TableType, PROJECTION>;
 };
 
-export type BatchGetItemReturn<INFO extends DynamoInfo, PROJECTION> = {
+export type BatchGetItemReturn<TableType, PROJECTION> = {
   items: PROJECTION extends null
-    ? TypeFromDefinition<INFO['definition']>[]
+    ? TableType
     : PROJECTION[];
   consumedCapacity?: ConsumedCapacity;
 };
 
-export interface BatchGetExecutor<T extends DynamoInfo, PROJECTION> {
+export interface BatchGetExecutor<TableType, PROJECTION> {
   input: BatchGetCommandInput;
-  execute(): Promise<BatchGetItemReturn<T, PROJECTION>>;
+  execute(): Promise<BatchGetItemReturn<TableType, PROJECTION>>;
   and<B extends BatchGetExecutor<any, any>>(
     other: B,
   ): BatchGetClient<[this, B]>;
 }
 
-export class BatchGetExecutorHolder<T extends DynamoInfo, PROJECTION>
-  implements BatchGetExecutor<T, PROJECTION>
+export class BatchGetExecutorHolder<TableType, PROJECTION>
+  implements BatchGetExecutor<TableType, PROJECTION>
 {
   constructor(
     private readonly tableName: string,
@@ -50,7 +45,7 @@ export class BatchGetExecutorHolder<T extends DynamoInfo, PROJECTION>
   /**
    * Execute the batch get request and get the results.
    */
-  async execute(): Promise<BatchGetItemReturn<T, PROJECTION>> {
+  async execute(): Promise<BatchGetItemReturn<TableType, PROJECTION>> {
     const result = await this.client.batchGet(this.input);
     return {
       items: result.Responses?.[this.tableName] ?? ([] as any),
@@ -158,34 +153,32 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
   }
 }
 
-export class DynamoBatchGetter<T extends DynamoInfo> {
+export class DynamoBatchGetter<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: T,
-    private readonly config: DynamoConfig,
+    private readonly clientConfig: DynamoConfig,
   ) {}
 
   batchGetExecutor<PROJECTION = null>(
-    keys: PickKeys<T>[],
-    options: BatchGetItemOptions<T, PROJECTION> = {},
-  ): BatchGetExecutor<T, PROJECTION> {
+    keys: TableConfig['keys'][],
+    options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
+  ): BatchGetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = ProjectionHandler.projectionExpressionFor(
+    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      this.info,
       options.projection,
     );
     const input = {
       RequestItems: {
-        [this.config.tableName]: {
+        [this.clientConfig.tableName]: {
           Keys: keys,
-          ProjectionExpression: expression,
+          ...(options.projection ? { ProjectionExpression: expression } : {}),
           ...attributeBuilder.asInput(),
         },
       },
       ReturnConsumedCapacity: options.returnConsumedCapacity,
     };
-    const client = this.config.client;
-    const tableName = this.config.tableName;
+    const client = this.clientConfig.client;
+    const tableName = this.clientConfig.tableName;
     return new BatchGetExecutorHolder(tableName, client, input);
   }
 }
