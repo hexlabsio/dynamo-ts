@@ -1,5 +1,5 @@
 import { AttributeBuilder } from './attribute-builder';
-import { JsonPath, ValueAtJsonPath } from './types/json-path';
+import { JsonPath, ValueAtJsonPath } from './types';
 
 type TupleKeys<P extends string> = P extends `${infer A}.${infer TAIL}`
   ? [A, ...TupleKeys<TAIL>]
