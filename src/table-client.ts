@@ -36,8 +36,7 @@ import {
 } from './dynamo-updater';
 import IndexClient from './index-client';
 import { TableDefinition } from './table-builder/table-definition';
-import { DynamoConfig } from './types/dynamo-config';
-import { JsonPath } from './types/json-path';
+import { DynamoConfig, JsonPath } from './types';
 
 export class TableClient<TableConfig extends TableDefinition> {
   constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {}

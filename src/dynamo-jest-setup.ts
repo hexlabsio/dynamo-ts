@@ -1,90 +1,56 @@
 import * as fs from 'fs';
-import { Definition, DynamoDefinition } from './types';
-
-type DynamoDetails = {
-  definition: DynamoDefinition;
-  partitionKey: string;
-  sortKey?: string | null;
-  indexes: Record<string, { partitionKey: string; sortKey?: string | null }>;
-};
+import { TableDefinition } from './table-builder/table-definition';
 
 export function dynamoTable(
-  definition: DynamoDetails,
+  definition: TableDefinition,
   name?: string,
   props?: any,
 ): any {
   const indexKeys = Object.keys(definition.indexes ?? {}).flatMap((key) => [
-    definition.indexes![key].partitionKey as string,
-    ...(definition.indexes![key].sortKey
-      ? [definition.indexes![key].sortKey! as string]
+    (definition.indexes as any)![key].partitionKey as string,
+    ...((definition.indexes as any)![key].sortKey
+      ? [(definition.indexes as any)![key].sortKey! as string]
       : []),
   ]);
   const keys: string[] = [
     ...new Set([
-      definition.partitionKey as string,
-      ...(definition.sortKey ? [definition.sortKey! as string] : []),
+      definition.keyNames.partitionKey as string,
+      ...(definition.keyNames.sortKey ? [definition.keyNames.sortKey! as string] : []),
       ...indexKeys,
     ]),
   ];
-  function typeFor(key: string): string {
-    const type: Definition = definition.definition[key];
-    const nonOptionalType = `${type}`.endsWith('?')
-      ? type.toString().substring(0, type.toString().length - 1)
-      : type;
-    switch (nonOptionalType) {
-      case 'string':
-        return 'S';
-      case 'string set':
-        return 'SS';
-      case 'number':
-        return 'N';
-      case 'number set':
-        return 'NS';
-      case 'binary':
-        return 'B';
-      case 'binary set':
-        return 'BS';
-      case 'boolean':
-        return 'BOOL';
-      case 'null':
-        return 'NULL';
-      case 'list':
-        return 'L';
-      default:
-        return 'M';
-    }
-  }
+
   return {
     ...props,
     ...(name ? { TableName: name } : {}),
     KeySchema: [
-      { KeyType: 'HASH', AttributeName: definition.partitionKey as string },
-      ...(definition.sortKey
-        ? [{ KeyType: 'RANGE', AttributeName: definition.sortKey as string }]
+      { KeyType: 'HASH', AttributeName: definition.keyNames.partitionKey as string },
+      ...(definition.keyNames.sortKey
+        ? [{ KeyType: 'RANGE', AttributeName: definition.keyNames.sortKey as string }]
         : []),
     ],
     AttributeDefinitions: keys.map((key) => ({
       AttributeName: key as string,
-      AttributeType: typeFor(key),
+      AttributeType: 'S',
     })),
     ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
     ...(definition.indexes && Object.keys(definition.indexes as any).length > 0
       ? {
-          GlobalSecondaryIndexes: Object.keys(definition.indexes as any).map(
+          GlobalSecondaryIndexes: Object.keys(definition.indexes as any).filter(index => (definition.indexes as any)[index]!.global).map(
             (key) => {
               return {
                 IndexName: key,
                 KeySchema: [
                   {
                     KeyType: 'HASH',
-                    AttributeName: definition.indexes![key]
+                    AttributeName: (definition.indexes as any)[key]
                       .partitionKey as string,
                   },
-                  ...(definition.indexes![key].sortKey
+                  ...((definition.indexes as any)[key].sortKey
                     ? [
                         {
                           KeyType: 'RANGE',
-                          AttributeName: definition.indexes![key]
+                          AttributeName: (definition.indexes as any)![key]
                             .sortKey as string,
                         },
                       ]
@@ -103,7 +69,7 @@ export function dynamoTable(
   };
 }
 
-export function tableDefinition(definitions: Record<string, DynamoDetails>): {
+export function tableDefinition(definitions: Record<string, TableDefinition>): {
   tables: unknown[];
 } {
   return {
@@ -114,7 +80,7 @@ export function tableDefinition(definitions: Record<string, DynamoDetails>): {
 }
 
 export function writeJestDynamoConfig(
-  definitions: Record<string, DynamoDetails>,
+  definitions: Record<string, TableDefinition>,
   name = 'jest-dynamodb-config.js',
   rest = {},
 ): void {
