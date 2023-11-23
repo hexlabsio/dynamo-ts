@@ -1,7 +1,6 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDeleter } from '../src/dynamo-deleter';
-import { DynamoTypeFrom } from '../src';
 import { complexTableDefinition } from './tables';
 
 const dynamo = new DynamoDB({
@@ -10,15 +9,14 @@ const dynamo = new DynamoDB({
   credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
-type TableType = DynamoTypeFrom<typeof complexTableDefinition>;
 
-const testTable = new DynamoDeleter(complexTableDefinition, {
+const testTable = new DynamoDeleter<typeof complexTableDefinition>({
   tableName: 'complexTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-const preInserts: TableType[] = [
+const preInserts: (typeof complexTableDefinition.type)[] = [
   { hash: 'delete-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } },
   {
     hash: 'delete-item-test-2',

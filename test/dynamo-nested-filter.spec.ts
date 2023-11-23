@@ -1,8 +1,7 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { TableClient } from '../src';
-import { DynamoTypeFrom } from '../src/types';
-import { complexTableDefinitionFilter } from './tables';
+import { complexTableDefinitionFilter, NestedTable } from './tables';
 
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },
@@ -11,7 +10,6 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-type TableType = DynamoTypeFrom<typeof complexTableDefinitionFilter>;
 
 const testTable = new TableClient(complexTableDefinitionFilter, {
   tableName: 'complexTableDefinitionFilter',
@@ -19,7 +17,7 @@ const testTable = new TableClient(complexTableDefinitionFilter, {
   logStatements: true,
 });
 
-const itemMinimal = {
+const itemMinimal: NestedTable = {
   hash: 'hash1',
   string: 'string required',
   number: 10,
@@ -35,7 +33,7 @@ const itemMinimal = {
   listType: ['item one', 'item two'],
 };
 
-const itemWithOptionals = {
+const itemWithOptionals: NestedTable = {
   hash: 'hash2',
   string: 'string required',
   stringOptional: 'string optional',
@@ -65,7 +63,7 @@ const itemWithOptionals = {
   listType: [{ name: 'item one' }, { name: ['item two', 'item three'] }],
 };
 
-const preInserts: TableType[] = [itemMinimal, itemWithOptionals];
+const preInserts: NestedTable[] = [itemMinimal, itemWithOptionals];
 
 describe('Dynamo Nested Filter', () => {
   const TableName = 'complexTableDefinitionFilter';
@@ -123,14 +121,14 @@ describe('Dynamo Nested Filter', () => {
 
     it('string top level exists', async () => {
       const result = await testTable.scan({
-        filter: (compare) => compare().stringOptional.exists(),
+        filter: (compare) => compare().stringOptional.exists,
       });
       expect(result.member[0]).toEqual(itemWithOptionals);
     });
 
     it('string top level not exists', async () => {
       const result = await testTable.scan({
-        filter: (compare) => compare().stringOptional.notExists(),
+        filter: (compare) => compare().stringOptional.notExists,
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -251,14 +249,14 @@ describe('Dynamo Nested Filter', () => {
   describe('object operations', () => {
     it('top level object exists', async () => {
       const result = await testTable.scan({
-        filter: (compare) => compare().nestedObject.exists(),
+        filter: (compare) => compare().nestedObject.exists,
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
 
     it('top level optional object exists', async () => {
       const result = await testTable.scan({
-        filter: (compare) => compare().nestedObjectOptional.exists(),
+        filter: (compare) => compare().nestedObjectOptional.exists,
       });
       expect(result.member[0]).toEqual(itemWithOptionals);
     });
@@ -266,7 +264,7 @@ describe('Dynamo Nested Filter', () => {
     it('deep nested object exists', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare().nestedObjectMultiple.nestedObject.exists(),
+          compare().nestedObjectMultiple.nestedObject.exists,
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -274,7 +272,7 @@ describe('Dynamo Nested Filter', () => {
     it('deep nested optional object exists', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare().nestedObjectMultipleOptional.nestedObject.exists(),
+          compare().nestedObjectMultipleOptional.nestedObject.exists,
       });
       expect(result.member[0]).toEqual(itemWithOptionals);
     });
@@ -290,7 +288,7 @@ describe('Dynamo Nested Filter', () => {
 
     it('array string equals and operation', async () => {
       const result = await testTable.scan({
-        filter: (compare) => compare().arrayString.getElement(0).eq('item one'),
+        filter: (compare) => compare().arrayString[0].eq('item one'),
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -306,7 +304,7 @@ describe('Dynamo Nested Filter', () => {
     it('object array string equals', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare().nestedArrayString.items.getElement(0).eq('item one'),
+          compare().nestedArrayString.items[0].eq('item one'),
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -315,7 +313,7 @@ describe('Dynamo Nested Filter', () => {
       const result = await testTable.scan({
         filter: (compare) =>
           compare()
-            .nestedArrayObject.items.getElement(0)
+            .nestedArrayObject.items[0]
             .eq({ name: 'item one' }),
       });
       expect(result.member[0]).toEqual(itemMinimal);
@@ -324,7 +322,7 @@ describe('Dynamo Nested Filter', () => {
     it('object array object string equals', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare().nestedArrayObject.items.getElement(0).name.eq('item one'),
+          compare().nestedArrayObject.items[0].name.eq('item one'),
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -332,7 +330,7 @@ describe('Dynamo Nested Filter', () => {
     it('object array object string contains', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare().nestedArrayObject.items.getElement(1).name.contains('item'),
+          compare().nestedArrayObject.items[0].name.contains('item'),
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -341,7 +339,7 @@ describe('Dynamo Nested Filter', () => {
       it('map equal', async () => {
         const result = await testTable.scan({
           filter: (compare) =>
-            compare().mapType.get('name').eq('example string'),
+            compare().mapType.name.eq('example string'),
         });
         expect(result.member[0]).toEqual(itemMinimal);
       });
@@ -349,7 +347,7 @@ describe('Dynamo Nested Filter', () => {
       it('map nested equals', async () => {
         const result = await testTable.scan({
           filter: (compare) =>
-            compare().mapType.get('object').get('name').eq('example string'),
+            compare().mapType.object.name.eq('example string'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
       });
@@ -357,7 +355,7 @@ describe('Dynamo Nested Filter', () => {
       it('map nested contains', async () => {
         const result = await testTable.scan({
           filter: (compare) =>
-            compare().mapType.get('object').get('name').contains('example'),
+            compare().mapType.object.name.contains('example'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
       });
@@ -373,7 +371,7 @@ describe('Dynamo Nested Filter', () => {
 
       it('list nested equals', async () => {
         const result = await testTable.scan({
-          filter: (compare) => compare().listType.getElement(1).eq('item two'),
+          filter: (compare) => compare().listType[1].eq('item two'),
         });
         expect(result.member[0]).toEqual(itemMinimal);
       });
@@ -382,9 +380,7 @@ describe('Dynamo Nested Filter', () => {
         const result = await testTable.scan({
           filter: (compare) =>
             compare()
-              .listType.getElement(1)
-              .get('name')
-              .getElement(1)
+              .listType[1].name[1]
               .eq('item three'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
@@ -393,11 +389,7 @@ describe('Dynamo Nested Filter', () => {
       it('list nested object contains', async () => {
         const result = await testTable.scan({
           filter: (compare) =>
-            compare()
-              .listType.getElement(1)
-              .get('name')
-              .getElement(1)
-              .contains('three'),
+            compare().listType[1].name[1].contains('three'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
       });

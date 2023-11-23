@@ -1,19 +1,14 @@
 import { DeleteCommandInput, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
-import { filterPartsWithKey } from './comparison';
-import { DynamoFilter } from './filter';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
+import { filterParts } from './comparison';
+import { TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys } from './types/camel-case';
+import { DynamoConfig, DynamoFilter } from './types';
 
 export type DeleteReturnValues = 'NONE' | 'ALL_OLD';
 
 export type DeleteItemOptions<
-  INFO extends DynamoInfo,
+  TableType,
   RETURN extends DeleteReturnValues,
 > = Partial<
   CamelCaseKeys<
@@ -24,39 +19,38 @@ export type DeleteItemOptions<
   >
 > & {
   returnValues?: RETURN;
-  condition?: DynamoFilter<INFO>;
+  condition?: DynamoFilter<TableType>;
 };
 
 export type DeleteItemReturn<
-  INFO extends DynamoInfo,
+  TableType,
   RETURN extends DeleteReturnValues,
 > = CamelCaseKeys<
   Pick<DeleteCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
   (RETURN extends 'ALL_OLD'
-    ? { item?: TypeFromDefinition<INFO['definition']> }
+    ? { item?: TableType }
     : {});
 
 export interface DeleteExecutor<
-  T extends DynamoInfo,
+  TableType,
   RETURN extends DeleteReturnValues,
 > {
   input: DeleteCommandInput;
-  execute(): Promise<DeleteItemReturn<T, RETURN>>;
+  execute(): Promise<DeleteItemReturn<TableType, RETURN>>;
 }
 
-export class DynamoDeleter<T extends DynamoInfo> {
+export class DynamoDeleter<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: T,
-    private readonly config: DynamoConfig,
+    private readonly clientConfig: DynamoConfig,
   ) {}
 
   async delete<RETURN extends DeleteReturnValues = 'NONE'>(
-    keys: PickKeys<T>,
-    options: DeleteItemOptions<T, RETURN> = {},
-  ): Promise<DeleteItemReturn<T, RETURN>> {
+    keys: TableConfig['keys'],
+    options: DeleteItemOptions<TableConfig['type'], RETURN> = {},
+  ): Promise<DeleteItemReturn<TableConfig['type'], RETURN>> {
     const getInput = this.deleteExecutor(keys, options);
-    if (this.config.logStatements) {
+    if (this.clientConfig.logStatements) {
       console.log(
         `DeleteItemInput: ${JSON.stringify(getInput.input, null, 2)}`,
       );
@@ -65,26 +59,26 @@ export class DynamoDeleter<T extends DynamoInfo> {
   }
 
   deleteExecutor<RETURN extends DeleteReturnValues = 'NONE'>(
-    keys: PickKeys<T>,
-    options: DeleteItemOptions<T, RETURN> = {},
-  ): DeleteExecutor<T, RETURN> {
+    keys: TableConfig['keys'],
+    options: DeleteItemOptions<TableConfig['type'], RETURN> = {},
+  ): DeleteExecutor<TableConfig['type'], RETURN> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterPartsWithKey(this.info, attributeBuilder, options.condition);
+      filterParts(attributeBuilder, options.condition);
     const input: DeleteCommandInput = {
       ...attributeBuilder.asInput(),
-      TableName: this.config.tableName,
+      TableName: this.clientConfig.tableName,
       Key: keys,
       ReturnValues: options.returnValues,
       ConditionExpression: condition,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ReturnItemCollectionMetrics: options.returnItemCollectionMetrics,
     };
-    const client = this.config.client;
+    const client = this.clientConfig.client;
     return {
       input,
-      async execute(): Promise<DeleteItemReturn<T, RETURN>> {
+      async execute(): Promise<DeleteItemReturn<TableConfig['type'], RETURN>> {
         const result = await client.delete(input);
         return {
           item: result.Attributes as any,

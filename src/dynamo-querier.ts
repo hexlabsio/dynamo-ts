@@ -3,36 +3,21 @@ import { NativeAttributeValue } from '@aws-sdk/util-dynamodb';
 
 import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
-import { DynamoFilter } from './filter';
 import { KeyOperation } from './operation';
 import { Projection, ProjectionHandler } from './projector';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoDefinition,
-  DynamoIndex,
-  DynamoInfo,
-  TypeFromDefinition,
-} from './types';
+import { DynamoTableKeyConfig, TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys } from './types/camel-case';
+import { DynamoConfig } from './types/dynamo-config';
+import { DynamoFilter } from './types/filter';
 
-export type HashCompare<D extends DynamoInfo> = TypeFromDefinition<{
-  [K in D['partitionKey']]: D['definition'][K];
-}>;
-export type SortCompare<D extends DynamoInfo> =
-  D['sortKey'] extends keyof TypeFromDefinition<D['definition']>
-    ? {
-        [K in D['sortKey']]?: (
-          sortKey: KeyComparisonBuilder<
-            TypeFromDefinition<D['definition']>[D['sortKey']]
-          >,
-        ) => any;
-      }
-    : {};
+export type KeyCompare<TableType, KEYS extends DynamoTableKeyConfig<any>> =
+  KEYS extends { sortKey: infer S, partitionKey: infer K }
+    ? Pick<TableType, K & keyof TableType> & { [K in S & string]?: (K extends keyof TableType ? ((sortKey: KeyComparisonBuilder<TableType[K]>) => any) : never) }
+    : Pick<TableType, KEYS['partitionKey'] & keyof TableType>
 
-export type QueryKeys<D extends DynamoInfo> = HashCompare<D> & SortCompare<D>;
-export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
-  filter?: DynamoFilter<D>;
-  projection?: Projection<D, PROJECTION>;
+export type QuerierInput<TableType, PROJECTION> = {
+  filter?: DynamoFilter<TableType>;
+  projection?: Projection<TableType, PROJECTION>;
   next?: string;
 } & Partial<
   CamelCaseKeys<
@@ -47,105 +32,94 @@ export type QuerierInput<D extends DynamoInfo, PROJECTION> = {
     >
   >
 >;
-export type QueryAllInput<D extends DynamoInfo, PROJECTION> = QuerierInput<
-  D,
-  PROJECTION
->;
+export type QueryAllInput<TableType, PROJECTION> = QuerierInput<TableType, PROJECTION>;
 
-export type QuerierReturn<D extends DynamoInfo, PROJECTION = null> = {
+export type QuerierReturn<TableType, PROJECTION = null> = {
   member: PROJECTION extends null
-    ? TypeFromDefinition<D['definition']>[]
+    ? TableType[]
     : PROJECTION[];
   next?: string;
   consumedCapacity?: QueryCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
 };
-export type ParentKeys<D extends DynamoDefinition> = {
-  partitionKey: keyof D;
-  sortKey?: keyof D;
-};
 
-export interface QueryExecutor<D extends DynamoInfo, PROJECTION> {
+
+export interface QueryExecutor<TableType, PROJECTION> {
   input: QueryCommandInput;
-  execute: () => Promise<QuerierReturn<D, PROJECTION>>;
+  execute: () => Promise<QuerierReturn<TableType, PROJECTION>>;
 }
 
-export class DynamoQuerier<
-  D extends DynamoInfo = any,
-  I extends Record<string, DynamoIndex> = {},
-> {
+export class DynamoQuerier<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: D,
-    private readonly config: DynamoConfig,
-    private readonly parentKeys?: ParentKeys<D['definition']>,
+    private readonly tableConfig: TableConfig,
+    private readonly clientConfig: DynamoConfig,
+    private readonly parentKeys?: DynamoTableKeyConfig<TableConfig>,
   ) {}
 
   private keyExpression(
-    keys: QueryKeys<D>,
+    keys: TableConfig['keys'],
     attributeBuilder: AttributeBuilder,
   ): string {
-    const partitionKey = this.info.partitionKey as keyof QueryKeys<D>;
-    const sortKey = this.info.sortKey as keyof QueryKeys<D>;
-    attributeBuilder.addNames(partitionKey as string);
-    const hashValue = keys[partitionKey];
+    const keyNames = Object.keys(keys);
+    attributeBuilder.addNames(...keyNames);
+    const hashValue = keys[this.tableConfig.keyNames.partitionKey];
     const valueKey = attributeBuilder.addValue(hashValue);
     const expression = `${attributeBuilder.nameFor(
-      partitionKey as string,
+      this.tableConfig.keyNames.partitionKey as string,
     )} = ${valueKey}`;
-    if (sortKey && typeof keys[sortKey] === 'function') {
+    if (this.tableConfig.keyNames.sortKey && typeof keys[this.tableConfig.keyNames.sortKey] === 'function') {
       const keyOperation = new KeyOperation(
-        sortKey as string,
+        this.tableConfig.keyNames.sortKey as string,
         new Wrapper(attributeBuilder),
       );
-      (keys[sortKey] as any)(keyOperation);
+      (keys[this.tableConfig.keyNames.sortKey] as any)(keyOperation);
       return `${expression} AND ${keyOperation.wrapper.expression}`;
     }
     return expression;
   }
 
   query<PROJECTION = null>(
-    keys: QueryKeys<D>,
-    options: QuerierInput<D, PROJECTION> = {},
-  ): Promise<QuerierReturn<D, PROJECTION>> {
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QuerierInput<TableConfig['type'], PROJECTION> = {},
+  ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
     const executor = this.queryExecutor(keys, options);
-    if (this.config.logStatements) {
+    if (this.clientConfig.logStatements) {
       console.log(`QueryInput: ${JSON.stringify(executor.input, null, 2)}`);
     }
     return executor.execute();
   }
 
   async queryAll<PROJECTION = null>(
-    keys: QueryKeys<D>,
-    options: QueryAllInput<D, PROJECTION> = {},
-  ): Promise<QuerierReturn<D, PROJECTION>> {
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QueryAllInput<TableConfig['type'], PROJECTION> = {},
+  ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
     const executor = this.queryAllExecutor(keys, options);
-    if (this.config.logStatements) {
+    if (this.clientConfig.logStatements) {
       console.log(`QueryAllInput: ${JSON.stringify(executor.input, null, 2)}`);
     }
     return executor.execute();
   }
 
   queryExecutor<PROJECTION = null>(
-    keys: QueryKeys<D>,
-    options: QuerierInput<D, PROJECTION> = {},
-  ): QueryExecutor<D, PROJECTION> {
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QuerierInput<TableConfig['type'], PROJECTION> = {},
+  ): QueryExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyExpression(keys, attributeBuilder);
     const filterPart =
       options.filter &&
-      filterParts(this.info, attributeBuilder, options.filter);
-    const projection = ProjectionHandler.projectionExpressionFor(
+      filterParts(attributeBuilder, options.filter);
+    const projection = options.projection && ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      this.info,
       options.projection,
     );
     const input: QueryCommandInput = {
-      TableName: this.config.tableName,
-      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+      TableName: this.clientConfig.tableName,
+      ...(this.clientConfig.indexName ? { IndexName: this.clientConfig.indexName } : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
-      ProjectionExpression: projection,
+      ...(options.projection ? { ProjectionExpression: projection, } : {}),
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ScanIndexForward: options.scanIndexForward,
       ConsistentRead: options.consistentRead,
@@ -159,7 +133,7 @@ export class DynamoQuerier<
           }
         : {}),
     };
-    const client = this.config.client;
+    const client = this.clientConfig.client;
     return {
       input,
       execute: async () => {
@@ -180,12 +154,12 @@ export class DynamoQuerier<
   }
 
   queryAllExecutor<PROJECTION = null>(
-    keys: QueryKeys<D>,
-    options: QueryAllInput<D, PROJECTION> = {},
-  ): QueryExecutor<D, PROJECTION> {
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QueryAllInput<TableConfig['type'], PROJECTION> = {},
+  ): QueryExecutor<TableConfig['type'], PROJECTION> {
     return new QueryAllExecutor(
-      this.info,
-      this.config,
+      this.tableConfig,
+      this.clientConfig,
       keys,
       options,
       (keys, builder) => this.keyExpression(keys, builder),
@@ -194,33 +168,30 @@ export class DynamoQuerier<
   }
 }
 
-class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
-  implements QueryExecutor<D, PROJECTION>
+class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
+  implements QueryExecutor<TableConfig, PROJECTION>
 {
 
   input: QueryCommandInput;
   constructor(
-    private readonly info: D,
-    private readonly config: DynamoConfig,
-    private readonly keys: QueryKeys<D>,
-    private readonly options: QueryAllInput<D, PROJECTION>,
+    private readonly tableConfig: TableConfig,
+    private readonly clientConfig: DynamoConfig,
+    private readonly keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    private readonly options: QueryAllInput<TableConfig['type'], PROJECTION>,
     private readonly createKeyExpression: (
-      keys: QueryKeys<D>,
+      keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
       builder: AttributeBuilder,
     ) => string,
-    readonly parentKeys?: ParentKeys<D['definition']>,
+    readonly parentKeys?: DynamoTableKeyConfig<TableConfig['type']>,
     private readonly attributeBuilder = AttributeBuilder.create(),
-    private readonly projectionWithEnrichedKeys = ProjectionHandler.projectionWithKeysFor(
+    private readonly projectionWithEnrichedKeys = options.projection && ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      info,
-      parentKeys?.partitionKey ?? null,
-      parentKeys?.sortKey ?? null,
       options.projection,
     ),
   ) {
     this.input = {
-      TableName: this.config.tableName,
-      ...(this.config.indexName ? { IndexName: this.config.indexName } : {}),
+      TableName: this.clientConfig.tableName,
+      ...(this.clientConfig.indexName ? { IndexName: this.clientConfig.indexName } : {}),
       ...{
         KeyConditionExpression: this.createKeyExpression(
           this.keys,
@@ -230,13 +201,12 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
       ...(this.options.filter
         ? {
           FilterExpression: filterParts(
-            this.info,
             this.attributeBuilder,
             this.options.filter,
           ),
         }
         : {}),
-      ProjectionExpression: this.projectionWithEnrichedKeys[0],
+      ...(options.projection ? { ProjectionExpression: this.projectionWithEnrichedKeys![0] } : {}),
       ReturnConsumedCapacity: this.options.returnConsumedCapacity,
       ScanIndexForward: this.options.scanIndexForward,
       ConsistentRead: this.options.consistentRead,
@@ -298,7 +268,7 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
     Items: QueryCommandOutput['Items'];
     LastEvaluatedKey?: string;
   }> {
-    const res = await this.config.client.query(queryInput);
+    const res = await this.clientConfig.client.query(queryInput);
 
     const resLength = res?.Items?.length ?? 0;
     const accLength = accumulationCount ?? 0;
@@ -343,16 +313,16 @@ class QueryAllExecutor<D extends DynamoInfo, PROJECTION>
 
 
 
-  async execute(): Promise<QuerierReturn<D, PROJECTION>> {
+  async execute(): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
     const result = await this._recQuery(
       this.input,
       {
-        partitionKey: this.info.partitionKey as string,
-        sortKey: this.info.sortKey as string | undefined,
+        partitionKey: this.tableConfig.keyNames.partitionKey as string,
+        sortKey: this.tableConfig.keyNames.sortKey as string | undefined,
         parentPartitionKey: this.parentKeys?.partitionKey as string | undefined,
         parentSortKey: this.parentKeys?.sortKey as string | undefined,
       },
-      this.projectionWithEnrichedKeys[1],
+      undefined,
       this.options.limit,
     );
 

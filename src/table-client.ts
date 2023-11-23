@@ -24,10 +24,9 @@ import {
   PutReturnValues,
 } from './dynamo-puter';
 import {
-  DynamoQuerier,
+  DynamoQuerier, KeyCompare,
   QuerierInput,
   QuerierReturn,
-  QueryKeys,
 } from './dynamo-querier';
 import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
 import {
@@ -36,25 +35,21 @@ import {
   UpdateResult,
 } from './dynamo-updater';
 import IndexClient from './index-client';
-import { DynamoNestedKV } from './type-mapping';
-import {
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
+import { TableDefinition } from './table-builder/table-definition';
+import { DynamoConfig } from './types/dynamo-config';
+import { JsonPath } from './types/json-path';
 
-export class TableClient<T extends DynamoInfo> {
-  constructor(public readonly info: T, private readonly config: DynamoConfig) {}
+export class TableClient<TableConfig extends TableDefinition> {
+  constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {}
 
   /**
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.
    * @returns - A list of items (1 page only)
    */
   scan<PROJECTION = null>(
-    options: ScanOptions<T, PROJECTION> = {},
-  ): Promise<ScanReturn<T, PROJECTION>> {
-    return new DynamoScanner(this.info, this.config).scan(options);
+    options: ScanOptions<TableConfig['type'], PROJECTION> = {},
+  ): Promise<ScanReturn<TableConfig['type'], PROJECTION>> {
+    return new DynamoScanner<TableConfig>(this.clientConfig).scan(options);
   }
 
   /**
@@ -62,9 +57,9 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - A list of all items
    */
   scanAll<PROJECTION = null>(
-    options: ScanOptions<T, PROJECTION> = {},
-  ): Promise<Omit<ScanReturn<T, PROJECTION>, 'next'>> {
-    return new DynamoScanner(this.info, this.config).scanAll(options);
+    options: ScanOptions<TableConfig['type'], PROJECTION> = {},
+  ): Promise<Omit<ScanReturn<TableConfig['type'], PROJECTION>, 'next'>> {
+    return new DynamoScanner<TableConfig>(this.clientConfig).scanAll(options);
   }
 
   /**
@@ -72,10 +67,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - The item or **undefined**
    */
   get<PROJECTION = null>(
-    keys: PickKeys<T>,
-    options: GetItemOptions<T, PROJECTION> = {},
-  ): Promise<GetItemReturn<T, PROJECTION>> {
-    return new DynamoGetter(this.info, this.config).get(keys, options);
+    keys: TableConfig['keys'],
+    options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
+  ): Promise<GetItemReturn<TableConfig['type'], PROJECTION>> {
+    return new DynamoGetter<TableConfig>(this.clientConfig).get(keys, options);
   }
 
   /**
@@ -83,10 +78,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - When returnValues is set to ALL_OLD, the previous item will be returned if present.
    */
   put<RETURN extends PutReturnValues = 'NONE'>(
-    item: TypeFromDefinition<T['definition']>,
-    options: PutItemOptions<T, RETURN> = {},
-  ): Promise<PutItemReturn<T, RETURN>> {
-    return new DynamoPuter(this.info, this.config).put(item, options);
+    item: TableConfig['type'],
+    options: PutItemOptions<TableConfig['type'], RETURN> = {},
+  ): Promise<PutItemReturn<TableConfig['type'], RETURN>> {
+    return new DynamoPuter<TableConfig>(this.clientConfig).put(item, options);
   }
 
   /**
@@ -94,10 +89,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - When returnValues is set to ALL_OLD, the previous item will be returned if present.
    */
   delete<RETURN extends DeleteReturnValues = 'NONE'>(
-    keys: PickKeys<T>,
-    options: DeleteItemOptions<T, RETURN> = {},
-  ): Promise<DeleteItemReturn<T, RETURN>> {
-    return new DynamoDeleter(this.info, this.config).delete(keys, options);
+    keys: TableConfig['keys'],
+    options: DeleteItemOptions<TableConfig['type'], RETURN> = {},
+  ): Promise<DeleteItemReturn<TableConfig['type'], RETURN>> {
+    return new DynamoDeleter<TableConfig>(this.clientConfig).delete(keys, options);
   }
 
   /**
@@ -105,10 +100,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - A list of results (1 page only).
    */
   query<PROJECTION = null>(
-    keys: QueryKeys<T>,
-    options: QuerierInput<T, PROJECTION> = {},
-  ): Promise<QuerierReturn<T, PROJECTION>> {
-    return new DynamoQuerier(this.info, this.config).query(keys, options);
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QuerierInput<TableConfig['type'], PROJECTION> = {},
+  ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
+    return new DynamoQuerier(this.tableConfig, this.clientConfig).query(keys, options);
   }
 
   /**
@@ -116,10 +111,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - A list of results.
    */
   queryAll<PROJECTION = null>(
-    keys: QueryKeys<T>,
-    options: QuerierInput<T, PROJECTION> = {},
-  ): Promise<Omit<QuerierReturn<T, PROJECTION>, 'next'>> {
-    return new DynamoQuerier(this.info, this.config).queryAll(keys, options);
+    keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    options: QuerierInput<TableConfig['type'], PROJECTION> = {},
+  ): Promise<Omit<QuerierReturn<TableConfig['type'], PROJECTION>, 'next'>> {
+    return new DynamoQuerier(this.tableConfig, this.clientConfig).queryAll(keys, options);
   }
 
   /**
@@ -132,12 +127,12 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - When returnValues is set to ALL_OLD, the previous item will be returned if present.
    */
   update<
-    KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
+    KEY extends JsonPath<TableConfig['type']>,
     RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
-    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
-  ): Promise<UpdateResult<T, RETURN_ITEMS>> {
-    return new DynamoUpdater(this.info, this.config).update(options);
+    options: UpdateItemOptions<TableConfig['type'], KEY, RETURN_ITEMS>,
+  ): Promise<UpdateResult<TableConfig['type'], RETURN_ITEMS>> {
+    return new DynamoUpdater<TableConfig>(this.clientConfig).update(options);
   }
 
   /**
@@ -146,10 +141,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - An executor that can be executed, or you can append more requests from other tables by calling **and()**.
    */
   batchGet<PROJECTION = null>(
-    keys: PickKeys<T>[],
-    options: BatchGetItemOptions<T, PROJECTION> = {},
-  ): BatchGetExecutor<T, PROJECTION> {
-    return new DynamoBatchGetter(this.info, this.config).batchGetExecutor(
+    keys: TableConfig['keys'][],
+    options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
+  ): BatchGetExecutor<TableConfig['type'], PROJECTION> {
+    return new DynamoBatchGetter<TableConfig>(this.clientConfig).batchGetExecutor(
       keys,
       options,
     );
@@ -161,10 +156,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - An executor that can be executed, or you can append more PUT or DELETE requests from other tables by calling **and()**.
    */
   batchPut(
-    items: TypeFromDefinition<T['definition']>[],
-    options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
-    return new DynamoBatchWriter(this.config).batchPutExecutor(items, options);
+    items: TableConfig['type'][],
+    options: BatchWriteItemOptions = {},
+  ): BatchWriteClient<[BatchWriteExecutor]> {
+    return new DynamoBatchWriter<TableConfig>(this.clientConfig).batchPutExecutor(items, options);
   }
 
   /**
@@ -173,10 +168,10 @@ export class TableClient<T extends DynamoInfo> {
    * @returns - An executor that can be executed, or you can append more PUT or DELETE requests from other tables by calling **and()**.
    */
   batchDelete(
-    keys: PickKeys<T>[],
-    options: BatchWriteItemOptions<T> = {},
-  ): BatchWriteClient<[BatchWriteExecutor<T>]> {
-    return new DynamoBatchWriter(this.config).batchDeleteExecutor(
+    keys: TableConfig['keys'][],
+    options: BatchWriteItemOptions = {},
+  ): BatchWriteClient<[BatchWriteExecutor]> {
+    return new DynamoBatchWriter<TableConfig>(this.clientConfig).batchDeleteExecutor(
       keys,
       options,
     );
@@ -185,24 +180,19 @@ export class TableClient<T extends DynamoInfo> {
   /**
    * Selects an index to query
    */
-  index<Index extends keyof T['indexes']>(
-    indexName: Index,
-  ): IndexClient<
-    T['definition'],
-    T['indexes'][Index] & { definition: T['definition'] },
-    T
-  > {
+  index<Index extends keyof TableConfig['indexes']>(indexName: Index)
+    : IndexClient<TableDefinition<TableConfig['type'], TableConfig['indexes'][Index]>> {
     return new IndexClient(
-      this.info,
-      { ...this.info, ...this.info.indexes[indexName] },
-      { ...this.config, indexName: indexName as string },
+      (this.tableConfig as any).asIndex(indexName),
+      this.tableConfig.keyNames,
+      { ...this.clientConfig, indexName: indexName as string },
     );
   }
 
-  static build<T extends DynamoInfo>(
-    params: T,
-    config: DynamoConfig,
-  ): TableClient<T> {
-    return new TableClient<T>(params, config);
+  static build<TableConfig extends TableDefinition>(
+    tableConfig: TableConfig,
+    clientConfig: DynamoConfig,
+  ): TableClient<TableConfig> {
+    return new TableClient<TableConfig>(tableConfig, clientConfig);
   }
 }

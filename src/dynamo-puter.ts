@@ -1,18 +1,16 @@
 import { PutCommandInput, PutCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
-import { filterPartsWithKey } from './comparison';
-import { DynamoFilter } from './filter';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  TypeFromDefinition,
-} from './types';
+import { filterParts } from './comparison';
+import { DynamoFilter } from './types/filter';
+import { TableDefinition } from './table-builder/table-definition';
+import { DynamoConfig } from './types';
+import { CamelCaseKeys } from './types/camel-case';
+
 
 export type PutReturnValues = 'NONE' | 'ALL_OLD';
 
 export type PutItemOptions<
-  INFO extends DynamoInfo,
+  TableType,
   RETURN extends PutReturnValues,
 > = CamelCaseKeys<
   Pick<
@@ -21,37 +19,36 @@ export type PutItemOptions<
   >
 > & {
   returnValues?: RETURN;
-  condition?: DynamoFilter<INFO>;
+  condition?: DynamoFilter<TableType>;
 };
 
 export type PutItemReturn<
-  INFO extends DynamoInfo,
+  TableType,
   RETURN extends PutReturnValues,
 > = CamelCaseKeys<
   Pick<PutCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
   (RETURN extends 'ALL_OLD'
-    ? { item: TypeFromDefinition<INFO['definition']> | undefined }
+    ? { item: TableType | undefined }
     : {});
 
 export interface PutExecutor<
-  T extends DynamoInfo,
+  TableType,
   RETURN extends PutReturnValues,
 > {
   input: PutCommandInput;
-  execute(): Promise<PutItemReturn<T, RETURN>>;
+  execute(): Promise<PutItemReturn<TableType, RETURN>>;
 }
 
-export class DynamoPuter<T extends DynamoInfo> {
+export class DynamoPuter<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: T,
     private readonly config: DynamoConfig,
   ) {}
 
   async put<RETURN extends PutReturnValues = 'NONE'>(
-    item: TypeFromDefinition<T['definition']>,
-    options: PutItemOptions<T, RETURN> = {},
-  ): Promise<PutItemReturn<T, RETURN>> {
+    item: TableConfig['type'],
+    options: PutItemOptions<TableConfig['type'], RETURN> = {},
+  ): Promise<PutItemReturn<TableConfig['type'], RETURN>> {
     const getInput = this.putExecutor(item, options);
     if (this.config.logStatements) {
       console.log(`PutItemInput: ${JSON.stringify(getInput.input, null, 2)}`);
@@ -60,13 +57,13 @@ export class DynamoPuter<T extends DynamoInfo> {
   }
 
   putExecutor<RETURN extends PutReturnValues = 'NONE'>(
-    item: TypeFromDefinition<T['definition']>,
-    options: PutItemOptions<T, RETURN> = {},
-  ): PutExecutor<T, RETURN> {
+    item: TableConfig['type'],
+    options: PutItemOptions<TableConfig['type'], RETURN> = {},
+  ): PutExecutor<TableConfig['type'], RETURN> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterPartsWithKey(this.info, attributeBuilder, options.condition);
+      filterParts(attributeBuilder, options.condition);
     const input: PutCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,
@@ -79,7 +76,7 @@ export class DynamoPuter<T extends DynamoInfo> {
     const client = this.config.client;
     return {
       input,
-      async execute(): Promise<PutItemReturn<T, RETURN>> {
+      async execute(): Promise<PutItemReturn<TableConfig['type'], RETURN>> {
         const result = await client.put(input);
         return {
           item: result.Attributes as any,

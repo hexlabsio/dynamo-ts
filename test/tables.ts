@@ -1,178 +1,112 @@
-import { defineTable } from '../src/types';
+import { TableDefinition } from '../src/table-builder/table-definition';
 
-export const simpleTableDefinition = defineTable(
-  {
-    identifier: 'string',
-    text: 'string',
-  },
-  'identifier',
-);
+export type SimpleTable = {
+  identifier: string,
+  sort: string,
+}
 
-export const simpleTableDefinition2 = defineTable(
-  {
-    identifier: 'string',
-    sort: 'string',
-    text: 'string',
-  },
-  'identifier',
-  'sort',
-);
+export type SimpleTable2 = SimpleTable & { text: string, }
+export type SimpleTable3 = { identifier: string, text: string, }
 
-export const simpleTableDefinitionBatch = defineTable(
-  {
-    identifier: 'string',
-    text: 'string',
-  },
-  'identifier',
-);
+export type ComplexTable2 = {
+  hash: string,
+  text: string,
+  obj?: { abc: string, def?: number },
+  arr?: { ghi?: number }[],
+  jkl?: boolean,
+  mno?: string | number,
+  pqr: "xxx" | "yyy" | "123 456",
+}
 
-export const simpleTableDefinitionBatch2 = defineTable(
-  {
-    identifier: 'string',
-    sort: 'string',
-    text: 'string',
-  },
-  'identifier',
-  'sort',
-);
+export type SetTable = {
+  identifier: string,
+  uniqueStrings: Set<string>,
+  uniqueNumbers: Set<number>,
+}
+
+export type BinaryTable = {
+  identifier: string,
+  bin?: Buffer,
+  binSet: Set<Buffer>
+}
+
+export type NestedTable = {
+  hash: string,
+  string: string,
+  stringOptional?: string,
+  boolean: boolean,
+  booleanOptional?: boolean,
+  number: number,
+  numberOptional?: number,
+  nestedObject: { name: string },
+  nestedObjectMultiple: { nestedObject: { name: string } },
+  nestedObjectMultipleOptional?: { nestedObject: { name: string } }
+  nestedObjectOptional?: { name: string },
+  nestedObjectChildOptional: { name?: string },
+  nestedObjectOptionalChildOptional?: { name?: string }
+  arrayString: string[],
+  arrayStringOptional?: string[],
+  arrayObject: { name: string }[],
+  arrayObjectOptional?: { name: string }[],
+  nestedArrayString: { items: string[] },
+  nestedArrayStringOptional?: { items: string[] },
+  nestedArrayObject: { items: { name: string }[] },
+  nestedArrayObjectOptional?: { items: { name: string }[] }
+  mapType: Record<string, any>,
+  listType: any[],
+}
+
+export type ComplexTable = {
+  hash: string,
+  text?: string,
+  obj?: { abc: string, def?: number },
+  arr?: { ghi?: number }[],
+  jkl?: number,
+}
+
+export type DeleteTable = {
+  hash: string,
+  text?: string,
+  obj?: { abc: string, def: number },
+  arr?: { ghi: string }[],
+}
+
+export type IndexTable = {
+  hash: string,
+  sort: string,
+  indexHash: string,
+}
+export const simpleTableDefinition = TableDefinition.ofType<SimpleTable>().withPartitionKey('identifier');
+export const simpleTableDefinition2 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
+export const simpleTableDefinitionBatch = TableDefinition.ofType<SimpleTable3>().withPartitionKey('identifier');
+export const simpleTableDefinitionBatch2 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
+export const simpleTableDefinition3 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
 
 
-export const simpleTableDefinition3 = defineTable(
-  {
-    identifier: 'string',
-    sort: 'string',
-    text: 'string',
-  },
-  'identifier',
-  'sort',
-);
+export const complexTableDefinitionQuery = TableDefinition.ofType<ComplexTable2>()
+  .withPartitionKey('hash')
+  .withGlobalSecondaryIndex('abc', 'text').withNoSortKey()
 
-export const complexTableDefinitionQuery = defineTable(
-  {
-    hash: 'string',
-    text: 'string?',
-    obj: { optional: true, object: { abc: 'string', def: 'number?' } },
-    arr: { optional: true, array: { object: { ghi: 'number?' } } },
-    jkl: 'boolean?',
-    mno: 'string | number | undefined',
-    pqr: '"xxx" | "yyy" | "123 456"',
-  },
-  'hash',
-  null,
-  { abc: { partitionKey: 'text' } },
-);
 
-export const sortKeyAsIndexPartitionKeyTableDefinition = defineTable(
-  {
-    hash: 'string',
-    text: 'string?',
-    obj: { optional: true, object: { abc: 'string', def: 'number?' } },
-    arr: { optional: true, array: { object: { ghi: 'number?' } } },
-    jkl: 'boolean?',
-    mno: 'string | number | undefined',
-    pqr: '"xxx" | "yyy" | "123 456"',
-  },
-  'hash',
-  'text',
-  { abc: { partitionKey: 'text' } }, // set partitionKey same as global sortKey
-);
+export const sortKeyAsIndexPartitionKeyTableDefinition = TableDefinition.ofType<ComplexTable2>()
+  .withPartitionKey('hash')
+  .withSortKey('text')
+  .withGlobalSecondaryIndex('abc', 'text').withNoSortKey()
 
-export const setsTableDefinition = defineTable(
-  {
-    identifier: 'string',
-    uniqueStrings: 'string set',
-    uniqueNumbers: 'number set',
-  },
-  'identifier',
-);
 
-export const binaryTableDefinition = defineTable(
-  {
-    identifier: 'string',
-    bin: 'binary?',
-    binSet: 'binary set?',
-  },
-  'identifier',
-);
+export const setsTableDefinition = TableDefinition.ofType<SetTable>().withPartitionKey('identifier');
 
-export const complexTableDefinitionFilter = defineTable(
-  {
-    hash: 'string',
-    string: 'string',
-    stringOptional: 'string?',
-    boolean: 'boolean',
-    booleanOptional: 'boolean?',
-    number: 'number',
-    numberOptional: 'number?',
-    nestedObject: { object: { name: 'string' } },
-    nestedObjectMultiple: {
-      object: { nestedObject: { object: { name: 'string' } } },
-    },
-    nestedObjectMultipleOptional: {
-      optional: true,
-      object: { nestedObject: { object: { name: 'string' } } },
-    },
-    nestedObjectOptional: { optional: true, object: { name: 'string' } },
-    nestedObjectChildOptional: { object: { name: 'string?' } },
-    nestedObjectOptionalChildOptional: {
-      optional: true,
-      object: { name: 'string?' },
-    },
-    arrayString: { array: 'string' },
-    arrayStringOptional: { optional: true, array: 'string' },
-    arrayObject: { array: { object: { name: 'string' } } },
-    arrayObjectOptional: {
-      optional: true,
-      array: { object: { name: 'string' } },
-    },
-    nestedArrayString: { object: { items: { array: 'string' } } },
-    nestedArrayStringOptional: {
-      optional: true,
-      object: { items: { array: 'string' } },
-    },
-    nestedArrayObject: {
-      object: { items: { array: { object: { name: 'string' } } } },
-    },
-    nestedArrayObjectOptional: {
-      optional: true,
-      object: { items: { array: { object: { name: 'string' } } } },
-    },
-    mapType: 'map',
-    listType: 'list',
-  },
-  'hash',
-);
+export const binaryTableDefinition = TableDefinition.ofType<BinaryTable>().withPartitionKey('identifier');
 
-export const complexTableDefinition = defineTable(
-  {
-    hash: 'string',
-    text: 'string?',
-    obj: { optional: true, object: { abc: 'string', def: 'number?' } },
-    arr: { optional: true, array: { object: { ghi: 'number?' } } },
-    jkl: 'number?',
-  },
-  'hash',
-);
+export const complexTableDefinitionFilter = TableDefinition.ofType<NestedTable>().withPartitionKey('hash');
 
-export const deleteTableDefinition = defineTable(
-  {
-    hash: 'string',
-    text: 'string?',
-    obj: { optional: true, object: { abc: 'string', def: 'number' } },
-    arr: { optional: true, array: { object: { ghi: 'string' } } },
-  },
-  'hash',
-);
+export const complexTableDefinition =
+  TableDefinition
+    .ofType<ComplexTable>()
+    .withPartitionKey('hash')
 
-export const indexTableDefinition = defineTable(
-  {
-    hash: 'string',
-    sort: 'string',
-    indexHash: 'string',
-  },
-  'hash',
-  'sort',
-  {
-    index: { partitionKey: 'indexHash', sortKey: 'sort' },
-  },
-);
+export const deleteTableDefinition = TableDefinition.ofType<DeleteTable>().withPartitionKey('hash');
+
+export const indexTableDefinition = TableDefinition.ofType<IndexTable>()
+  .withPartitionKey('hash').withSortKey('sort')
+  .withGlobalSecondaryIndex('index', 'indexHash').withSortKey('sort')

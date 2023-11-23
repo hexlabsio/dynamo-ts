@@ -1,7 +1,6 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { DynamoGetter } from '../src/dynamo-getter';
-import { DynamoTypeFrom, TableClient } from '../src';
+import { DynamoGetter } from '../src';
 import {
   binaryTableDefinition,
   complexTableDefinition,
@@ -15,34 +14,30 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-type TableType = DynamoTypeFrom<typeof complexTableDefinition>;
-type SetTableType = DynamoTypeFrom<typeof setsTableDefinition>;
-type BinaryTableType = DynamoTypeFrom<typeof binaryTableDefinition>;
-
-const testTable = new DynamoGetter(complexTableDefinition, {
+const testTable = new DynamoGetter<typeof complexTableDefinition>({
   tableName: 'complexTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-const setTable = new TableClient(setsTableDefinition, {
+const setTable = new DynamoGetter<typeof setsTableDefinition>({
   tableName: 'setsTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-const binaryTable = new TableClient(binaryTableDefinition, {
+const binaryTable = new DynamoGetter<typeof binaryTableDefinition>({
   tableName: 'binaryTableDefinition',
   client: dynamoClient,
   logStatements: true,
 });
 
-const preInserts: TableType[] = [
+const preInserts: (typeof complexTableDefinition.type)[] = [
   { hash: 'get-item-test', text: 'some text', obj: { abc: 'xyz', def: 2 } },
   { hash: 'get-item-test-2', text: 'some other text' },
 ];
 
-const setPreInserts: SetTableType[] = [
+const setPreInserts: (typeof setsTableDefinition.type)[] = [
   {
     identifier: 'get-set-item-test',
     uniqueNumbers: new Set([1, 1, 2, 3]),
@@ -50,7 +45,7 @@ const setPreInserts: SetTableType[] = [
   },
 ];
 
-const binaryPreInserts: BinaryTableType[] = [
+const binaryPreInserts: any[] = [
   { identifier: 'get-bin-item-test', bin: Buffer.from('hello world') },
 ];
 
@@ -124,10 +119,8 @@ describe('Dynamo Getter', () => {
   describe('Binary', () => {
     it('should get binary items as buffers', async () => {
       const result = await binaryTable.get({ identifier: 'get-bin-item-test' });
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       expect(
-        Buffer.from(result.item!.bin!, 'base64').toString('utf-8'),
+        Buffer.from(result.item!.bin! as any, 'base64').toString('utf-8'),
       ).toEqual('hello world');
     });
   });

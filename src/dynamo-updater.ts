@@ -1,15 +1,11 @@
 import { UpdateCommandInput, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { filterPartsWithKey } from './comparison';
-import { DynamoFilter } from './filter';
-import { DynamoNestedKV } from './type-mapping';
+import { filterParts } from './comparison';
 import { AttributeBuilder } from './attribute-builder';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
+import { TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys } from './types/camel-case';
+import { DynamoConfig } from './types/dynamo-config';
+import { DynamoFilter } from './types/filter';
+import { JsonPath, ValueAtJsonPath } from './types/json-path';
 
 export type Increment<T, K extends keyof T> = {
   key: K;
@@ -17,8 +13,8 @@ export type Increment<T, K extends keyof T> = {
 };
 
 export type UpdateItemOptions<
-  T extends DynamoInfo,
-  KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
+  TableConfig extends TableDefinition,
+  KEY extends JsonPath<TableConfig['type']>,
   RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
 > = Partial<
   CamelCaseKeys<
@@ -28,16 +24,12 @@ export type UpdateItemOptions<
     >
   >
 > & {
-  key: PickKeys<T>;
-  updates: DynamoNestedKV<
-    Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
-  >;
-  condition?: DynamoFilter<T>;
+  key: TableConfig['keys'];
+  updates: { [K in JsonPath<TableConfig['withoutKeys']>]?: ValueAtJsonPath<K, TableConfig['withoutKeys']> };
+  condition?: DynamoFilter<TableConfig['type']>;
   increments?: Array<
     Increment<
-      DynamoNestedKV<
-        Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
-      >,
+      TableConfig['type'],
       KEY
     >
   >;
@@ -45,56 +37,44 @@ export type UpdateItemOptions<
 };
 
 export type UpdateReturnType<
-  T extends DynamoInfo,
+  TableType,
   RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null,
 > = RETURN_ITEMS extends null
   ? undefined
   : RETURN_ITEMS extends 'NONE'
   ? undefined
   : RETURN_ITEMS extends 'UPDATED_OLD'
-  ? Partial<TypeFromDefinition<T['definition']>>
+  ? Partial<TableType>
   : RETURN_ITEMS extends 'UPDATED_NEW'
-  ? Partial<TypeFromDefinition<T['definition']>>
-  : TypeFromDefinition<T['definition']>;
+  ? Partial<TableType>
+  : TableType;
 
 export type UpdateResult<
-  T extends DynamoInfo,
+  TableType,
   RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null,
 > = {
-  item: UpdateReturnType<T, RETURN_ITEMS>;
+  item: UpdateReturnType<TableType, RETURN_ITEMS>;
   consumedCapacity?: UpdateCommandOutput['ConsumedCapacity'];
   itemCollectionMetrics?: UpdateCommandOutput['ItemCollectionMetrics'];
 };
 
 export interface UpdateExecutor<
-  T extends DynamoInfo,
+  TableType,
   RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
 > {
   input: UpdateCommandInput;
-  execute(): Promise<UpdateResult<T, RETURN_ITEMS>>;
+  execute(): Promise<UpdateResult<TableType, RETURN_ITEMS>>;
 }
 
-export class DynamoUpdater<T extends DynamoInfo> {
+export class DynamoUpdater<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: T,
-    private readonly config: DynamoConfig,
+    private readonly clientConfig: DynamoConfig,
   ) {}
 
-  private updateExpression<
-    KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
-  >(
+  private updateExpression(
     attributeBuilder: AttributeBuilder,
-    properties: DynamoNestedKV<
-      Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
-    >,
-    increment?: Array<
-      Increment<
-        DynamoNestedKV<
-          Omit<TypeFromDefinition<T['definition']>, keyof PickKeys<T>>
-        >,
-        KEY
-      >
-    >,
+    properties: any,
+    increment?: Array<Increment<any, any>>,
   ): string {
     const props = properties as any;
     const propKeys = Object.keys(properties);
@@ -135,15 +115,15 @@ export class DynamoUpdater<T extends DynamoInfo> {
   }
 
   updateExecutor<
-    KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
+    KEY extends JsonPath<TableConfig['type']>,
     RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
-    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
-  ): UpdateExecutor<T, RETURN_ITEMS> {
+    options: UpdateItemOptions<TableConfig['type'], KEY, RETURN_ITEMS>,
+  ): UpdateExecutor<TableConfig['type'], RETURN_ITEMS> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
       options.condition &&
-      filterPartsWithKey(this.info, attributeBuilder, options.condition);
+      filterParts(attributeBuilder, options.condition);
     const {
       key,
       updates,
@@ -153,7 +133,7 @@ export class DynamoUpdater<T extends DynamoInfo> {
       returnConsumedCapacity,
     } = options;
     const updateInput: UpdateCommandInput = {
-      TableName: this.config.tableName,
+      TableName: this.clientConfig.tableName,
       ConditionExpression: condition,
       Key: key,
       UpdateExpression: this.updateExpression(
@@ -166,10 +146,10 @@ export class DynamoUpdater<T extends DynamoInfo> {
       ReturnConsumedCapacity: returnConsumedCapacity,
       ...attributeBuilder.asInput(),
     };
-    const config = this.config;
+    const config = this.clientConfig;
     return {
       input: updateInput,
-      async execute(): Promise<UpdateResult<T, RETURN_ITEMS>> {
+      async execute(): Promise<UpdateResult<TableConfig['type'], RETURN_ITEMS>> {
         const result = await config.client.update(updateInput);
         return {
           item: result.Attributes as any,
@@ -181,13 +161,13 @@ export class DynamoUpdater<T extends DynamoInfo> {
   }
 
   update<
-    KEY extends keyof DynamoNestedKV<TypeFromDefinition<T['definition']>>,
+    KEY extends JsonPath<TableConfig['type']>,
     RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
-    options: UpdateItemOptions<T, KEY, RETURN_ITEMS>,
-  ): Promise<UpdateResult<T, RETURN_ITEMS>> {
+    options: UpdateItemOptions<TableConfig, KEY, RETURN_ITEMS>,
+  ): Promise<UpdateResult<TableConfig['type'], RETURN_ITEMS>> {
     const executor = this.updateExecutor(options);
-    if (this.config.logStatements) {
+    if (this.clientConfig.logStatements) {
       console.log(
         `UpdateItemInput: ${JSON.stringify(executor.input, null, 2)}`,
       );

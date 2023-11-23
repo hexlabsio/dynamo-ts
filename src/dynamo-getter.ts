@@ -2,74 +2,68 @@ import { ConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models/mod
 import { GetCommandInput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder';
 import { Projection, ProjectionHandler } from './projector';
-import {
-  CamelCaseKeys,
-  DynamoConfig,
-  DynamoInfo,
-  PickKeys,
-  TypeFromDefinition,
-} from './types';
+import { TableDefinition } from './table-builder/table-definition';
+import { CamelCaseKeys, DynamoConfig } from './types';
 
-export type GetItemOptions<INFO extends DynamoInfo, PROJECTION> = Partial<
+
+export type GetItemOptions<TableType, PROJECTION> = Partial<
   CamelCaseKeys<
     Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>
   >
 > & {
-  projection?: Projection<INFO, PROJECTION>;
+  projection?: Projection<TableType, PROJECTION>;
 };
-export type GetItemReturn<INFO extends DynamoInfo, PROJECTION> = {
+export type GetItemReturn<TableType, PROJECTION> = {
   item:
     | (PROJECTION extends null
-        ? TypeFromDefinition<INFO['definition']>
+        ? TableType
         : PROJECTION)
     | undefined;
   consumedCapacity?: ConsumedCapacity;
 };
 
-export interface GetExecutor<T extends DynamoInfo, PROJECTION> {
+export interface GetExecutor<TableType, PROJECTION> {
   input: GetCommandInput;
-  execute(): Promise<GetItemReturn<T, PROJECTION>>;
+  execute(): Promise<GetItemReturn<TableType, PROJECTION>>;
 }
 
-export class DynamoGetter<T extends DynamoInfo> {
+export class DynamoGetter<TableConfig extends TableDefinition> {
   constructor(
-    private readonly info: T,
-    private readonly config: DynamoConfig,
+    private readonly clientConfig: DynamoConfig,
   ) {}
 
   async get<PROJECTION = null>(
-    keys: PickKeys<T>,
-    options: GetItemOptions<T, PROJECTION> = {},
-  ): Promise<GetItemReturn<T, PROJECTION>> {
+    keys: TableConfig['keys'],
+    options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
+  ): Promise<GetItemReturn<TableConfig['type'], PROJECTION>> {
     const getInput = this.getExecutor(keys, options);
-    if (this.config.logStatements) {
+    if (this.clientConfig.logStatements) {
       console.log(`GetItemInput: ${JSON.stringify(getInput.input, null, 2)}`);
     }
     return await getInput.execute();
   }
 
   getExecutor<PROJECTION = null>(
-    keys: PickKeys<T>,
-    options: GetItemOptions<T, PROJECTION>,
-  ): GetExecutor<T, PROJECTION> {
+    keys: TableConfig['keys'],
+    options: GetItemOptions<TableConfig['type'], PROJECTION>,
+  ): GetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = ProjectionHandler.projectionExpressionFor(
+    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
       attributeBuilder,
-      this.info,
       options.projection,
     );
     const input = {
-      TableName: this.config.tableName,
+      TableName: this.clientConfig.tableName,
       Key: keys,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ConsistentRead: options.consistentRead,
-      ProjectionExpression: expression,
+      ...(expression ? { ProjectionExpression: expression }: {}),
       ...attributeBuilder.asInput(),
     };
-    const client = this.config.client;
+    const client = this.clientConfig.client;
     return {
       input,
-      async execute(): Promise<GetItemReturn<T, PROJECTION>> {
+      async execute(): Promise<GetItemReturn<TableConfig['type'], PROJECTION>> {
         const result = await client.get(input);
         return {
           item: result.Item as any,

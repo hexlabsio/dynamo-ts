@@ -49,8 +49,8 @@ export class AttributeBuilder {
       .join('.');
   }
 
-  nameFor(name: string): string {
-    return `#${this.names[name]}`;
+  nameFor(name: string | symbol): string {
+    return `#${this.names[name.toString()]}`;
   }
 
   asInput(

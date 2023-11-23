@@ -1,12 +1,12 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { CompareWrapperOperator, Operation, TableClient } from '../src';
-import { DynamoQuerier, QuerierReturn } from '../src/dynamo-querier';
-import { DynamoTypeFrom } from '../src/types';
+import { DynamoQuerier, QuerierReturn } from '../src';
 import {
-  complexTableDefinitionQuery,
-  indexTableDefinition,
-  simpleTableDefinition2, simpleTableDefinitionBatch,
+  ComplexTable2,
+  complexTableDefinitionQuery, IndexTable,
+  indexTableDefinition, SimpleTable2,
+  simpleTableDefinition2,
   sortKeyAsIndexPartitionKeyTableDefinition,
 } from './tables';
 
@@ -16,10 +16,6 @@ const dynamo = new DynamoDB({
   credentials: { accessKeyId: 'x', secretAccessKey: 'x' },
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
-
-type TableType = DynamoTypeFrom<typeof complexTableDefinitionQuery>;
-type TableType2 = DynamoTypeFrom<typeof simpleTableDefinition2>;
-type TableType3 = DynamoTypeFrom<typeof indexTableDefinition>;
 
 const TableName = 'complexTableDefinitionQuery';
 const TableName2 = 'simpleTableDefinition2';
@@ -35,12 +31,6 @@ const testTable = new DynamoQuerier(complexTableDefinitionQuery, {
 
 const testTable2 = new DynamoQuerier(simpleTableDefinition2, {
   tableName: TableName2,
-  client: dynamoClient,
-  logStatements: true,
-});
-
-const testTable3 = new DynamoQuerier(simpleTableDefinitionBatch, {
-  tableName: 'simpleTableDefinitionBatch',
   client: dynamoClient,
   logStatements: true,
 });
@@ -69,7 +59,7 @@ const sortKeyAsIndexPartitionKeyTableClient = new TableClient(
 const identifier = 'query-items-test';
 const indexIdentifier = 'query-items-index-test';
 
-const preInserts: TableType[] = [
+const preInserts: ComplexTable2[] = [
   {
     hash: 'query-items-test',
     text: 'some text',
@@ -103,7 +93,7 @@ const preInserts: TableType[] = [
   },
 ];
 
-const preInserts2: TableType2[] = [
+const preInserts2: SimpleTable2[] = [
   { identifier, sort: '1', text: 'some text' },
   { identifier, sort: '2', text: 'some text 2' },
   { identifier, sort: '3', text: 'some text 3' },
@@ -113,7 +103,7 @@ const preInserts2: TableType2[] = [
   { identifier: 'query-items-test2', sort: '67', text: 'some text 7' },
 ];
 
-const preInserts3: TableType3[] = [...new Array(10).keys()].map((index) => ({
+const preInserts3: IndexTable[] = [...new Array(10).keys()].map((index) => ({
   hash: `${index + 1}`,
   sort: `${index + 1}`,
   indexHash: `1`,
@@ -146,7 +136,7 @@ describe('Dynamo Querier', () => {
 
   describe('Key conditions', () => {
     it('should find single item by partition', async () => {
-      const result = await testTable.query({ hash: 'query-items-test' });
+      const result = await testTable.query({ hash: 'query-items-test',  });
       expect(result.member).toEqual([preInserts[0]]);
     });
 
@@ -265,9 +255,9 @@ describe('Dynamo Querier', () => {
   describe('Filter', () => {
     async function filteredBy(
       filter: (
-        text: Operation<typeof simpleTableDefinition2, string>,
-      ) => CompareWrapperOperator<typeof simpleTableDefinition2>,
-    ): Promise<QuerierReturn<typeof simpleTableDefinition2>> {
+        text: Operation<SimpleTable2, string>,
+      ) => CompareWrapperOperator<SimpleTable2>,
+    ): Promise<QuerierReturn<SimpleTable2>> {
       return await testTable2.query(
         { identifier },
         { filter: (compare) => filter(compare().text) },
