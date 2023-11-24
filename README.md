@@ -1,14 +1,31 @@
 # @hexlabs/dynamo-ts
 
-> Note: Version 5.x is now an ES Module. If you need CommonJS please use version 4.x
+![Version](https://img.shields.io/npm/v/@hexlabs/dynamo-ts?label=%40hexlabs%2Fdynamo-ts)
 
-A library to make interacting with DynamoDb simpler with a typed interface.
+> Note: Versions 5.x + are now ES Modules. If you need CommonJS the latest version using it is 4.x
+
+DynamoDB + TypeScript made simple
 
 ![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)
 ![ESLint](https://img.shields.io/badge/ESLint-8080f2?style=flat-square&logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-ff69b4?style=flat-square&logo=prettier&logoColor=white)
 
-![Version](https://img.shields.io/npm/v/@hexlabs/dynamo-ts?label=%40hexlabs%2Fdynamo-ts)
+
+<!-- AUTO-GENERATED-CONTENT:START (TOC) -->
+- [Installation](#installation)
+- [Get Started](#get-started)
+- [Examples](#examples)
+- [Scan Table](#scan-table)
+- [Get Item](#get-item)
+- [Put Item](#put-item)
+- [Delete Item](#delete-item)
+- [Query Items](#query-items)
+- [Update Items](#update-items)
+- [Multi-Table Batch Gets (With Projections)](#multi-table-batch-gets-with-projections)
+- [Multi-Table Batch Writes](#multi-table-batch-writes)
+- [Testing](#testing)
+- [Contributors](#contributors)
+<!-- AUTO-GENERATED-CONTENT:END -->
 
 
 ## Installation
@@ -22,27 +39,41 @@ $ npm i -S @hexlabs/dynamo-ts
 
 Create a definition for your table
 
-```typescript
-export const simpleTableDefinition = defineTable(
-  {
-    identifier: 'string', // Notice the quotes around the type
-    text: 'string',
-  },
-  'identifier', // Partition Key (This must be one of the keys defined above)
-);
+ > This can be stored and used for type information and generation in CloudFormation for example.
+
+<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/define-table.ts&lines=3-100) -->
+<!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
+```ts
+type MyTableType = { identifier: string; sort: string; abc: { xyz: number } };
+
+export const myTableDefinition = TableDefinition.ofType<MyTableType>()
+  .withPartitionKey('identifier') // <- type checked to be a key in your type
+  .withSortKey('sort') // <- optional, aso type checked
+  .withGlobalSecondaryIndex('my-index', 'sort').withNoSortKey() // Global or Local index
 ```
+<!-- AUTO-GENERATED-CONTENT:END -->
 
-Build a client for the table
+Build a client from the definition above
 
-```typescript
-const myTable = TableClient.build(simpleTableDefinition, {
-  tableName: 'tableName',
-  client: documentClient,
-  logStatements: true // Logs all interactions with the table
-});
+<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/create-client.ts&lines=2-100) -->
+<!-- The below code snippet is automatically added from ./test/examples/create-client.ts -->
+```ts
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { myTableDefinition } from './define-table';
+
+const dynamoConfig: DynamoConfig = {
+  client: DynamoDBDocument.from(new DynamoDB({})),
+  tableName: 'my-table',
+  logStatements: true, // Logs all interactions with Dynamo
+}
+
+const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
 ```
+<!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
+<!-- AUTO-GENERATED-CONTENT:END -->
 
-Start interacting with the database with types
+This client can now be used to interact with DynamoDb
 
 ```typescript
 // PUT ITEM

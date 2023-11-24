@@ -48,6 +48,7 @@ describe('Dynamo Batch Getter', () => {
   }, 20000);
 
   describe('Single Table', () => {
+
     it('should batch get single table', async () => {
       const executor = testTable.batchGet([
         { identifier: '0' },

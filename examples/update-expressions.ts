@@ -1,7 +1,5 @@
 import {tableClient} from "./query-filter-expressions";
-import {DynamoEntry} from "../src";
-import {exampleCarTable} from "./example-table";
-type Car = DynamoEntry<typeof exampleCarTable.definition>;
+import { Car } from "./example-table";
 
 export async function updateModelS(): Promise<void> {
    await tableClient.update({key: {identifier: '1234', make: 'Tesla'}, updates: {year: 2022, colour: undefined}});

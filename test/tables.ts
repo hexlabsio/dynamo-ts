@@ -110,3 +110,6 @@ export const deleteTableDefinition = TableDefinition.ofType<DeleteTable>().withP
 export const indexTableDefinition = TableDefinition.ofType<IndexTable>()
   .withPartitionKey('hash').withSortKey('sort')
   .withGlobalSecondaryIndex('index', 'indexHash').withSortKey('sort')
+
+
+export const singleTableDesignDefinition = TableDefinition.ofType<{partition: string, sort: string}>().withPartitionKey('partition').withSortKey('sort')

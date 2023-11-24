@@ -1,10 +1,8 @@
 import { TableClient } from "../src";
-import { DynamoTypeFrom } from '../src';
-import {exampleCarTable, exampleClient} from "./example-table";
+import { Car, exampleCarTable, exampleClient } from "./example-table";
 
 export const tableClient = TableClient.build(exampleCarTable, {client: exampleClient, logStatements: true, tableName: 'exampleCarTableDefinition'});
 
-type Car = DynamoTypeFrom<typeof exampleCarTable>;
 
 export async function queryTeslas(): Promise<Car[]> {
     const result = await tableClient.query({make: 'Tesla'});
