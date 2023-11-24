@@ -415,6 +415,7 @@ describe('Dynamo Nested Filter', () => {
         });
         expect(result.member).toEqual([itemWithOptionals]);
       });
+
     });
   });
 });

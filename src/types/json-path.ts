@@ -50,7 +50,7 @@ export type ValueAtJsonPath<P extends string, T> =
         ? ValueAtJsonPath<TAIL, Required<T>[A]>
         : never
       : P extends keyof T
-        ? Required<T>[P] | null
+        ? Required<T>[P]
         : never
     : never;
 
