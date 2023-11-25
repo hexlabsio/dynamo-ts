@@ -1,3 +1,5 @@
+import { LocalSecondaryIndexProperties, TableProperties } from '../cloudformation';
+
 export type SimpleDynamoType =
   | 'string'
   | 'string set'
@@ -68,6 +70,75 @@ export class TableDefinition<T = any, KEYS extends DynamoTableKeyConfig<T> = any
 
   static ofType<T>(): TableDefinitionBuilder<T> {
     return new TableDefinitionBuilder();
+  }
+
+  private indexKeysNames(): string[] {
+    return Object.keys(this.indexes ?? {})
+      .flatMap((key) => [
+        this.indexes[key].partitionKey as string,
+        ...(this.indexes[key].sortKey ? [this.indexes[key].sortKey! as string] : []),
+      ]);
+  }
+  private allKeyNames(): string[] {
+    return [
+      ...new Set([
+        this.keyNames.partitionKey as string,
+        ...(this.keyNames.sortKey ? [this.keyNames.sortKey! as string] : []),
+        ...this.indexKeysNames(),
+      ]),
+    ];
+  }
+
+  private indexDefinition(name: string, provisionedThroughput: TableProperties['ProvisionedThroughput']): LocalSecondaryIndexProperties {
+    const index = this.indexes[name];
+      return {
+        IndexName: name,
+        ...(index.global && provisionedThroughput ? {ProvisionedThroughput: provisionedThroughput} : {}),
+        KeySchema: [
+          {
+            KeyType: 'HASH',
+            AttributeName: index.partitionKey as string,
+          },
+          ...(index.sortKey
+            ? [
+              {
+                KeyType: 'RANGE',
+                AttributeName: index.sortKey as string,
+              },
+            ]
+            : []),
+        ],
+        Projection: {ProjectionType: 'ALL'},
+      }
+  }
+
+  asCloudFormation(name: string, properties: Omit<TableProperties, 'KeySchema' | 'AttributeDefinitions' | 'GlobalSecondaryIndexes' | 'LocalSecondaryIndexes'> = {}): TableProperties {
+    const keys = this.allKeyNames();
+    const indexNames = Object.keys(this.indexes);
+    const globalIndexes = indexNames.filter(it => this.indexes[it].global);
+    const localIndexes = indexNames.filter(it => !this.indexes[it].global);
+    const globalConfig = globalIndexes.length ? {
+      GlobalSecondaryIndexes: globalIndexes.map(name => this.indexDefinition(name, properties.ProvisionedThroughput))
+    } : {};
+    const localConfig = globalIndexes.length ? {
+      LocalSecondaryIndexes: localIndexes.map(name => this.indexDefinition(name, properties.ProvisionedThroughput))
+    } : {};
+    return {
+      ...properties,
+      ...(name ? { TableName: name } : {}),
+      KeySchema: [
+        { KeyType: 'HASH', AttributeName: this.keyNames.partitionKey as string },
+        ...(this.keyNames.sortKey
+          ? [{ KeyType: 'RANGE', AttributeName: this.keyNames.sortKey as string }]
+          : []),
+      ],
+      AttributeDefinitions: keys.map((key) => ({
+        AttributeName: key as string,
+        AttributeType: 'S',
+      })),
+      ...localConfig,
+      ...globalConfig,
+    };
   }
 }
 
