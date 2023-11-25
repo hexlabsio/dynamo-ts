@@ -120,7 +120,7 @@ export class TableDefinition<T = any, KEYS extends DynamoTableKeyConfig<T> = any
     const globalConfig = globalIndexes.length ? {
       GlobalSecondaryIndexes: globalIndexes.map(name => this.indexDefinition(name, properties.ProvisionedThroughput))
     } : {};
-    const localConfig = globalIndexes.length ? {
+    const localConfig = localIndexes.length ? {
       LocalSecondaryIndexes: localIndexes.map(name => this.indexDefinition(name, properties.ProvisionedThroughput))
     } : {};
     return {
