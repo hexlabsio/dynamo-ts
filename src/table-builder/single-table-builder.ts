@@ -16,7 +16,7 @@ type SortKeys<KEYS extends (string | number | symbol)[], O extends (string | num
       ? { [K in A]: (((key: string) => SortKeys<TAIL, O>)) } & { [K in O[number]]?: string }
       : never;
 
-type TablePartClients<T> =
+export type TablePartClients<T> =
   T extends [TablePartInfo<infer A, infer B, infer C, infer P>]
   ? { [K in C]: TablePartClient<A,B, TablePartInfo<A,B, C, P>> }
   : T extends [TablePartInfo<infer A, infer B, infer C, infer P>, ...infer TAIL]

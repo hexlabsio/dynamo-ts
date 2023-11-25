@@ -66,7 +66,7 @@ export interface LocalSecondaryIndexProperties {
     ReadCapacityUnits: number;
   }
   TableName?: string;
-  AttributeDefinitions?: {
+  AttributeDefinitions: {
     AttributeType: string;
     AttributeName: string;
   }[]
