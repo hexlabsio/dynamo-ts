@@ -8,3 +8,6 @@ export * from './dynamo-puter';
 export * from './dynamo-querier';
 export * from './dynamo-scanner';
 export * from './dynamo-updater';
+export * from './table-builder/single-table-builder';
+export * from './table-builder/table-definition';
+export * from './cloudformation';
