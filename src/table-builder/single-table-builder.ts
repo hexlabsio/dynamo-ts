@@ -145,9 +145,9 @@ export class TablePartInfo<TableType, T extends TablePart<TableType>, NAME exten
   }
 
   childPart<JoinTableType extends Pick<TableType, T['partitions'][number] | T['sorts'][number]>>(): {
-    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts'], K], sorts: [] }, K>
+    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts']], sorts: [K] }, K>
   } {
-    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts, key], sorts: []} as any, null, key) } as any;
+    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts], sorts: [key]} as any, null, key) } as any;
   }
 
   static from<TableType>(): { withKeys<K extends ValidKeys<TableType>, K2 extends Exclude<ValidKeys<TableType>, K>>(partitionKey: K, sortKey: K2): TablePartInfo<TableType, { partitions: [K], sorts: [K2], parents: [] }, K2> } {
