@@ -42,7 +42,7 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
   constructor(
     private readonly part: T,
     private readonly parent: Info,
-    private readonly prefix: string = '',
+    private readonly prefix: string,
     private readonly tableClient: TableClient<TableDefinition<{ partition: string, sort: string}, {partitionKey: 'partition', sortKey: 'sort'}>>
   ) {}
   private proxySetter(set: (name: string, value: string) => void) {
@@ -58,7 +58,7 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
   }
 
   getParentChain(info: TablePartInfo<any,any, any, any>= this.parent): TablePartInfo<any,any, any, any>[] {
-    if(info.parents) return [info.parents, info];
+    if(info.parents) return [...this.getParentChain(info.parents), info];
     return [info];
   }
 
@@ -69,8 +69,7 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
     }
     const name = chain[0];
     const results = items.filter(it => it.sort.startsWith(`#${name.toUpperCase()}`) && search(it));
-    const member = results.map(({partition, sort, ...item}) => ({ item, member: this.intoParentage(items, chain.slice(1), o => {return search(o) && o[name] === item[name]} )}))
-    return { member }
+    return results.map(({partition, sort, ...item}) => ({ item, member: this.intoParentage(items, chain.slice(1), o => {return search(o) && o[name] === item[name]} )}))
   }
 
   async query<PROJECTION = null>(
@@ -95,8 +94,8 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
   ): Promise<QuerierReturn<ParentTypes<ParentType<Info>>, PROJECTION>> {
     const partitionString = this.part.partitions.reduce((prev, next) => `${prev}#${next.toString().toUpperCase()}$${partition[next]}`, '');
     const result = await this.tableClient.query({partition: partitionString}, options as any);
-    const chain = this.getParentChain().map(it => it.part.sorts[it.part.sorts.length - 1]);
-    const {member} = this.intoParentage(result.member, chain);
+    const chain = this.getParentChain().map(it => it.prefix);
+    const member = this.intoParentage(result.member, chain);
     return {...result, member } as any;
   }
 
@@ -146,12 +145,12 @@ export class TablePartInfo<TableType, T extends TablePart<TableType>, NAME exten
   }
 
   childPart<JoinTableType extends Pick<TableType, T['partitions'][number] | T['sorts'][number]>>(): {
-    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts'], K], sorts: [] }, K, null>
+    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts'], K], sorts: [] }, K>
   } {
-    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts, key], sorts: []} as any, this, key) } as any;
+    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts, key], sorts: []} as any, null, key) } as any;
   }
 
-  static from<TableType>(): { withKeys<K extends ValidKeys<TableType>, K2 extends Exclude<ValidKeys<TableType>, K>>(partitionKey: K, sortKey: K2): TablePartInfo<TableType, { partitions: [K], sorts: [K2] }, K2> } {
+  static from<TableType>(): { withKeys<K extends ValidKeys<TableType>, K2 extends Exclude<ValidKeys<TableType>, K>>(partitionKey: K, sortKey: K2): TablePartInfo<TableType, { partitions: [K], sorts: [K2], parents: [] }, K2> } {
     return { withKeys: (partitionKey: string, sortKey: string) => new TablePartInfo({partitions: [partitionKey], sorts: [sortKey]} as any, null, sortKey) } as any;
   }
 }
