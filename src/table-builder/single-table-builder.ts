@@ -1,3 +1,4 @@
+import { GetItemOptions, GetItemReturn } from '../dynamo-getter';
 import { PutItemOptions, PutItemReturn, PutReturnValues } from '../dynamo-puter';
 import { QuerierInput, QuerierReturn } from '../dynamo-querier';
 import { TableClient } from '../table-client';
@@ -36,6 +37,7 @@ export type ParentType<P extends TablePartInfo<any, any, any, any> | null, Depth
 
 export type CombinedTypes<P extends TablePartInfo<any, any, any, any> | null, Depth extends 0[] = []> = Depth['length'] extends 5 ? {} :
   P extends TablePartInfo<infer A, any, any, infer PP> ? (PP extends null ? A : A & CombinedTypes<PP, [...Depth, 0]>) : {};
+
 export class TablePartClient<TableType, T extends TablePart<TableType>, Info extends TablePartInfo<any, any, any, any>> {
   constructor(
     private readonly part: T,
@@ -56,7 +58,7 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
   }
 
   getParentChain(info: TablePartInfo<any,any, any, any>= this.parent): TablePartInfo<any,any, any, any>[] {
-    if(info.parents) return [...this.getParentChain(info.parents), info];
+    if(info.parents) return [info.parents, info];
     return [info];
   }
 
@@ -107,11 +109,24 @@ export class TablePartClient<TableType, T extends TablePart<TableType>, Info ext
     return await this.tableClient.put({...item, partition, sort}, options as any) as any;
   }
 
+  async get<PROJECTION = null>(item: { [K in T['partitions'][number] | T['sorts'][number]]: string }, options: GetItemOptions<TableType, PROJECTION> = {}): Promise<GetItemReturn<TableType, PROJECTION>> {
+    const partition = this.part.partitions.reduce((prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`, '');
+    let sort = this.part.sorts.reduce((prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`, '');
+    if(this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
+      sort = `#${this.prefix.toUpperCase()}${sort}`
+    }
+    return await this.tableClient.get({...item, partition, sort}, options as any) as any;
+  }
+
   static fromParts<T extends TablePartInfo<any, any, any, any>[]>(config: DynamoConfig, ...parts: T): TablePartClients<T>
   {
     return parts.reduce((prev, next) => ({
       ...prev, [next.prefix]: new TablePartClient(next.part, next, next.prefix, new TableClient(TableDefinition.ofType<any>().withPartitionKey('partition').withSortKey('sort'), config) as any)
     }), {}) as any;
+  }
+
+  rawTableClient(): TableDefinition<CombinedTypes<Info> & { partition: string; sort: string }> {
+    return TableDefinition.ofType<{ partition: string; sort: string }>().withPartitionKey('partition').withSortKey('sort') as any;
   }
 
 }
@@ -131,9 +146,9 @@ export class TablePartInfo<TableType, T extends TablePart<TableType>, NAME exten
   }
 
   childPart<JoinTableType extends Pick<TableType, T['partitions'][number] | T['sorts'][number]>>(): {
-    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts']], sorts: [K] }, K, null>
+    withKey<K extends ValidKeys<JoinTableType>>(key: K): TablePartInfo<JoinTableType, { partitions: [...T['partitions'], ...T['sorts'], K], sorts: [] }, K, null>
   } {
-    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts], sorts: [key]} as any, this, key) } as any;
+    return { withKey: (key: string) => new TablePartInfo({partitions: [...this.part.partitions, ...this.part.sorts, key], sorts: []} as any, this, key) } as any;
   }
 
   static from<TableType>(): { withKeys<K extends ValidKeys<TableType>, K2 extends Exclude<ValidKeys<TableType>, K>>(partitionKey: K, sortKey: K2): TablePartInfo<TableType, { partitions: [K], sorts: [K2] }, K2> } {
