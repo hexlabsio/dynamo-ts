@@ -4,23 +4,22 @@ import { JsonPath, ValueAtJsonPath } from './types';
 type TupleKeys<P extends string> = P extends `${infer A}.${infer TAIL}`
   ? [A, ...TupleKeys<TAIL>]
   : P extends `${infer A}`
-    ? [A]
-    : never;
+  ? [A]
+  : never;
 
 type FromKeys<KEYS extends any[], V> = KEYS extends [infer K, ...infer KS]
   ? K extends `[${number}]`
     ? FromKeys<KS, V>[] | undefined
     : { [KEY in K extends string ? K : never]: FromKeys<KS, V> }
   : KEYS extends [infer K3]
-    ? { [KEY in K3 extends string ? K3 : never]: V }
-    : V;
+  ? { [KEY in K3 extends string ? K3 : never]: V }
+  : V;
 interface Projector<T, PROJECTED = {}> {
   project<PATH extends JsonPath<T>>(
     path: PATH,
   ): Projector<
     T,
-    PROJECTED &
-    FromKeys<TupleKeys<PATH>, ValueAtJsonPath<PATH, T>>
+    PROJECTED & FromKeys<TupleKeys<PATH>, ValueAtJsonPath<PATH, T>>
   >;
 }
 
@@ -35,11 +34,7 @@ export class ProjectorType<TableType, PROJECTED = {}>
 
   project<PATH extends JsonPath<TableType>>(
     path: PATH,
-  ): Projector<
-    TableType,
-    PROJECTED &
-    ValueAtJsonPath<PATH, TableType>
-  > {
+  ): Projector<TableType, PROJECTED & ValueAtJsonPath<PATH, TableType>> {
     const projectionExpression = this.attributeBuilder.buildPath(path);
     return new ProjectorType(
       this.attributeBuilder,
@@ -67,7 +62,7 @@ export class ProjectionHandler {
     attributeBuilder: AttributeBuilder,
     projection: Projection<any, any>,
   ): ProjectorType<any, any> {
-    const p = new ProjectorType(attributeBuilder)
+    const p = new ProjectorType(attributeBuilder);
     return projection(p) as any;
   }
 }

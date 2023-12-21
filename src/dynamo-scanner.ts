@@ -23,9 +23,7 @@ export type ScanOptions<TableType, PROJECTION> = CamelCaseKeys<
 };
 
 export type ScanReturn<TableType, PROJECTION> = {
-  member: PROJECTION extends null
-    ? TableType[]
-    : PROJECTION[];
+  member: PROJECTION extends null ? TableType[] : PROJECTION[];
   consumedCapacity?: ScanCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
@@ -38,9 +36,7 @@ export interface ScanExecutor<TableType, PROJECTION> {
 }
 
 export class DynamoScanner<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   async scan<PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
@@ -85,16 +81,19 @@ export class DynamoScanner<TableConfig extends TableDefinition> {
     options: ScanOptions<TableConfig['type'], PROJECTION>,
   ): ScanExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    );
+    const expression =
+      options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      );
     const filterPart =
-      options.filter &&
-      filterParts(attributeBuilder, options.filter);
+      options.filter && filterParts(attributeBuilder, options.filter);
     const input = {
       TableName: this.clientConfig.tableName,
-      ...(this.clientConfig.indexName ? { IndexName: this.clientConfig.indexName } : {}),
+      ...(this.clientConfig.indexName
+        ? { IndexName: this.clientConfig.indexName }
+        : {}),
       Limit: options.limit,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ConsistentRead: options.consistentRead,

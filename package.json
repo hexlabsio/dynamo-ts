@@ -19,7 +19,7 @@
     "format": "prettier --single-quote --trailing-comma all --check './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "format:fix": "prettier --single-quote --trailing-comma all --write './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "pretest": "ts-node ./jest-setup.ts",
-    "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
+    "test": "jest --ci --no-cache --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
     "lint": "eslint **/*.ts",
     "docs": "md-magic"
   },
@@ -67,12 +67,12 @@
   },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
   "peerDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.49.0"
+    "@aws-sdk/client-dynamodb": "^3.462.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.348.0",
+    "@aws-sdk/client-dynamodb": "^3.462.0",
     "@shelf/jest-dynamodb": "^3.4.2",
-    "@types/jest": "^29.5.2",
+    "@types/jest": "^29.5.10",
     "@types/node": "^18.16.16",
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
@@ -81,8 +81,8 @@
     "eslint": "^7.27.0",
     "eslint-plugin-jest": "^24.3.6",
     "husky": "^6.0.0",
-    "jest": "^29.5.0",
-    "jest-junit": "^13.0.0",
+    "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
     "markdown-magic": "^2.6.1",
     "minimist": "^1.2.6",
     "node-loader": "^0.6.0",

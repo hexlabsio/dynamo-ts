@@ -5,15 +5,24 @@ import { AttributeBuilder } from './attribute-builder';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
 import { KeyOperation } from './operation';
 import { Projection, ProjectionHandler } from './projector';
-import { DynamoTableKeyConfig, TableDefinition } from './table-builder/table-definition';
+import {
+  DynamoTableKeyConfig,
+  TableDefinition,
+} from './table-builder/table-definition';
 import { CamelCaseKeys } from './types/camel-case';
 import { DynamoConfig } from './types/dynamo-config';
 import { DynamoFilter } from './types/filter';
 
-export type KeyCompare<TableType, KEYS extends DynamoTableKeyConfig<any>> =
-  KEYS extends { sortKey: infer S, partitionKey: infer K }
-    ? Pick<TableType, K & keyof TableType> & { [K in S & string]?: (K extends keyof TableType ? ((sortKey: KeyComparisonBuilder<TableType[K]>) => any) : never) }
-    : Pick<TableType, KEYS['partitionKey'] & keyof TableType>
+export type KeyCompare<
+  TableType,
+  KEYS extends DynamoTableKeyConfig<any>,
+> = KEYS extends { sortKey: infer S; partitionKey: infer K }
+  ? Pick<TableType, K & keyof TableType> & {
+      [K in S & string]?: K extends keyof TableType
+        ? (sortKey: KeyComparisonBuilder<TableType[K]>) => any
+        : never;
+    }
+  : Pick<TableType, KEYS['partitionKey'] & keyof TableType>;
 
 export type QuerierInput<TableType, PROJECTION> = {
   filter?: DynamoFilter<TableType>;
@@ -32,18 +41,18 @@ export type QuerierInput<TableType, PROJECTION> = {
     >
   >
 >;
-export type QueryAllInput<TableType, PROJECTION> = QuerierInput<TableType, PROJECTION>;
+export type QueryAllInput<TableType, PROJECTION> = QuerierInput<
+  TableType,
+  PROJECTION
+>;
 
 export type QuerierReturn<TableType, PROJECTION = null> = {
-  member: PROJECTION extends null
-    ? TableType[]
-    : PROJECTION[];
+  member: PROJECTION extends null ? TableType[] : PROJECTION[];
   next?: string;
   consumedCapacity?: QueryCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
 };
-
 
 export interface QueryExecutor<TableType, PROJECTION> {
   input: QueryCommandInput;
@@ -68,7 +77,10 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     const expression = `${attributeBuilder.nameFor(
       this.tableConfig.keyNames.partitionKey as string,
     )} = ${valueKey}`;
-    if (this.tableConfig.keyNames.sortKey && typeof keys[this.tableConfig.keyNames.sortKey] === 'function') {
+    if (
+      this.tableConfig.keyNames.sortKey &&
+      typeof keys[this.tableConfig.keyNames.sortKey] === 'function'
+    ) {
       const keyOperation = new KeyOperation(
         this.tableConfig.keyNames.sortKey as string,
         new Wrapper(attributeBuilder),
@@ -108,18 +120,21 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     const attributeBuilder = AttributeBuilder.create();
     const keyExpression = this.keyExpression(keys, attributeBuilder);
     const filterPart =
-      options.filter &&
-      filterParts(attributeBuilder, options.filter);
-    const projection = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    );
+      options.filter && filterParts(attributeBuilder, options.filter);
+    const projection =
+      options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      );
     const input: QueryCommandInput = {
       TableName: this.clientConfig.tableName,
-      ...(this.clientConfig.indexName ? { IndexName: this.clientConfig.indexName } : {}),
+      ...(this.clientConfig.indexName
+        ? { IndexName: this.clientConfig.indexName }
+        : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter ? { FilterExpression: filterPart } : {}),
-      ...(options.projection ? { ProjectionExpression: projection, } : {}),
+      ...(options.projection ? { ProjectionExpression: projection } : {}),
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ScanIndexForward: options.scanIndexForward,
       ConsistentRead: options.consistentRead,
@@ -171,12 +186,14 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
 class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
   implements QueryExecutor<TableConfig, PROJECTION>
 {
-
   input: QueryCommandInput;
   constructor(
     private readonly tableConfig: TableConfig,
     private readonly clientConfig: DynamoConfig,
-    private readonly keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
+    private readonly keys: KeyCompare<
+      TableConfig['type'],
+      TableConfig['keyNames']
+    >,
     private readonly options: QueryAllInput<TableConfig['type'], PROJECTION>,
     private readonly createKeyExpression: (
       keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
@@ -184,14 +201,17 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
     ) => string,
     readonly parentKeys?: DynamoTableKeyConfig<TableConfig['type']>,
     private readonly attributeBuilder = AttributeBuilder.create(),
-    private readonly projectionWithEnrichedKeys = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    ),
+    private readonly projectionWithEnrichedKeys = options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      ),
   ) {
     this.input = {
       TableName: this.clientConfig.tableName,
-      ...(this.clientConfig.indexName ? { IndexName: this.clientConfig.indexName } : {}),
+      ...(this.clientConfig.indexName
+        ? { IndexName: this.clientConfig.indexName }
+        : {}),
       ...{
         KeyConditionExpression: this.createKeyExpression(
           this.keys,
@@ -200,23 +220,25 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
       },
       ...(this.options.filter
         ? {
-          FilterExpression: filterParts(
-            this.attributeBuilder,
-            this.options.filter,
-          ),
-        }
+            FilterExpression: filterParts(
+              this.attributeBuilder,
+              this.options.filter,
+            ),
+          }
         : {}),
-      ...(options.projection ? { ProjectionExpression: this.projectionWithEnrichedKeys![0] } : {}),
+      ...(options.projection
+        ? { ProjectionExpression: this.projectionWithEnrichedKeys![0] }
+        : {}),
       ReturnConsumedCapacity: this.options.returnConsumedCapacity,
       ScanIndexForward: this.options.scanIndexForward,
       ConsistentRead: this.options.consistentRead,
       ...this.attributeBuilder.asInput(this.options),
       ...(this.options.next
         ? {
-          ExclusiveStartKey: JSON.parse(
-            Buffer.from(this.options.next, 'base64').toString(),
-          ),
-        }
+            ExclusiveStartKey: JSON.parse(
+              Buffer.from(this.options.next, 'base64').toString(),
+            ),
+          }
         : {}),
     };
   }
@@ -310,8 +332,6 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
       );
     }
   }
-
-
 
   async execute(): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
     const result = await this._recQuery(

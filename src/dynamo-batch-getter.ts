@@ -8,10 +8,7 @@ import { Projection, ProjectionHandler } from './projector';
 import { TableDefinition } from './table-builder/table-definition';
 import { CamelCaseKeys, DynamoConfig } from './types';
 
-export type BatchGetItemOptions<
-  TableType,
-  PROJECTION,
-> = CamelCaseKeys<
+export type BatchGetItemOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &
     Pick<BatchGetCommandInput, 'ReturnConsumedCapacity'>
 > & {
@@ -19,9 +16,7 @@ export type BatchGetItemOptions<
 };
 
 export type BatchGetItemReturn<TableType, PROJECTION> = {
-  items: PROJECTION extends null
-    ? TableType
-    : PROJECTION[];
+  items: PROJECTION extends null ? TableType : PROJECTION[];
   consumedCapacity?: ConsumedCapacity;
 };
 
@@ -154,19 +149,19 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
 }
 
 export class DynamoBatchGetter<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   batchGetExecutor<PROJECTION = null>(
     keys: TableConfig['keys'][],
     options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): BatchGetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    );
+    const expression =
+      options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      );
     const input = {
       RequestItems: {
         [this.clientConfig.tableName]: {

@@ -10,7 +10,6 @@ import {
 import { TableDefinition } from './table-builder/table-definition';
 import { CamelCaseKeys, DynamoConfig } from './types';
 
-
 export type BatchWriteItemOptions = CamelCaseKeys<
   Pick<
     BatchWriteCommandInput,
@@ -49,9 +48,7 @@ export class BatchWriteExecutorHolder<TableConfig extends TableDefinition>
     };
   }
 
-  and<B extends BatchWriteExecutor>(
-    other: B,
-  ): BatchWriteClient<[this, B]> {
+  and<B extends BatchWriteExecutor>(other: B): BatchWriteClient<[this, B]> {
     return new BatchWriteClient(this.client, this.logStatements, [this, other]);
   }
 }
@@ -80,9 +77,7 @@ export class BatchWriteClient<T extends BatchWriteExecutor[]> {
     };
   }
 
-  and<B extends BatchWriteExecutor>(
-    other: B,
-  ): BatchWriteClient<[...T, B]> {
+  and<B extends BatchWriteExecutor>(other: B): BatchWriteClient<[...T, B]> {
     return new BatchWriteClient<[...T, B]>(this.client, this.logStatements, [
       ...this.executors,
       other,

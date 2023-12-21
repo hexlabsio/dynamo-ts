@@ -59,49 +59,66 @@ export class KeyOperation<T> {
   }
 }
 
-function getKey(wrapper: Wrapper, parentage: (string | number | symbol)[] = []): string {
+function getKey(
+  wrapper: Wrapper,
+  parentage: (string | number | symbol)[] = [],
+): string {
   wrapper.attributeBuilder.addNames(
     ...parentage.filter((it): it is string => typeof it === 'string'),
   );
   const names = parentage.map((it) =>
-    typeof it === 'number'
-      ? `[${it}]`
-      : wrapper.attributeBuilder.nameFor(it),
+    typeof it === 'number' ? `[${it}]` : wrapper.attributeBuilder.nameFor(it),
   );
   return names.join('.').replace(/\.\[/g, '[');
 }
 
-export function operationProxy(wrapper: Wrapper, parentage: (string | number | symbol)[] = []): any {
-  return new Proxy({}, {
-    get(target, name, ...rest) {
-      if(name === 'notExists') {
-        return wrapper.add(`attribute_not_exists(${getKey(wrapper, parentage)})`);
-      }
-      if(name === 'exists') {
-        return wrapper.add(`attribute_exists(${getKey(wrapper, parentage)})`);
-      }
-      if(Object.getOwnPropertyNames(OperationType.prototype).includes(name.toString())) {
-        const fn = new OperationType(wrapper, parentage);
-        return (fn as any)[name].bind(fn);
-      }
-      const isNumber = !isNaN(name as any)
-      return operationProxy(wrapper, [...parentage, isNumber ? +name.toString() : name])
-    }
-  })
+export function operationProxy(
+  wrapper: Wrapper,
+  parentage: (string | number | symbol)[] = [],
+): any {
+  return new Proxy(
+    {},
+    {
+      get(target, name, ...rest) {
+        if (name === 'notExists') {
+          return wrapper.add(
+            `attribute_not_exists(${getKey(wrapper, parentage)})`,
+          );
+        }
+        if (name === 'exists') {
+          return wrapper.add(`attribute_exists(${getKey(wrapper, parentage)})`);
+        }
+        if (
+          Object.getOwnPropertyNames(OperationType.prototype).includes(
+            name.toString(),
+          )
+        ) {
+          const fn = new OperationType(wrapper, parentage);
+          return (fn as any)[name].bind(fn);
+        }
+        const isNumber = !isNaN(name as any);
+        return operationProxy(wrapper, [
+          ...parentage,
+          isNumber ? +name.toString() : name,
+        ]);
+      },
+    },
+  );
 }
 
-class OperationType{
+class OperationType {
   constructor(
     private readonly wrapper: Wrapper,
     readonly parentage: (string | number | symbol)[] = [],
-  ) {
-  }
+  ) {}
   private add(
     expression: (key: string, value: string) => string,
   ): (value: any) => CompareWrapperOperator<any> {
     return (value) => {
       const valueKey = this.wrapper.attributeBuilder.addValue(value);
-      return this.wrapper.add(expression(getKey(this.wrapper, this.parentage), valueKey));
+      return this.wrapper.add(
+        expression(getKey(this.wrapper, this.parentage), valueKey),
+      );
     };
   }
 
@@ -124,12 +141,12 @@ class OperationType{
     return this.add((key, value) => `${key} >= ${value}`)(value);
   }
 
-
   isType(type: SimpleDynamoType): Wrapper {
     return this.wrapper.add(
-      `attribute_type(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
-        this.typeFor(type),
-      )})`,
+      `attribute_type(${getKey(
+        this.wrapper,
+        this.parentage,
+      )}, ${this.wrapper.attributeBuilder.addValue(this.typeFor(type))})`,
     );
   }
 
@@ -160,27 +177,28 @@ class OperationType{
 
   beginsWith(beginsWith: string): Wrapper {
     return this.wrapper.add(
-      `begins_with(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
-        beginsWith,
-      )})`,
+      `begins_with(${getKey(
+        this.wrapper,
+        this.parentage,
+      )}, ${this.wrapper.attributeBuilder.addValue(beginsWith)})`,
     );
   }
 
   contains(operand: any): Wrapper {
     return this.wrapper.add(
-      `contains(${getKey(this.wrapper, this.parentage)}, ${this.wrapper.attributeBuilder.addValue(
-        operand,
-      )})`,
+      `contains(${getKey(
+        this.wrapper,
+        this.parentage,
+      )}, ${this.wrapper.attributeBuilder.addValue(operand)})`,
     );
   }
 
-  between(
-    a: any,
-    b:any,
-  ): CompareWrapperOperator<any> {
+  between(a: any, b: any): CompareWrapperOperator<any> {
     const aKey = this.wrapper.attributeBuilder.addValue(a);
     const bKey = this.wrapper.attributeBuilder.addValue(b);
-    return this.wrapper.add(`${getKey(this.wrapper, this.parentage)} BETWEEN ${aKey} AND ${bKey}`);
+    return this.wrapper.add(
+      `${getKey(this.wrapper, this.parentage)} BETWEEN ${aKey} AND ${bKey}`,
+    );
   }
 
   in(list: any[]): CompareWrapperOperator<any> {

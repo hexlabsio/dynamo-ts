@@ -6,7 +6,6 @@ import { TableDefinition } from './table-builder/table-definition';
 import { DynamoConfig } from './types';
 import { CamelCaseKeys } from './types/camel-case';
 
-
 export type PutReturnValues = 'NONE' | 'ALL_OLD';
 
 export type PutItemOptions<
@@ -28,22 +27,15 @@ export type PutItemReturn<
 > = CamelCaseKeys<
   Pick<PutCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
-  (RETURN extends 'ALL_OLD'
-    ? { item: TableType | undefined }
-    : {});
+  (RETURN extends 'ALL_OLD' ? { item: TableType | undefined } : {});
 
-export interface PutExecutor<
-  TableType,
-  RETURN extends PutReturnValues,
-> {
+export interface PutExecutor<TableType, RETURN extends PutReturnValues> {
   input: PutCommandInput;
   execute(): Promise<PutItemReturn<TableType, RETURN>>;
 }
 
 export class DynamoPuter<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly config: DynamoConfig,
-  ) {}
+  constructor(private readonly config: DynamoConfig) {}
 
   async put<RETURN extends PutReturnValues = 'NONE'>(
     item: TableConfig['type'],
@@ -62,8 +54,7 @@ export class DynamoPuter<TableConfig extends TableDefinition> {
   ): PutExecutor<TableConfig['type'], RETURN> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
-      options.condition &&
-      filterParts(attributeBuilder, options.condition);
+      options.condition && filterParts(attributeBuilder, options.condition);
     const input: PutCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.config.tableName,

@@ -25,14 +25,14 @@ export type UpdateItemOptions<
   >
 > & {
   key: TableConfig['keys'];
-  updates: { [K in JsonPath<TableConfig['withoutKeys']>]?: ValueAtJsonPath<K, TableConfig['withoutKeys']> };
+  updates: {
+    [K in JsonPath<TableConfig['withoutKeys']>]?: ValueAtJsonPath<
+      K,
+      TableConfig['withoutKeys']
+    >;
+  };
   condition?: DynamoFilter<TableConfig['type']>;
-  increments?: Array<
-    Increment<
-      TableConfig['type'],
-      KEY
-    >
-  >;
+  increments?: Array<Increment<TableConfig['type'], KEY>>;
   return?: RETURN_ITEMS;
 };
 
@@ -67,9 +67,7 @@ export interface UpdateExecutor<
 }
 
 export class DynamoUpdater<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   private updateExpression(
     attributeBuilder: AttributeBuilder,
@@ -122,8 +120,7 @@ export class DynamoUpdater<TableConfig extends TableDefinition> {
   ): UpdateExecutor<TableConfig['type'], RETURN_ITEMS> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
-      options.condition &&
-      filterParts(attributeBuilder, options.condition);
+      options.condition && filterParts(attributeBuilder, options.condition);
     const {
       key,
       updates,
@@ -149,7 +146,9 @@ export class DynamoUpdater<TableConfig extends TableDefinition> {
     const config = this.clientConfig;
     return {
       input: updateInput,
-      async execute(): Promise<UpdateResult<TableConfig['type'], RETURN_ITEMS>> {
+      async execute(): Promise<
+        UpdateResult<TableConfig['type'], RETURN_ITEMS>
+      > {
         const result = await config.client.update(updateInput);
         return {
           item: result.Attributes as any,

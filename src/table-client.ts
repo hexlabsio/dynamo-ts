@@ -24,7 +24,8 @@ import {
   PutReturnValues,
 } from './dynamo-puter';
 import {
-  DynamoQuerier, KeyCompare,
+  DynamoQuerier,
+  KeyCompare,
   QuerierInput,
   QuerierReturn,
 } from './dynamo-querier';
@@ -39,7 +40,10 @@ import { TableDefinition } from './table-builder/table-definition';
 import { DynamoConfig, JsonPath } from './types';
 
 export class TableClient<TableConfig extends TableDefinition> {
-  constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {}
+  constructor(
+    public readonly tableConfig: TableConfig,
+    private readonly clientConfig: DynamoConfig,
+  ) {}
 
   /**
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.
@@ -91,7 +95,10 @@ export class TableClient<TableConfig extends TableDefinition> {
     keys: TableConfig['keys'],
     options: DeleteItemOptions<TableConfig['type'], RETURN> = {},
   ): Promise<DeleteItemReturn<TableConfig['type'], RETURN>> {
-    return new DynamoDeleter<TableConfig>(this.clientConfig).delete(keys, options);
+    return new DynamoDeleter<TableConfig>(this.clientConfig).delete(
+      keys,
+      options,
+    );
   }
 
   /**
@@ -102,7 +109,10 @@ export class TableClient<TableConfig extends TableDefinition> {
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
-    return new DynamoQuerier(this.tableConfig, this.clientConfig).query(keys, options);
+    return new DynamoQuerier(this.tableConfig, this.clientConfig).query(
+      keys,
+      options,
+    );
   }
 
   /**
@@ -113,7 +123,10 @@ export class TableClient<TableConfig extends TableDefinition> {
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<Omit<QuerierReturn<TableConfig['type'], PROJECTION>, 'next'>> {
-    return new DynamoQuerier(this.tableConfig, this.clientConfig).queryAll(keys, options);
+    return new DynamoQuerier(this.tableConfig, this.clientConfig).queryAll(
+      keys,
+      options,
+    );
   }
 
   /**
@@ -143,10 +156,9 @@ export class TableClient<TableConfig extends TableDefinition> {
     keys: TableConfig['keys'][],
     options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): BatchGetExecutor<TableConfig['type'], PROJECTION> {
-    return new DynamoBatchGetter<TableConfig>(this.clientConfig).batchGetExecutor(
-      keys,
-      options,
-    );
+    return new DynamoBatchGetter<TableConfig>(
+      this.clientConfig,
+    ).batchGetExecutor(keys, options);
   }
 
   /**
@@ -158,7 +170,9 @@ export class TableClient<TableConfig extends TableDefinition> {
     items: TableConfig['type'][],
     options: BatchWriteItemOptions = {},
   ): BatchWriteClient<[BatchWriteExecutor]> {
-    return new DynamoBatchWriter<TableConfig>(this.clientConfig).batchPutExecutor(items, options);
+    return new DynamoBatchWriter<TableConfig>(
+      this.clientConfig,
+    ).batchPutExecutor(items, options);
   }
 
   /**
@@ -170,17 +184,19 @@ export class TableClient<TableConfig extends TableDefinition> {
     keys: TableConfig['keys'][],
     options: BatchWriteItemOptions = {},
   ): BatchWriteClient<[BatchWriteExecutor]> {
-    return new DynamoBatchWriter<TableConfig>(this.clientConfig).batchDeleteExecutor(
-      keys,
-      options,
-    );
+    return new DynamoBatchWriter<TableConfig>(
+      this.clientConfig,
+    ).batchDeleteExecutor(keys, options);
   }
 
   /**
    * Selects an index to query
    */
-  index<Index extends keyof TableConfig['indexes']>(indexName: Index)
-    : IndexClient<TableDefinition<TableConfig['type'], TableConfig['indexes'][Index]>> {
+  index<Index extends keyof TableConfig['indexes']>(
+    indexName: Index,
+  ): IndexClient<
+    TableDefinition<TableConfig['type'], TableConfig['indexes'][Index]>
+  > {
     return new IndexClient(
       (this.tableConfig as any).asIndex(indexName),
       this.tableConfig.keyNames,

@@ -10,7 +10,6 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-
 const testTable = new TableClient(complexTableDefinitionFilter, {
   tableName: 'complexTableDefinitionFilter',
   client: dynamoClient,
@@ -263,8 +262,7 @@ describe('Dynamo Nested Filter', () => {
 
     it('deep nested object exists', async () => {
       const result = await testTable.scan({
-        filter: (compare) =>
-          compare().nestedObjectMultiple.nestedObject.exists,
+        filter: (compare) => compare().nestedObjectMultiple.nestedObject.exists,
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -312,9 +310,7 @@ describe('Dynamo Nested Filter', () => {
     it('object array object equals', async () => {
       const result = await testTable.scan({
         filter: (compare) =>
-          compare()
-            .nestedArrayObject.items[0]
-            .eq({ name: 'item one' }),
+          compare().nestedArrayObject.items[0].eq({ name: 'item one' }),
       });
       expect(result.member[0]).toEqual(itemMinimal);
     });
@@ -338,8 +334,7 @@ describe('Dynamo Nested Filter', () => {
     describe('map', () => {
       it('map equal', async () => {
         const result = await testTable.scan({
-          filter: (compare) =>
-            compare().mapType.name.eq('example string'),
+          filter: (compare) => compare().mapType.name.eq('example string'),
         });
         expect(result.member[0]).toEqual(itemMinimal);
       });
@@ -378,18 +373,14 @@ describe('Dynamo Nested Filter', () => {
 
       it('list nested object equals', async () => {
         const result = await testTable.scan({
-          filter: (compare) =>
-            compare()
-              .listType[1].name[1]
-              .eq('item three'),
+          filter: (compare) => compare().listType[1].name[1].eq('item three'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
       });
 
       it('list nested object contains', async () => {
         const result = await testTable.scan({
-          filter: (compare) =>
-            compare().listType[1].name[1].contains('three'),
+          filter: (compare) => compare().listType[1].name[1].contains('three'),
         });
         expect(result.member[0]).toEqual(itemWithOptionals);
       });
@@ -415,7 +406,6 @@ describe('Dynamo Nested Filter', () => {
         });
         expect(result.member).toEqual([itemWithOptionals]);
       });
-
     });
   });
 });

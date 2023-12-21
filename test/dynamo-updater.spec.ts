@@ -10,7 +10,6 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-
 const TableName = 'complexTableDefinitionQuery';
 
 const testTable = new DynamoUpdater<typeof complexTableDefinitionQuery>({

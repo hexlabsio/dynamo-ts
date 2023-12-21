@@ -7,17 +7,14 @@ import { TableClient } from './table-client';
 import { v4 as uuid } from 'uuid';
 import { JsonPath } from './types';
 
-export type ProjectionOrTypeArray<PROJECTION, TableType> = PROJECTION extends null
-  ? TableType[]
-  : PROJECTION[]
+export type ProjectionOrTypeArray<PROJECTION, TableType> =
+  PROJECTION extends null ? TableType[] : PROJECTION[];
 
 export type ProjectionOrType<PROJECTION, TableType> = PROJECTION extends null
   ? TableType
-  : PROJECTION
+  : PROJECTION;
 export class Crud<TableConfig extends TableDefinition> {
-  constructor(
-    protected readonly tableClient: TableClient<TableConfig>
-  ) {}
+  constructor(protected readonly tableClient: TableClient<TableConfig>) {}
 
   async readAll<PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
@@ -38,30 +35,36 @@ export class Crud<TableConfig extends TableDefinition> {
     keys: TableConfig['keys'],
     options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ProjectionOrType<PROJECTION, TableConfig['type']> | undefined> {
-    const result = await this.tableClient.get(keys, options)
+    const result = await this.tableClient.get(keys, options);
     return result.item;
   }
 
   async create(
-    item: Omit<TableConfig['type'], TableConfig['keyNames']['partitionKey']>
+    item: Omit<TableConfig['type'], TableConfig['keyNames']['partitionKey']>,
   ): Promise<TableConfig['type']> {
     const identifier = uuid();
-    const actualItem = { [this.tableClient.tableConfig.keyNames.partitionKey]: identifier, ...item, };
+    const actualItem = {
+      [this.tableClient.tableConfig.keyNames.partitionKey]: identifier,
+      ...item,
+    };
     await this.tableClient.put(actualItem as any);
     return actualItem as any;
   }
 
-  async update<
-    KEY extends JsonPath<TableConfig['type']>
-  >(
-    options: Omit<UpdateItemOptions<TableConfig['type'], KEY, 'ALL_NEW'>, 'return'>,
+  async update<KEY extends JsonPath<TableConfig['type']>>(
+    options: Omit<
+      UpdateItemOptions<TableConfig['type'], KEY, 'ALL_NEW'>,
+      'return'
+    >,
   ): Promise<TableConfig['type']> {
-    const result = await this.tableClient.update({ ...options, return: 'ALL_NEW' });
+    const result = await this.tableClient.update({
+      ...options,
+      return: 'ALL_NEW',
+    });
     return result.item as any;
   }
 
   async deleteItem(keys: TableConfig['keys']) {
     await this.tableClient.delete(keys);
   }
-
 }
