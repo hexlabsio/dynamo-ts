@@ -71,7 +71,7 @@ export class DynamoUpdater<TableConfig extends TableDefinition> {
     private readonly clientConfig: DynamoConfig,
   ) {}
 
-  private updateExpression(
+  static updateExpression(
     attributeBuilder: AttributeBuilder,
     properties: any,
     increment?: Array<Increment<any, any>>,
@@ -136,7 +136,7 @@ export class DynamoUpdater<TableConfig extends TableDefinition> {
       TableName: this.clientConfig.tableName,
       ConditionExpression: condition,
       Key: key,
-      UpdateExpression: this.updateExpression(
+      UpdateExpression: DynamoUpdater.updateExpression(
         attributeBuilder,
         updates,
         increments,

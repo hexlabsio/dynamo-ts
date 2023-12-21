@@ -212,7 +212,7 @@ const result = await testTable
 
 # Multi-Table Batch Writes 
 ```typescript
-const executor = testTable
+const result = await testTable
         //Choose batchPut or Delete to begin the operation agains an initial table
         .batchDelete({ identifier: 'id1' })
         //Then, use and() to combine other operations against other tables
@@ -221,6 +221,22 @@ const executor = testTable
         .execute();
 ```
 
+# Transactional Writes
+```typescript
+const result = await transactionTable
+    .put({
+      item: { identifier: '777', count: 1, description: 'some description' },
+      condition: compare => compare().description.notExists
+    })
+    .then(
+      transactionTable.update({
+        key: { identifier: '777-000' },
+        increments: [{key: 'count', start: 0}],
+        updates: { count: 5 }
+      })
+    )
+  .execute();
+```
 
 # Testing
 Testing is no different than how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb when we test.
