@@ -76,11 +76,18 @@ export type IndexTable = {
   sort: string,
   indexHash: string,
 }
+
+export type TransactionTable = {
+  identifier: string;
+  count: number;
+  description: string;
+}
 export const simpleTableDefinition = TableDefinition.ofType<SimpleTable>().withPartitionKey('identifier');
 export const simpleTableDefinition2 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
 export const simpleTableDefinitionBatch = TableDefinition.ofType<SimpleTable3>().withPartitionKey('identifier');
 export const simpleTableDefinitionBatch2 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
 export const simpleTableDefinition3 = TableDefinition.ofType<SimpleTable2>().withPartitionKey('identifier').withSortKey('sort');
+export const transactionTableDefinition = TableDefinition.ofType<TransactionTable>().withPartitionKey('identifier');
 
 
 export const complexTableDefinitionQuery = TableDefinition.ofType<ComplexTable2>()

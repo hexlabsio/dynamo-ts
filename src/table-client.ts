@@ -30,6 +30,9 @@ import {
 } from './dynamo-querier';
 import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
 import {
+  DynamoTransactWriter,
+} from './dynamo-transact-writer';
+import {
   DynamoUpdater,
   UpdateItemOptions,
   UpdateResult,
@@ -39,7 +42,11 @@ import { TableDefinition } from './table-builder/table-definition';
 import { DynamoConfig, JsonPath } from './types';
 
 export class TableClient<TableConfig extends TableDefinition> {
-  constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {}
+  constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {
+    this.transaction = new DynamoTransactWriter(this.clientConfig);
+  }
+
+  transaction: DynamoTransactWriter<TableConfig>;
 
   /**
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.

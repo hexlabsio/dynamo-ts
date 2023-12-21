@@ -9,4 +9,4 @@ const dynamoConfig: DynamoConfig = {
   logStatements: true, // Logs all interactions with Dynamo
 }
 
-const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
+export const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
