@@ -29,6 +29,7 @@ import {
   QuerierReturn,
 } from './dynamo-querier';
 import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
+import { DynamoTransactGetter } from './dynamo-transact-getter';
 import {
   DynamoTransactWriter,
 } from './dynamo-transact-writer';
@@ -42,11 +43,28 @@ import { TableDefinition } from './table-builder/table-definition';
 import { DynamoConfig, JsonPath } from './types';
 
 export class TableClient<TableConfig extends TableDefinition> {
-  constructor(public readonly tableConfig: TableConfig, private readonly clientConfig: DynamoConfig) {
-    this.transaction = new DynamoTransactWriter(this.clientConfig);
+  constructor(
+    public readonly tableConfig: TableConfig,
+    private readonly clientConfig: DynamoConfig,
+  ) {
+    const writer  = new DynamoTransactWriter(clientConfig);
+    const getter = new DynamoTransactGetter(clientConfig);
+
+    this.transaction = new Proxy(this, {
+      get(target: TableClient<TableConfig>, p: string | symbol, receiver: any): any {
+        if(p === 'get') return getter.get.bind(getter);
+        else return (writer as any)[p].bind(writer);
+      }
+    }) as any;
   }
 
-  transaction: DynamoTransactWriter<TableConfig>;
+  transaction: {
+    get: DynamoTransactGetter<TableConfig>['get'],
+    put: DynamoTransactWriter<TableConfig>['put'],
+    update: DynamoTransactWriter<TableConfig>['update'],
+    delete: DynamoTransactWriter<TableConfig>['delete'],
+    conditionCheck: DynamoTransactWriter<TableConfig>['conditionCheck'],
+  }
 
   /**
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.
