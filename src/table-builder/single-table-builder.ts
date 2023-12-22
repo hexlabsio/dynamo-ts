@@ -1,3 +1,8 @@
+import {
+  BatchWriteClient,
+  BatchWriteExecutor,
+  BatchWriteItemOptions,
+} from '../dynamo-batch-writer';
 import { GetItemOptions, GetItemReturn } from '../dynamo-getter';
 import {
   PutItemOptions,
@@ -208,6 +213,31 @@ export class TablePartClient<
       { ...item, partition, sort },
       options as any,
     )) as any;
+  }
+
+  batchPut(
+    items: TableType[],
+    options: BatchWriteItemOptions = {},
+  ): BatchWriteClient<[BatchWriteExecutor]> {
+    return this.tableClient.batchPut(
+      items.map((item) => {
+        const partition = this.part.partitions.reduce(
+          (prev, next) =>
+            `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
+          '',
+        );
+        let sort = this.part.sorts.reduce(
+          (prev, next) =>
+            `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
+          '',
+        );
+        if (this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
+          sort = `#${this.prefix.toUpperCase()}${sort}`;
+        }
+        return { ...item, partition, sort };
+      }),
+      options as any,
+    );
   }
 
   async get<PROJECTION = null>(

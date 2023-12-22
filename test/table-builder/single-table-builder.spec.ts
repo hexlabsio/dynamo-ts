@@ -55,67 +55,83 @@ const client = TablePartClient.fromParts(
 
 describe('Single Table Design', () => {
   beforeAll(async () => {
-    await client.workflow.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-    });
-    await client.run.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run1',
-    });
-    await client.job.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run1',
-      job: 'job1',
-    });
-    await client.job.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run1',
-      job: 'job2',
-    });
-    await client.run.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run2',
-    });
-    await client.job.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run2',
-      job: 'job3',
-    });
-    await client.job.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run2',
-      job: 'job4',
-    });
-    await client.step.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run2',
-      job: 'job4',
-      step: 'step 1',
-    });
-    await client.step.put({
-      account: 'account',
-      repo: 'repo',
-      workflow: 'workflow',
-      run: 'run2',
-      job: 'job4',
-      step: 'step 2',
-    });
+    await client.workflow
+      .batchPut([
+        {
+          account: 'account',
+          repo: 'repo',
+          workflow: 'workflow',
+        },
+      ])
+      .and(
+        client.run.batchPut([
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run1',
+          },
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run2',
+          },
+        ]),
+      )
+      .and(
+        client.job.batchPut([
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run1',
+            job: 'job1',
+          },
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run1',
+            job: 'job2',
+          },
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run2',
+            job: 'job3',
+          },
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run2',
+            job: 'job4',
+          },
+        ]),
+      )
+      .and(
+        client.step.batchPut([
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run2',
+            job: 'job4',
+            step: 'step 1',
+          },
+          {
+            account: 'account',
+            repo: 'repo',
+            workflow: 'workflow',
+            run: 'run2',
+            job: 'job4',
+            step: 'step 2',
+          },
+        ]),
+      )
+      .execute();
   });
 
   it('should query child joined to child', async () => {
