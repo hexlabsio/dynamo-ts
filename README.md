@@ -238,6 +238,15 @@ const result = await transactionTable
   .execute();
 ```
 
+# Transactional Gets
+```typescript
+const result = await transactionTable
+  .transaction.get([{identifier: '0'}])
+    .and(
+      testTable2.transaction.get([{identifier: '10000', sort: '0'}])
+    ).execute()
+```
+
 # Testing
 Testing is no different than how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb when we test.
 If you would like us to generate table definitions that can be used in this testing library, do the following:
