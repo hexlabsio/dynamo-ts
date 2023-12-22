@@ -224,12 +224,13 @@ const result = await testTable
 # Transactional Writes
 ```typescript
 const result = await transactionTable
+    .transaction
     .put({
       item: { identifier: '777', count: 1, description: 'some description' },
       condition: compare => compare().description.notExists
     })
     .then(
-      transactionTable.update({
+      transactionTable.transaction.update({
         key: { identifier: '777-000' },
         increments: [{key: 'count', start: 0}],
         updates: { count: 5 }
