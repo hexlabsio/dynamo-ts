@@ -5,8 +5,11 @@ export function tableDefinition(definitions: Record<string, TableDefinition>): {
   tables: unknown[];
 } {
   return {
-    tables: Object.keys(definitions)
-      .map((table) => definitions[table].asCloudFormation(table, {ProvisionedThroughput: {WriteCapacityUnits: 1, ReadCapacityUnits: 1}}))
+    tables: Object.keys(definitions).map((table) =>
+      definitions[table].asCloudFormation(table, {
+        ProvisionedThroughput: { WriteCapacityUnits: 1, ReadCapacityUnits: 1 },
+      }),
+    ),
   };
 }
 

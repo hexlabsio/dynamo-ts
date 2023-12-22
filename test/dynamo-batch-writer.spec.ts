@@ -1,7 +1,12 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { TableClient } from '../src';
-import { SimpleTable, SimpleTable2, simpleTableDefinition, simpleTableDefinition2 } from './tables';
+import {
+  SimpleTable,
+  SimpleTable2,
+  simpleTableDefinition,
+  simpleTableDefinition2,
+} from './tables';
 
 const dynamo = new DynamoDB({
   endpoint: { hostname: 'localhost', port: 5001, protocol: 'http:', path: '/' },

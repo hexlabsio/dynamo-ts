@@ -10,7 +10,6 @@ const dynamo = new DynamoDB({
 });
 const dynamoClient = DynamoDBDocument.from(dynamo);
 
-
 const testTable = new DynamoScanner<typeof simpleTableDefinition3>({
   tableName: 'simpleTableDefinition3',
   client: dynamoClient,

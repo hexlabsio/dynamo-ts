@@ -28,22 +28,15 @@ export type DeleteItemReturn<
 > = CamelCaseKeys<
   Pick<DeleteCommandOutput, 'ConsumedCapacity' | 'ItemCollectionMetrics'>
 > &
-  (RETURN extends 'ALL_OLD'
-    ? { item?: TableType }
-    : {});
+  (RETURN extends 'ALL_OLD' ? { item?: TableType } : {});
 
-export interface DeleteExecutor<
-  TableType,
-  RETURN extends DeleteReturnValues,
-> {
+export interface DeleteExecutor<TableType, RETURN extends DeleteReturnValues> {
   input: DeleteCommandInput;
   execute(): Promise<DeleteItemReturn<TableType, RETURN>>;
 }
 
 export class DynamoDeleter<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   async delete<RETURN extends DeleteReturnValues = 'NONE'>(
     keys: TableConfig['keys'],
@@ -64,8 +57,7 @@ export class DynamoDeleter<TableConfig extends TableDefinition> {
   ): DeleteExecutor<TableConfig['type'], RETURN> {
     const attributeBuilder = AttributeBuilder.create();
     const condition =
-      options.condition &&
-      filterParts(attributeBuilder, options.condition);
+      options.condition && filterParts(attributeBuilder, options.condition);
     const input: DeleteCommandInput = {
       ...attributeBuilder.asInput(),
       TableName: this.clientConfig.tableName,

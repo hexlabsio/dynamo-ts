@@ -5,7 +5,6 @@ import { Projection, ProjectionHandler } from './projector';
 import { TableDefinition } from './table-builder/table-definition';
 import { CamelCaseKeys, DynamoConfig } from './types';
 
-
 export type GetItemOptions<TableType, PROJECTION> = Partial<
   CamelCaseKeys<
     Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>
@@ -14,11 +13,7 @@ export type GetItemOptions<TableType, PROJECTION> = Partial<
   projection?: Projection<TableType, PROJECTION>;
 };
 export type GetItemReturn<TableType, PROJECTION> = {
-  item:
-    | (PROJECTION extends null
-        ? TableType
-        : PROJECTION)
-    | undefined;
+  item: (PROJECTION extends null ? TableType : PROJECTION) | undefined;
   consumedCapacity?: ConsumedCapacity;
 };
 
@@ -28,9 +23,7 @@ export interface GetExecutor<TableType, PROJECTION> {
 }
 
 export class DynamoGetter<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   async get<PROJECTION = null>(
     keys: TableConfig['keys'],
@@ -48,16 +41,18 @@ export class DynamoGetter<TableConfig extends TableDefinition> {
     options: GetItemOptions<TableConfig['type'], PROJECTION>,
   ): GetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    );
+    const expression =
+      options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      );
     const input = {
       TableName: this.clientConfig.tableName,
       Key: keys,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ConsistentRead: options.consistentRead,
-      ...(expression ? { ProjectionExpression: expression }: {}),
+      ...(expression ? { ProjectionExpression: expression } : {}),
       ...attributeBuilder.asInput(),
     };
     const client = this.clientConfig.client;

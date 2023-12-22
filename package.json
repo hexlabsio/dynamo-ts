@@ -18,9 +18,10 @@
     "prepare": "husky install",
     "format": "prettier --single-quote --trailing-comma all --check './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "format:fix": "prettier --single-quote --trailing-comma all --write './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
-    "pretest": "ts-node ./jest-setup.ts",
-    "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
-    "lint": "eslint **/*.ts",
+    "pretest": "ts-node --project tsconfig.json ./jest-setup.ts",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
+    "format:pretty": "prettier --single-quote --trailing-comma all --write './src/**/*.ts'",
+    "format:lint": "eslint src/**/*.ts --fix",
     "docs": "md-magic"
   },
   "eslintConfig": {
@@ -49,7 +50,9 @@
       "@typescript-eslint/no-empty-function": 0,
       "@typescript-eslint/explicit-function-return-type": 0,
       "@typescript-eslint/ban-types": 0,
-      "jest/expect-expect": 0
+      "jest/expect-expect": 0,
+      "@typescript-eslint/no-unused-vars": 0,
+      "@typescript-eslint/no-this-alias": 0
     }
   },
   "repository": {
@@ -75,11 +78,10 @@
     "@types/jest": "^29.5.2",
     "@types/node": "^18.16.16",
     "@types/uuid": "^9.0.7",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "debug": "^4.3.1",
-    "eslint": "^7.27.0",
-    "eslint-plugin-jest": "^24.3.6",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-jest": "^27.6.0",
     "husky": "^6.0.0",
     "jest": "^29.5.0",
     "jest-junit": "^13.0.0",

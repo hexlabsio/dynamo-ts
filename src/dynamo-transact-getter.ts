@@ -1,4 +1,7 @@
-import { TransactGetItemsCommandInput, TransactGetItemsInput } from '@aws-sdk/client-dynamodb';
+import {
+  TransactGetItemsCommandInput,
+  TransactGetItemsInput,
+} from '@aws-sdk/client-dynamodb';
 import { ReturnConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models';
 import {
   ConsumedCapacity,
@@ -10,12 +13,11 @@ import { Projection, ProjectionHandler } from './projector';
 import { TableDefinition } from './table-builder/table-definition';
 import { CamelCaseKeys, DynamoConfig } from './types';
 
-export type TypeOrProjection<T, PROJECTION> = (PROJECTION extends null ? T : PROJECTION) | undefined;
+export type TypeOrProjection<T, PROJECTION> =
+  | (PROJECTION extends null ? T : PROJECTION)
+  | undefined;
 
-export type TransactGetItemOptions<
-  TableType,
-  PROJECTION,
-> = CamelCaseKeys<
+export type TransactGetItemOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &
     Pick<TransactGetItemsInput, 'ReturnConsumedCapacity'>
 > & {
@@ -24,7 +26,9 @@ export type TransactGetItemOptions<
 
 export interface TransactGetExecutor<TableTypes extends any[]> {
   input: TransactGetItemsCommandInput;
-  execute(options?: { returnConsumedCapacity?: ReturnConsumedCapacity }): Promise<{
+  execute(options?: {
+    returnConsumedCapacity?: ReturnConsumedCapacity;
+  }): Promise<{
     items: TableTypes;
     consumedCapacity?: ConsumedCapacity[];
   }>;
@@ -44,11 +48,15 @@ export class TransactGetExecutorHolder<TableTypes extends any[]>
   /**
    * Execute the transact get request and get the results.
    */
-  async execute(options: { returnConsumedCapacity?: ReturnConsumedCapacity } = {}): Promise<{
+  async execute(
+    options: { returnConsumedCapacity?: ReturnConsumedCapacity } = {},
+  ): Promise<{
     items: TableTypes;
     consumedCapacity?: ConsumedCapacity[];
   }> {
-    return await new TransactGetClient<TableTypes>(this.client, [this]).execute(options);
+    return await new TransactGetClient<TableTypes>(this.client, [this]).execute(
+      options,
+    );
   }
 
   /**
@@ -69,7 +77,9 @@ export class TransactGetClient<TableTypes extends any[]> {
     private readonly client: DynamoDBDocument,
     private readonly executors: TransactGetExecutor<any>[],
   ) {
-    const TransactItems = this.executors.flatMap(it => it.input.TransactItems ?? [])
+    const TransactItems = this.executors.flatMap(
+      (it) => it.input.TransactItems ?? [],
+    );
     this.input = {
       TransactItems,
     };
@@ -85,48 +95,54 @@ export class TransactGetClient<TableTypes extends any[]> {
   }
 
   async execute(
-    options: { returnConsumedCapacity?: ReturnConsumedCapacity } = {}
+    options: { returnConsumedCapacity?: ReturnConsumedCapacity } = {},
   ): Promise<{
     items: TableTypes;
     consumedCapacity?: ConsumedCapacity[];
   }> {
     let result = await this.client.transactGet({
       TransactItems: this.input.TransactItems,
-      ReturnConsumedCapacity: options.returnConsumedCapacity
+      ReturnConsumedCapacity: options.returnConsumedCapacity,
     });
     return {
-      items: (result.Responses ?? []).map(it => it.Item) as any,
+      items: (result.Responses ?? []).map((it) => it.Item) as any,
       consumedCapacity: result.ConsumedCapacity,
-    }
+    };
   }
 }
 
-export type ReturnTypesFor<K extends any[], T> = K extends [any] ? [T] : K extends [any, ...(infer B)] ? [T, ...ReturnTypesFor<B, T>] : T[]
+export type ReturnTypesFor<K extends any[], T> = K extends [any]
+  ? [T]
+  : K extends [any, ...infer B]
+  ? [T, ...ReturnTypesFor<B, T>]
+  : T[];
 
 export class DynamoTransactGetter<TableConfig extends TableDefinition> {
-  constructor(
-    private readonly clientConfig: DynamoConfig,
-  ) {}
+  constructor(private readonly clientConfig: DynamoConfig) {}
 
   get<const K extends TableConfig['keys'][], PROJECTION = null>(
     keys: K,
     options: TransactGetItemOptions<TableConfig['type'], PROJECTION> = {},
-  ): TransactGetExecutor<ReturnTypesFor<K, TypeOrProjection<TableConfig['type'], PROJECTION>>> {
+  ): TransactGetExecutor<
+    ReturnTypesFor<K, TypeOrProjection<TableConfig['type'], PROJECTION>>
+  > {
     const attributeBuilder = AttributeBuilder.create();
-    const expression = options.projection && ProjectionHandler.projectionExpressionFor(
-      attributeBuilder,
-      options.projection,
-    );
+    const expression =
+      options.projection &&
+      ProjectionHandler.projectionExpressionFor(
+        attributeBuilder,
+        options.projection,
+      );
     const input: TransactGetItemsCommandInput = {
-      TransactItems: keys.map(key => ({
+      TransactItems: keys.map((key) => ({
         Get: {
           TableName: this.clientConfig.tableName,
           Key: key,
-          ...(options.projection ? {ProjectionExpression: expression} : {}),
+          ...(options.projection ? { ProjectionExpression: expression } : {}),
           ...attributeBuilder.asInput(),
-        }
-      }))
-    }
+        },
+      })),
+    };
     const client = this.clientConfig.client;
     return new TransactGetExecutorHolder(client, input);
   }

@@ -1,10 +1,14 @@
 import {
-  DynamoQuerier, KeyCompare,
+  DynamoQuerier,
+  KeyCompare,
   QuerierInput,
   QuerierReturn,
 } from './dynamo-querier';
 import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
-import { DynamoTableKeyConfig, TableDefinition } from './table-builder/table-definition';
+import {
+  DynamoTableKeyConfig,
+  TableDefinition,
+} from './table-builder/table-definition';
 import { DynamoConfig } from './types/dynamo-config';
 
 export default class IndexClient<TableConfig extends TableDefinition> {
@@ -18,14 +22,21 @@ export default class IndexClient<TableConfig extends TableDefinition> {
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
-    return new DynamoQuerier<TableConfig>(this.tableConfig, this.clientConfig).query(keys, options);
+    return new DynamoQuerier<TableConfig>(
+      this.tableConfig,
+      this.clientConfig,
+    ).query(keys, options);
   }
 
   queryAll<PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
-    return new DynamoQuerier(this.tableConfig, this.clientConfig, this.parentKeys).queryAll(keys, options);
+    return new DynamoQuerier(
+      this.tableConfig,
+      this.clientConfig,
+      this.parentKeys,
+    ).queryAll(keys, options);
   }
 
   scan<PROJECTION = null>(

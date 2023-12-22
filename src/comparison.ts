@@ -25,8 +25,10 @@ type NestedComparisonBuilder<Original, Type> = {
 };
 
 type Digger<T, Original = T> = Required<{
-  [K in keyof T]: Operation<T, T[K]> & Digger<T[K], Original> & NestedComparisonBuilder<Original, T[K]>;
-}>
+  [K in keyof T]: Operation<T, T[K]> &
+    Digger<T[K], Original> &
+    NestedComparisonBuilder<Original, T[K]>;
+}>;
 
 export type ComparisonBuilderFrom<TableType> = {
   not(
@@ -79,19 +81,25 @@ export class Wrapper {
 }
 
 export function comparisonBuilderProxy(wrapper: Wrapper) {
-  return new Proxy({}, {
-    get(target, name) {
-      if(Object.getOwnPropertyNames(ComparisonBuilderType.prototype).includes(name.toString())) {
-        const builder =new ComparisonBuilderType(wrapper);
-        return (builder as any)[name].bind(builder);
-      }
-      return operationProxy(wrapper, [name]);
-    }
-  })
+  return new Proxy(
+    {},
+    {
+      get(target, name) {
+        if (
+          Object.getOwnPropertyNames(ComparisonBuilderType.prototype).includes(
+            name.toString(),
+          )
+        ) {
+          const builder = new ComparisonBuilderType(wrapper);
+          return (builder as any)[name].bind(builder);
+        }
+        return operationProxy(wrapper, [name]);
+      },
+    },
+  );
 }
 
-
-class ComparisonBuilderType<T>{
+class ComparisonBuilderType<T> {
   constructor(public wrapper: Wrapper) {}
 
   and(...comparisons: Wrapper[]): Wrapper {
@@ -130,7 +138,9 @@ export function filterParts<TableType>(
   attributeBuilder: AttributeBuilder,
   filter: DynamoFilter<TableType>,
 ): string {
-  const { expression } = filter(() => comparisonBuilderProxy(new Wrapper(attributeBuilder)) as any) as any;
+  const { expression } = filter(
+    () => comparisonBuilderProxy(new Wrapper(attributeBuilder)) as any,
+  ) as any;
   return expression;
 }
 
@@ -142,9 +152,7 @@ export function conditionalParts<TableType>(
 ): string {
   const parent = condition(
     () =>
-      new ComparisonBuilderType(
-        new Wrapper(attributeBuilder),
-      ).builder() as any,
+      new ComparisonBuilderType(new Wrapper(attributeBuilder)).builder() as any,
   ) as unknown as Wrapper;
   return parent.expression;
 }

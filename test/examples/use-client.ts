@@ -7,6 +7,6 @@ const dynamoConfig: DynamoConfig = {
   client: DynamoDBDocument.from(new DynamoDB({})),
   tableName: 'my-table',
   logStatements: true, // Logs all interactions with Dynamo
-}
+};
 
 export const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);

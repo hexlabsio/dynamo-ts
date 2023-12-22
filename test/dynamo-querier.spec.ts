@@ -4,8 +4,10 @@ import { CompareWrapperOperator, Operation, TableClient } from '../src';
 import { DynamoQuerier, QuerierReturn } from '../src';
 import {
   ComplexTable2,
-  complexTableDefinitionQuery, IndexTable,
-  indexTableDefinition, SimpleTable2,
+  complexTableDefinitionQuery,
+  IndexTable,
+  indexTableDefinition,
+  SimpleTable2,
   simpleTableDefinition2,
   sortKeyAsIndexPartitionKeyTableDefinition,
 } from './tables';
@@ -136,7 +138,7 @@ describe('Dynamo Querier', () => {
 
   describe('Key conditions', () => {
     it('should find single item by partition', async () => {
-      const result = await testTable.query({ hash: 'query-items-test',  });
+      const result = await testTable.query({ hash: 'query-items-test' });
       expect(result.member).toEqual([preInserts[0]]);
     });
 
