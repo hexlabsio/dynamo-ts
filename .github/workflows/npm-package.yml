@@ -31,18 +31,6 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Coverage Report
-        if: success() || failure()
-        uses: ArtiomTr/jest-coverage-report-action@v2
-        with:
-          coverage-file: coverage/coverage-file.json
-
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v4
-        if: success() || failure()
-        with:
-          report_paths: 'junit.xml'
-
       - name: Production Build
         run: npm run build
 
