@@ -166,7 +166,7 @@ export class TableClient<TableConfig extends TableDefinition> {
     KEY extends JsonPath<TableConfig['type']>,
     RETURN_ITEMS extends UpdateCommandInput['ReturnValues'] | null = null,
   >(
-    options: UpdateItemOptions<TableConfig['type'], KEY, RETURN_ITEMS>,
+    options: UpdateItemOptions<TableConfig, KEY, RETURN_ITEMS>,
   ): Promise<UpdateResult<TableConfig['type'], RETURN_ITEMS>> {
     return new DynamoUpdater<TableConfig>(this.clientConfig).update(options);
   }
