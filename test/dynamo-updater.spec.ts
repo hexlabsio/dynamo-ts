@@ -37,6 +37,7 @@ const preInserts: ComplexTable2[] = [
     pqr: 'yyy',
   },
   { hash: hash + '4', text: 'some other text', mno: 2, pqr: '123 456' },
+  { hash: hash + '5', text: 'some other text', mno: 2, pqr: '123 456', arr: [{ ghi: 1 }, { ghi: 3 }] }
 ];
 
 describe('Dynamo Updater', () => {
@@ -87,6 +88,18 @@ describe('Dynamo Updater', () => {
       expect(result.item).toEqual({
         ...preInserts[2],
         obj: { ...preInserts[2].obj, abc: 'zyz' },
+      });
+    });
+
+    it('should update single nested array object', async () => {
+      const result = await testTable.update({
+        key: { hash: hash + '5' },
+        updates: { 'arr.[1].ghi': 3 },
+        return: 'ALL_NEW',
+      });
+      expect(result.item).toEqual({
+        ...preInserts[4],
+        arr: preInserts[4].arr,
       });
     });
 

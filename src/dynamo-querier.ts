@@ -226,9 +226,7 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
             ),
           }
         : {}),
-      ...(options.projection
-        ? { ProjectionExpression: this.projectionWithEnrichedKeys![0] }
-        : {}),
+      ProjectionExpression: this.projectionWithEnrichedKeys,
       ReturnConsumedCapacity: this.options.returnConsumedCapacity,
       ScanIndexForward: this.options.scanIndexForward,
       ConsistentRead: this.options.consistentRead,
