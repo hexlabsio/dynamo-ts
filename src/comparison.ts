@@ -1,8 +1,12 @@
-import { CompareWrapperOperator, Operation, operationProxy } from './operation';
+import {
+  CompareWrapperOperator,
+  Operation,
+  operationProxy,
+} from './operation.js';
 
-import { DynamoFilter } from './types';
-import { AttributeBuilder } from './attribute-builder';
-import { SimpleDynamoType } from './table-builder/table-definition';
+import { DynamoFilter } from './types/index.js';
+import { AttributeBuilder } from './attribute-builder.js';
+import { SimpleDynamoType } from './table-builder/table-definition.js';
 
 export type KeyComparisonBuilder<T> = {
   eq(value: T): void;

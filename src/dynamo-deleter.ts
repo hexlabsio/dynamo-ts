@@ -1,9 +1,9 @@
 import { DeleteCommandInput, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
-import { TableDefinition } from './table-builder/table-definition';
-import { CamelCaseKeys } from './types/camel-case';
-import { DynamoConfig, DynamoFilter } from './types';
+import { AttributeBuilder } from './attribute-builder.js';
+import { filterParts } from './comparison.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { CamelCaseKeys } from './types/camel-case.js';
+import { DynamoConfig, DynamoFilter } from './types/index.js';
 
 export type DeleteReturnValues = 'NONE' | 'ALL_OLD';
 

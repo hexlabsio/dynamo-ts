@@ -1,11 +1,11 @@
 import { ScanCommandInput, ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
-import { Projection, ProjectionHandler } from './projector';
-import { TableDefinition } from './table-builder/table-definition';
-import { CamelCaseKeys } from './types/camel-case';
-import { DynamoConfig } from './types/dynamo-config';
-import { DynamoFilter } from './types/filter';
+import { AttributeBuilder } from './attribute-builder.js';
+import { filterParts } from './comparison.js';
+import { Projection, ProjectionHandler } from './projector.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { CamelCaseKeys } from './types/camel-case.js';
+import { DynamoConfig } from './types/dynamo-config.js';
+import { DynamoFilter } from './types/filter.js';
 
 export type ScanOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<

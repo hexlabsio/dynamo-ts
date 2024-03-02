@@ -1,7 +1,7 @@
 import {
   LocalSecondaryIndexProperties,
   TableProperties,
-} from '../cloudformation';
+} from '../cloudformation/index.js';
 
 export type SimpleDynamoType =
   | 'string'

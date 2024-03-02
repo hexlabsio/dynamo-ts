@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { TableDefinition } from './table-builder/table-definition';
+import { TableDefinition } from './table-builder/table-definition.js';
 
 export function tableDefinition(definitions: Record<string, TableDefinition>): {
   tables: unknown[];

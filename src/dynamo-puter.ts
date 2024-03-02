@@ -1,10 +1,10 @@
 import { PutCommandInput, PutCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
-import { DynamoFilter } from './types/filter';
-import { TableDefinition } from './table-builder/table-definition';
-import { DynamoConfig } from './types';
-import { CamelCaseKeys } from './types/camel-case';
+import { AttributeBuilder } from './attribute-builder.js';
+import { filterParts } from './comparison.js';
+import { DynamoFilter } from './types/filter.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { DynamoConfig } from './types/dynamo-config.js';
+import { CamelCaseKeys } from './types/camel-case.js';
 
 export type PutReturnValues = 'NONE' | 'ALL_OLD';
 

@@ -4,42 +4,46 @@ import {
   BatchWriteExecutor,
   BatchWriteItemOptions,
   DynamoBatchWriter,
-} from './dynamo-batch-writer';
+} from './dynamo-batch-writer.js';
 import {
   DeleteItemOptions,
   DeleteItemReturn,
   DeleteReturnValues,
   DynamoDeleter,
-} from './dynamo-deleter';
-import { DynamoGetter, GetItemOptions, GetItemReturn } from './dynamo-getter';
+} from './dynamo-deleter.js';
+import {
+  DynamoGetter,
+  GetItemOptions,
+  GetItemReturn,
+} from './dynamo-getter.js';
 import {
   DynamoBatchGetter,
   BatchGetExecutor,
   BatchGetItemOptions,
-} from './dynamo-batch-getter';
+} from './dynamo-batch-getter.js';
 import {
   DynamoPuter,
   PutItemOptions,
   PutItemReturn,
   PutReturnValues,
-} from './dynamo-puter';
+} from './dynamo-puter.js';
 import {
   DynamoQuerier,
   KeyCompare,
   QuerierInput,
   QuerierReturn,
-} from './dynamo-querier';
-import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
-import { DynamoTransactGetter } from './dynamo-transact-getter';
-import { DynamoTransactWriter } from './dynamo-transact-writer';
+} from './dynamo-querier.js';
+import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner.js';
+import { DynamoTransactGetter } from './dynamo-transact-getter.js';
+import { DynamoTransactWriter } from './dynamo-transact-writer.js';
 import {
   DynamoUpdater,
   UpdateItemOptions,
   UpdateResult,
-} from './dynamo-updater';
-import IndexClient from './index-client';
-import { TableDefinition } from './table-builder/table-definition';
-import { DynamoConfig, JsonPath } from './types';
+} from './dynamo-updater.js';
+import IndexClient from './index-client.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { DynamoConfig, JsonPath } from './types/index.js';
 
 export class TableClient<TableConfig extends TableDefinition> {
   constructor(
