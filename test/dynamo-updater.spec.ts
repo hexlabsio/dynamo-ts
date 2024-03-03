@@ -37,7 +37,13 @@ const preInserts: ComplexTable2[] = [
     pqr: 'yyy',
   },
   { hash: hash + '4', text: 'some other text', mno: 2, pqr: '123 456' },
-  { hash: hash + '5', text: 'some other text', mno: 2, pqr: '123 456', arr: [{ ghi: 1 }, { ghi: 3 }] }
+  {
+    hash: hash + '5',
+    text: 'some other text',
+    mno: 2,
+    pqr: '123 456',
+    arr: [{ ghi: 1 }, { ghi: 3 }],
+  },
 ];
 
 describe('Dynamo Updater', () => {

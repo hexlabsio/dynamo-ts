@@ -11,3 +11,4 @@ export * from './dynamo-updater.js';
 export * from './table-builder/single-table-builder.js';
 export * from './table-builder/table-definition.js';
 export * from './cloudformation/index.js';
+export * from './dynamo-jest-setup.js';
