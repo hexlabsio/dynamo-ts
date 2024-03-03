@@ -10,6 +10,9 @@ const config = {
     testEnvironment: "node",
     globalSetup: "./node_modules/@shelf/jest-dynamodb/lib/setup.js",
     globalTeardown: "./node_modules/@shelf/jest-dynamodb/lib/teardown.js",
+    moduleNameMapper: {
+        '^(\\.{1,2}/.*)\\.js$': '$1',
+    },
     transform: {
         "\.spec\.ts$": ['ts-jest', { isolatedModules: true }],
     }

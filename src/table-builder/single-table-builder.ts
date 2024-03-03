@@ -2,17 +2,17 @@ import {
   BatchWriteClient,
   BatchWriteExecutor,
   BatchWriteItemOptions,
-} from '../dynamo-batch-writer';
-import { GetItemOptions, GetItemReturn } from '../dynamo-getter';
+} from '../dynamo-batch-writer.js';
+import { GetItemOptions, GetItemReturn } from '../dynamo-getter.js';
 import {
   PutItemOptions,
   PutItemReturn,
   PutReturnValues,
-} from '../dynamo-puter';
-import { QuerierInput, QuerierReturn } from '../dynamo-querier';
-import { TableClient } from '../table-client';
-import { DynamoConfig } from '../types';
-import { TableDefinition, ValidKeys } from './table-definition';
+} from '../dynamo-puter.js';
+import { QuerierInput, QuerierReturn } from '../dynamo-querier.js';
+import { TableClient } from '../table-client.js';
+import { DynamoConfig } from '../types/index.js';
+import { TableDefinition, ValidKeys } from './table-definition.js';
 
 type TablePart<T> = {
   partitions: (keyof T)[];

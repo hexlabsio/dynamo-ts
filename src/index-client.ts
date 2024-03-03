@@ -3,13 +3,13 @@ import {
   KeyCompare,
   QuerierInput,
   QuerierReturn,
-} from './dynamo-querier';
-import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner';
+} from './dynamo-querier.js';
+import { DynamoScanner, ScanOptions, ScanReturn } from './dynamo-scanner.js';
 import {
   DynamoTableKeyConfig,
   TableDefinition,
-} from './table-builder/table-definition';
-import { DynamoConfig } from './types/dynamo-config';
+} from './table-builder/table-definition.js';
+import { DynamoConfig } from './types/dynamo-config.js';
 
 export default class IndexClient<TableConfig extends TableDefinition> {
   constructor(

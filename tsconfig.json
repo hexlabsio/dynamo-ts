@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": "src",
     "baseUrl": ".",
-    "outDir": "./dist",
+    "outDir": "./dist/esm",
     "strict": true,
     "noUnusedLocals": true,
     "declaration": true,
@@ -19,7 +19,7 @@
     "pretty": true,
     "inlineSourceMap": false,
     "inlineSources": false,
-    "esModuleInterop": true
+    "esModuleInterop": false
   },
   "ts-node": {
     "esm": true,

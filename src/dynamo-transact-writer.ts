@@ -6,20 +6,20 @@ import {
   ReturnItemCollectionMetrics,
   TransactWriteItemsInput,
   Update,
-} from '@aws-sdk/client-dynamodb/dist-types/models';
-import { TransactWriteItemsOutput } from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+} from '@aws-sdk/client-dynamodb/dist-types/models/index.js';
+import { TransactWriteItemsOutput } from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { AttributeBuilder } from './attribute-builder';
-import { filterParts } from './comparison';
-import { DynamoUpdater, Increment } from './dynamo-updater';
-import { TableDefinition } from './table-builder/table-definition';
+import { AttributeBuilder } from './attribute-builder.js';
+import { filterParts } from './comparison.js';
+import { DynamoUpdater, Increment } from './dynamo-updater.js';
+import { TableDefinition } from './table-builder/table-definition.js';
 import {
   CamelCaseKeys,
   DynamoConfig,
   DynamoFilter,
   JsonPath,
   ValueAtJsonPath,
-} from './types';
+} from './types/index.js';
 
 export type TransactPutOptions<TableType> = CamelCaseKeys<
   Pick<Put, 'ReturnValuesOnConditionCheckFailure'>

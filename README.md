@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/npm/v/@hexlabs/dynamo-ts?label=%40hexlabs%2Fdynamo-ts)
 
-> Note: Versions 5.x + are now ES Modules. If you need CommonJS the latest version using it is 4.x
+> Version 6.x now supports both CommonJS and ESM
 
 DynamoDB + TypeScript made simple
 

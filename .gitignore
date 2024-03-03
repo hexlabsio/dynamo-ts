@@ -6,3 +6,6 @@ junit.xml
 coverage
 .husky
 dynamodb-tables.cjs
+cjs
+esm
+*.tgz

@@ -1,11 +1,11 @@
-import { BatchGetItemOptions } from './dynamo-batch-getter';
-import { GetItemOptions } from './dynamo-getter';
-import { ScanOptions } from './dynamo-scanner';
-import { UpdateItemOptions } from './dynamo-updater';
-import { TableDefinition } from './table-builder/table-definition';
-import { TableClient } from './table-client';
+import { BatchGetItemOptions } from './dynamo-batch-getter.js';
+import { GetItemOptions } from './dynamo-getter.js';
+import { ScanOptions } from './dynamo-scanner.js';
+import { UpdateItemOptions } from './dynamo-updater.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { TableClient } from './table-client.js';
 import { v4 as uuid } from 'uuid';
-import { JsonPath } from './types';
+import { JsonPath } from './types/index.js';
 
 export type ProjectionOrTypeArray<PROJECTION, TableType> =
   PROJECTION extends null ? TableType[] : PROJECTION[];

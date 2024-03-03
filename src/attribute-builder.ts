@@ -1,6 +1,6 @@
 import { PutItemInput } from '@aws-sdk/client-dynamodb';
-import { AttributeNamer } from './naming';
-import { CamelCaseKeys } from './types';
+import { AttributeNamer } from './naming.js';
+import { CamelCaseKeys } from './types/index.js';
 
 export class AttributeBuilder {
   private constructor(

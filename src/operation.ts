@@ -1,5 +1,5 @@
-import { Wrapper } from './comparison';
-import { SimpleDynamoType } from './table-builder/table-definition';
+import { Wrapper } from './comparison.js';
+import { SimpleDynamoType } from './table-builder/table-definition.js';
 
 export type CompareWrapperOperator<T> = {
   and(comparison: CompareWrapperOperator<T>): CompareWrapperOperator<T>;

@@ -1,11 +1,11 @@
 import { UpdateCommandInput, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { filterParts } from './comparison';
-import { AttributeBuilder } from './attribute-builder';
-import { TableDefinition } from './table-builder/table-definition';
-import { CamelCaseKeys } from './types/camel-case';
-import { DynamoConfig } from './types/dynamo-config';
-import { DynamoFilter } from './types/filter';
-import { JsonPath, ValueAtJsonPath } from './types/json-path';
+import { filterParts } from './comparison.js';
+import { AttributeBuilder } from './attribute-builder.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { CamelCaseKeys } from './types/camel-case.js';
+import { DynamoConfig } from './types/dynamo-config.js';
+import { DynamoFilter } from './types/filter.js';
+import { JsonPath, ValueAtJsonPath } from './types/json-path.js';
 
 export type Increment<T, K extends keyof T> = {
   key: K;

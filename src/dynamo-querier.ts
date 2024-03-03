@@ -1,17 +1,17 @@
 import { QueryCommandInput, QueryCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { NativeAttributeValue } from '@aws-sdk/util-dynamodb';
 
-import { AttributeBuilder } from './attribute-builder';
-import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison';
-import { KeyOperation } from './operation';
-import { Projection, ProjectionHandler } from './projector';
+import { AttributeBuilder } from './attribute-builder.js';
+import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison.js';
+import { KeyOperation } from './operation.js';
+import { Projection, ProjectionHandler } from './projector.js';
 import {
   DynamoTableKeyConfig,
   TableDefinition,
-} from './table-builder/table-definition';
-import { CamelCaseKeys } from './types/camel-case';
-import { DynamoConfig } from './types/dynamo-config';
-import { DynamoFilter } from './types/filter';
+} from './table-builder/table-definition.js';
+import { CamelCaseKeys } from './types/camel-case.js';
+import { DynamoConfig } from './types/dynamo-config.js';
+import { DynamoFilter } from './types/filter.js';
 
 export type KeyCompare<
   TableType,

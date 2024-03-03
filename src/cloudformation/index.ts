@@ -1,1 +1,1 @@
-export * from './dynamodb/Table';
+export * from './dynamodb/Table.js';

@@ -1,5 +1,5 @@
-import { ComparisonBuilderFrom } from '../comparison';
-import { CompareWrapperOperator } from '../operation';
+import { ComparisonBuilderFrom } from '../comparison.js';
+import { CompareWrapperOperator } from '../operation.js';
 
 export type DynamoFilter<TableType> = (
   compare: () => ComparisonBuilderFrom<TableType>,

@@ -1,0 +1,15 @@
+{
+  "name": "test-mjs",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hexlabs/dynamo-ts": "file:../hexlabs-dynamo-ts-6.0.0.tgz"
+  }
+}

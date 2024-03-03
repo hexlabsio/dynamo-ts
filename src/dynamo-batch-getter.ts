@@ -1,12 +1,12 @@
 import {
   ConsumedCapacity,
   KeysAndAttributes,
-} from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+} from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
 import { BatchGetCommandInput, DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { AttributeBuilder } from './attribute-builder';
-import { Projection, ProjectionHandler } from './projector';
-import { TableDefinition } from './table-builder/table-definition';
-import { CamelCaseKeys, DynamoConfig } from './types';
+import { AttributeBuilder } from './attribute-builder.js';
+import { Projection, ProjectionHandler } from './projector.js';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { CamelCaseKeys, DynamoConfig } from './types/index.js';
 
 export type BatchGetItemOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &

@@ -1,14 +1,14 @@
 import {
   ConsumedCapacity,
   WriteRequest,
-} from '@aws-sdk/client-dynamodb/dist-types/models/models_0';
+} from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
 import {
   BatchWriteCommandInput,
   BatchWriteCommandOutput,
   DynamoDBDocument,
 } from '@aws-sdk/lib-dynamodb';
-import { TableDefinition } from './table-builder/table-definition';
-import { CamelCaseKeys, DynamoConfig } from './types';
+import { TableDefinition } from './table-builder/table-definition.js';
+import { CamelCaseKeys, DynamoConfig } from './types/index.js';
 
 export type BatchWriteItemOptions = CamelCaseKeys<
   Pick<
