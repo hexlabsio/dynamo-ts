@@ -1,4 +1,4 @@
-import { TableDefinition } from '../src/table-builder/table-definition';
+import { TableDefinition } from '../src';
 
 export type SimpleTable = {
   identifier: string;
@@ -134,8 +134,8 @@ export const indexTableDefinition = TableDefinition.ofType<IndexTable>()
   .withSortKey('sort');
 
 export const singleTableDesignDefinition = TableDefinition.ofType<{
-  partition: string;
-  sort: string;
+  p2: string;
+  s2: string;
 }>()
-  .withPartitionKey('partition')
-  .withSortKey('sort');
+  .withPartitionKey('p2')
+  .withSortKey('s2');

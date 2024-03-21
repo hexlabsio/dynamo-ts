@@ -30,14 +30,14 @@ type SortKeys<
     }
   : never;
 
-export type TablePartClients<T> = T extends [
+export type TablePartClients<T, D extends TableDefinition> = T extends [
   TablePartInfo<infer A, infer B, infer C, infer P>,
 ]
-  ? { [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>> }
+  ? { [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>, D> }
   : T extends [TablePartInfo<infer A, infer B, infer C, infer P>, ...infer TAIL]
   ? {
-      [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>>;
-    } & TablePartClients<TAIL>
+      [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>, D>;
+    } & TablePartClients<TAIL, D>
   : never;
 
 export type ParentTypes<T extends any[]> = T extends [infer A]
@@ -67,21 +67,30 @@ export type CombinedTypes<
     : A & CombinedTypes<PP, [...Depth, 0]>
   : {};
 
+export const defaultBaseTable = TableDefinition.ofType<{
+  partition: string;
+  sort: string;
+}>()
+  .withPartitionKey('partition')
+  .withSortKey('sort');
+
+export type PutItemReturnSingleTable<
+  BaseDefinition extends TableDefinition,
+  TableType,
+  RETURN extends PutReturnValues,
+> = PutItemReturn<TableType, RETURN> & { keys: BaseDefinition['type'] };
+
 export class TablePartClient<
   TableType,
   T extends TablePart<TableType>,
   Info extends TablePartInfo<any, any, any, any>,
+  Definition extends TableDefinition,
 > {
   constructor(
     private readonly part: T,
     private readonly parent: Info,
     private readonly prefix: string,
-    private readonly tableClient: TableClient<
-      TableDefinition<
-        { partition: string; sort: string },
-        { partitionKey: 'partition'; sortKey: 'sort' }
-      >
-    >,
+    private readonly tableClient: TableClient<Definition>,
   ) {}
   private proxySetter(set: (name: string, value: string) => void) {
     const self = this;
@@ -113,21 +122,32 @@ export class TablePartClient<
     if (chain.length === 1) {
       const last = chain[0];
       return items
-        .filter(
-          (it) => it.sort.startsWith(`#${last.toUpperCase()}`) && search(it),
-        )
-        .map(({ partition, sort, ...rest }) => rest);
+        .filter((it) => {
+          return (
+            it[this.tableClient.tableConfig.keyNames.sortKey].startsWith(
+              `#${last.toUpperCase()}`,
+            ) && search(it)
+          );
+        })
+        .map((it) => {
+          return it;
+        });
     }
     const name = chain[0];
     const results = items.filter(
-      (it) => it.sort.startsWith(`#${name.toUpperCase()}`) && search(it),
+      (it) =>
+        it[this.tableClient.tableConfig.keyNames.sortKey].startsWith(
+          `#${name.toUpperCase()}`,
+        ) && search(it),
     );
-    return results.map(({ partition, sort, ...item }) => ({
-      item,
-      member: this.intoParentage(items, chain.slice(1), (o) => {
-        return search(o) && o[name] === item[name];
-      }),
-    }));
+    return results.map((it) => {
+      return {
+        item: it,
+        member: this.intoParentage(items, chain.slice(1), (o) => {
+          return search(o) && o[name] === it[name];
+        }),
+      };
+    });
   }
 
   async query<PROJECTION = null>(
@@ -165,15 +185,13 @@ export class TablePartClient<
     }
     const result = await this.tableClient.query(
       {
-        partition: partitionString,
-        sort: (sortKey) => sortKey.beginsWith(sortString),
-      },
+        [this.tableClient.tableConfig.keyNames.partitionKey]: partitionString,
+        [this.tableClient.tableConfig.keyNames.sortKey]: (sortKey: any) =>
+          sortKey.beginsWith(sortString),
+      } as any,
       options as any,
     );
-    return {
-      ...result,
-      member: result.member.map(({ partition, sort, ...rest }) => rest),
-    } as any;
+    return result as any;
   }
 
   async queryWithParents<PROJECTION = null>(
@@ -186,7 +204,9 @@ export class TablePartClient<
       '',
     );
     const result = await this.tableClient.query(
-      { partition: partitionString },
+      {
+        [this.tableClient.tableConfig.keyNames.partitionKey]: partitionString,
+      } as any,
       options as any,
     );
     const chain = this.getParentChain().map((it) => it.prefix);
@@ -197,7 +217,7 @@ export class TablePartClient<
   async put<RETURN extends PutReturnValues = 'NONE'>(
     item: TableType,
     options: PutItemOptions<TableType, RETURN> = {},
-  ): Promise<PutItemReturn<TableType, RETURN>> {
+  ): Promise<PutItemReturnSingleTable<Definition, TableType, RETURN>> {
     const partition = this.part.partitions.reduce(
       (prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
       '',
@@ -209,10 +229,15 @@ export class TablePartClient<
     if (this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
       sort = `#${this.prefix.toUpperCase()}${sort}`;
     }
-    return (await this.tableClient.put(
-      { ...item, partition, sort },
+    const keys: Definition['type'] = {
+      [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
+      [this.tableClient.tableConfig.keyNames.sortKey]: sort,
+    };
+    const putResult = (await this.tableClient.put(
+      { ...item, ...keys },
       options as any,
     )) as any;
+    return { ...putResult, keys };
   }
 
   batchPut(
@@ -234,7 +259,11 @@ export class TablePartClient<
         if (this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
           sort = `#${this.prefix.toUpperCase()}${sort}`;
         }
-        return { ...item, partition, sort };
+        return {
+          ...item,
+          [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
+          [this.tableClient.tableConfig.keyNames.sortKey]: sort,
+        };
       }),
       options as any,
     );
@@ -256,15 +285,23 @@ export class TablePartClient<
       sort = `#${this.prefix.toUpperCase()}${sort}`;
     }
     return (await this.tableClient.get(
-      { ...item, partition, sort },
+      {
+        ...item,
+        [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
+        [this.tableClient.tableConfig.keyNames.sortKey]: sort,
+      },
       options as any,
     )) as any;
   }
 
-  static fromParts<T extends TablePartInfo<any, any, any, any>[]>(
+  static fromPartsWithBaseTable<
+    Definition extends TableDefinition,
+    T extends TablePartInfo<any, any, any, any>[],
+  >(
+    baseTable: Definition,
     config: DynamoConfig,
     ...parts: T
-  ): TablePartClients<T> {
+  ): TablePartClients<T, Definition> {
     return parts.reduce(
       (prev, next) => ({
         ...prev,
@@ -272,24 +309,22 @@ export class TablePartClient<
           next.part,
           next,
           next.prefix,
-          new TableClient(
-            TableDefinition.ofType<any>()
-              .withPartitionKey('partition')
-              .withSortKey('sort'),
-            config,
-          ) as any,
+          new TableClient(baseTable, config) as any,
         ),
       }),
       {},
     ) as any;
   }
 
-  rawTableClient(): TableDefinition<
-    CombinedTypes<Info> & { partition: string; sort: string }
-  > {
-    return TableDefinition.ofType<{ partition: string; sort: string }>()
-      .withPartitionKey('partition')
-      .withSortKey('sort') as any;
+  static fromParts<T extends TablePartInfo<any, any, any, any>[]>(
+    config: DynamoConfig,
+    ...parts: T
+  ): TablePartClients<T, typeof defaultBaseTable> {
+    return TablePartClient.fromPartsWithBaseTable(
+      defaultBaseTable,
+      config,
+      ...parts,
+    );
   }
 }
 
