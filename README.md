@@ -10,11 +10,19 @@ DynamoDB + TypeScript made simple
 ![ESLint](https://img.shields.io/badge/ESLint-8080f2?style=flat-square&logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-ff69b4?style=flat-square&logo=prettier&logoColor=white)
 
+Table of contents
 
-<!-- AUTO-GENERATED-CONTENT:START (TOC) -->
+<details open>
+<summary>Get Started</summary>
+
 - [Installation](#installation)
 - [Get Started](#get-started)
-- [Examples](#examples)
+
+</details>
+
+<details open>
+<summary>Examples</summary>
+
 - [Scan Table](#scan-table)
 - [Get Item](#get-item)
 - [Put Item](#put-item)
@@ -23,12 +31,21 @@ DynamoDB + TypeScript made simple
 - [Update Items](#update-items)
 - [Multi-Table Batch Gets (With Projections)](#multi-table-batch-gets-with-projections)
 - [Multi-Table Batch Writes](#multi-table-batch-writes)
+- [Transactional Writes](#transactional-writes)
+- [Transactional Gets](#transactional-gets)
+
+</details>
+
+- [Single Table Design](#single-table-design)
+
+
 - [Testing](#testing)
+
+
 - [Contributors](#contributors)
-<!-- AUTO-GENERATED-CONTENT:END -->
 
 
-## Installation
+# Installation
 
 Using npm:
 ```shell
@@ -49,7 +66,8 @@ type MyTableType = { identifier: string; sort: string; abc: { xyz: number } };
 export const myTableDefinition = TableDefinition.ofType<MyTableType>()
   .withPartitionKey('identifier') // <- type checked to be a key in your type
   .withSortKey('sort') // <- optional, aso type checked
-  .withGlobalSecondaryIndex('my-index', 'sort').withNoSortKey() // Global or Local index
+  .withGlobalSecondaryIndex('my-index', 'sort')
+  .withNoSortKey(); // Global or Local index
 ```
 <!-- AUTO-GENERATED-CONTENT:END -->
 
@@ -66,7 +84,7 @@ const dynamoConfig: DynamoConfig = {
   client: DynamoDBDocument.from(new DynamoDB({})),
   tableName: 'my-table',
   logStatements: true, // Logs all interactions with Dynamo
-}
+};
 
 const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
 ```
@@ -84,7 +102,7 @@ const result = await myTable.get({ identifier: 'id'});
 ```
 
 
-## Examples
+# Examples
 
 All examples can be found in the `examples` directory in this repository.
 
@@ -247,6 +265,10 @@ const result = await transactionTable
       testTable2.transaction.get([{identifier: '10000', sort: '0'}])
     ).execute()
 ```
+
+# Single Table Design
+
+> [See the Single Table Design section on Medium for a detailed explanation](https://medium.com/hexlabs/typesafe-dynamodb-with-typescript-f0fe538186a7)
 
 # Testing
 Testing is no different than how you would have tested dynamo before. We use @shelf/jest-dynamodb to run a local version of dynamodb when we test.
