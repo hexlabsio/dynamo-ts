@@ -44,7 +44,7 @@ class IndexDefinitionBuilder<
     return this.tableDefinition;
   }
 
-  withSortKey<SK extends ValidKeys<T>>(
+  withSortKey<SK extends keyof T>(
     sortKey: SK,
   ): TableDefinition<
     T,
@@ -100,7 +100,7 @@ export class TableDefinition<
     >({ ...this.keyNames, sortKey }, this.indexes);
   }
 
-  withGlobalSecondaryIndex<K extends string, PK extends ValidKeys<T>>(
+  withGlobalSecondaryIndex<K extends string, PK extends keyof T>(
     name: K,
     partitionKey: PK,
   ): IndexDefinitionBuilder<
@@ -123,7 +123,7 @@ export class TableDefinition<
     );
   }
 
-  withLocalSecondaryIndex<K extends string, PK extends ValidKeys<T>>(
+  withLocalSecondaryIndex<K extends string, PK extends keyof T>(
     name: K,
     partitionKey: PK,
   ): IndexDefinitionBuilder<
