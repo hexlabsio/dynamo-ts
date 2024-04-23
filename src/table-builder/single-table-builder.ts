@@ -80,6 +80,12 @@ export type PutItemReturnSingleTable<
   RETURN extends PutReturnValues,
 > = PutItemReturn<TableType, RETURN> & { keys: BaseDefinition['type'] };
 
+export type GetItemReturnSingleTable<
+  BaseDefinition extends TableDefinition,
+  TableType,
+  PROJECTION,
+> = GetItemReturn<TableType, PROJECTION> & { keys: BaseDefinition['type'] };
+
 export class TablePartClient<
   TableType,
   T extends TablePart<TableType>,
@@ -272,7 +278,7 @@ export class TablePartClient<
   async get<PROJECTION = null>(
     item: { [K in T['partitions'][number] | T['sorts'][number]]: string },
     options: GetItemOptions<TableType, PROJECTION> = {},
-  ): Promise<GetItemReturn<TableType, PROJECTION>> {
+  ): Promise<GetItemReturnSingleTable<Definition, TableType, PROJECTION>> {
     const partition = this.part.partitions.reduce(
       (prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
       '',
@@ -284,13 +290,15 @@ export class TablePartClient<
     if (this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
       sort = `#${this.prefix.toUpperCase()}${sort}`;
     }
-    return (await this.tableClient.get(
-      {
-        [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
-        [this.tableClient.tableConfig.keyNames.sortKey]: sort,
-      },
+    const keys: Definition['type'] = {
+      [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
+      [this.tableClient.tableConfig.keyNames.sortKey]: sort,
+    };
+    const result = (await this.tableClient.get(
+      { ...keys },
       options as any,
     )) as any;
+    return { ...result, keys };
   }
 
   static fromPartsWithBaseTable<
