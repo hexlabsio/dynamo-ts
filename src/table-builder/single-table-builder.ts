@@ -286,7 +286,6 @@ export class TablePartClient<
     }
     return (await this.tableClient.get(
       {
-        ...item,
         [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
         [this.tableClient.tableConfig.keyNames.sortKey]: sort,
       },
