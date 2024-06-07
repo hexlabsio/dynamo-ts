@@ -66,6 +66,11 @@ describe('Single Table Design', () => {
           repo: 'repo',
           workflow: 'workflow',
         },
+        {
+          account: 'account2',
+          repo: 'repo2',
+          workflow: 'workflow2',
+        },
       ])
       .and(
         client.run.batchPut([
@@ -73,6 +78,12 @@ describe('Single Table Design', () => {
             account: 'account',
             repo: 'repo',
             workflow: 'workflow',
+            run: 'run1',
+          },
+          {
+            account: 'account2',
+            repo: 'repo2',
+            workflow: 'workflow2',
             run: 'run1',
           },
           {
@@ -241,5 +252,22 @@ describe('Single Table Design', () => {
         workflow: 'workflow',
       },
     ]);
+  });
+
+  it('should delete child', async () => {
+    const key = {
+      account: 'account2',
+      workflow: 'workflow2',
+      repo: 'repo2',
+    };
+    const result = await client.run.queryWithParents(key);
+
+    expect(result.member.length).toEqual(1);
+
+    await client.run.delete({ ...key, run: 'run1' });
+
+    const result2 = await client.run.queryWithParents(key);
+
+    expect(result2.member.length).toEqual(0);
   });
 });

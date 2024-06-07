@@ -3,6 +3,11 @@ import {
   BatchWriteExecutor,
   BatchWriteItemOptions,
 } from '../dynamo-batch-writer.js';
+import {
+  DeleteItemOptions,
+  DeleteItemReturn,
+  DeleteReturnValues,
+} from '../dynamo-deleter';
 import { GetItemOptions, GetItemReturn } from '../dynamo-getter.js';
 import {
   PutItemOptions,
@@ -85,6 +90,12 @@ export type GetItemReturnSingleTable<
   TableType,
   PROJECTION,
 > = GetItemReturn<TableType, PROJECTION> & { keys: BaseDefinition['type'] };
+
+export type DeleteItemReturnSingleTable<
+  BaseDefinition extends TableDefinition,
+  TableType,
+  RETURN extends DeleteReturnValues,
+> = DeleteItemReturn<TableType, RETURN> & { keys: BaseDefinition['type'] };
 
 export class TablePartClient<
   TableType,
@@ -295,6 +306,32 @@ export class TablePartClient<
       [this.tableClient.tableConfig.keyNames.sortKey]: sort,
     };
     const result = (await this.tableClient.get(
+      { ...keys },
+      options as any,
+    )) as any;
+    return { ...result, keys };
+  }
+
+  async delete<RETURN extends DeleteReturnValues>(
+    item: { [K in T['partitions'][number] | T['sorts'][number]]: string },
+    options: DeleteItemOptions<TableType, RETURN> = {},
+  ): Promise<DeleteItemReturnSingleTable<Definition, TableType, RETURN>> {
+    const partition = this.part.partitions.reduce(
+      (prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
+      '',
+    );
+    let sort = this.part.sorts.reduce(
+      (prev, next) => `${prev}#${next.toString().toUpperCase()}$${item[next]}`,
+      '',
+    );
+    if (this.prefix && !sort.startsWith(`#${this.prefix.toUpperCase()}`)) {
+      sort = `#${this.prefix.toUpperCase()}${sort}`;
+    }
+    const keys: Definition['type'] = {
+      [this.tableClient.tableConfig.keyNames.partitionKey]: partition,
+      [this.tableClient.tableConfig.keyNames.sortKey]: sort,
+    };
+    const result = (await this.tableClient.delete(
       { ...keys },
       options as any,
     )) as any;
