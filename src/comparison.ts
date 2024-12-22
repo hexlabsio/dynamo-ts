@@ -135,6 +135,7 @@ class ComparisonBuilderType<T> {
   }
 
   empty(): Wrapper {
+    this.wrapper.expression = "";
     return this.wrapper;
   }
 
