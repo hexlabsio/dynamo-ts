@@ -44,6 +44,7 @@ export type ComparisonBuilderFrom<TableType> = {
   or(
     ...comparisons: CompareWrapperOperator<Required<TableType>>[]
   ): CompareWrapperOperator<Required<TableType>>;
+  empty(): CompareWrapperOperator<Required<TableType>>;
 } & Digger<TableType>;
 
 export type ComparisonBuilder<T> = { [K in keyof T]: Operation<T, T[K]> } & {
@@ -130,6 +131,11 @@ class ComparisonBuilderType<T> {
 
   not(comparison: Wrapper): Wrapper {
     this.wrapper.expression = `NOT (${comparison.expression})`;
+    return this.wrapper;
+  }
+
+  empty(): Wrapper {
+    this.wrapper.expression = "";
     return this.wrapper;
   }
 
