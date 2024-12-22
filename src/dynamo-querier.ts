@@ -133,7 +133,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
         ? { IndexName: this.clientConfig.indexName }
         : {}),
       ...{ KeyConditionExpression: keyExpression },
-      ...(options.filter ? { FilterExpression: filterPart } : {}),
+      ...(options.filter && filterPart ? { FilterExpression: filterPart } : {}),
       ...(options.projection ? { ProjectionExpression: projection } : {}),
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ScanIndexForward: options.scanIndexForward,
