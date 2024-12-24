@@ -20,8 +20,8 @@ import { DynamoConfig } from '../types/index.js';
 import { TableDefinition, ValidKeys } from './table-definition.js';
 
 type TablePart<T> = {
-  partitions: (keyof T)[];
-  sorts: (keyof T)[];
+  partitions: (keyof T & string)[];
+  sorts: (keyof T & string)[];
 };
 
 type SortKeys<
@@ -171,9 +171,9 @@ export class TablePartClient<
     partition: { [K in T['partitions'][number]]: string },
     keys: (keys: SortKeys<T['sorts']>) => {
       [K in T['sorts'][number]]?: string;
-    } = () => {
+    } = (() => {
       return {};
-    },
+    }) as any,
     options: QuerierInput<TableType, PROJECTION> = {},
   ): Promise<QuerierReturn<TableType, PROJECTION>> {
     const keyResult: any = {};
@@ -441,8 +441,8 @@ export class TablePartInfo<
 
   static from<TableType>(): {
     withKeys<
-      K extends ValidKeys<TableType>,
-      K2 extends Exclude<ValidKeys<TableType>, K>,
+      K extends ValidKeys<TableType> & string,
+      K2 extends Exclude<ValidKeys<TableType>, K> & string,
     >(
       partitionKey: K,
       sortKey: K2,

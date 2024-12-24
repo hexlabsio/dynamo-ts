@@ -45,7 +45,7 @@ import IndexClient from './index-client.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { DynamoConfig, JsonPath } from './types/index.js';
 
-export class TableClient<TableConfig extends TableDefinition> {
+export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
   constructor(
     public readonly tableConfig: TableConfig,
     private readonly clientConfig: DynamoConfig,
@@ -232,7 +232,7 @@ export class TableClient<TableConfig extends TableDefinition> {
     );
   }
 
-  static build<TableConfig extends TableDefinition>(
+  static build<TableConfig extends TableDefinition<any, any, any>>(
     tableConfig: TableConfig,
     clientConfig: DynamoConfig,
   ): TableClient<TableConfig> {

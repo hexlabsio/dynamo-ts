@@ -14,7 +14,7 @@ export function tableDefinition(definitions: Record<string, TableDefinition>): {
 }
 
 export function writeJestDynamoConfig(
-  definitions: Record<string, TableDefinition>,
+  definitions: Record<string, TableDefinition<any>>,
   name = 'jest-dynamodb-config.js',
   rest = {},
 ): void {

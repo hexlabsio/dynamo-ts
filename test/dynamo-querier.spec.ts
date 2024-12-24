@@ -378,19 +378,24 @@ describe('Dynamo Querier', () => {
 
     it('should filter nothing', async () => {
       const result = await testTable2.query(
-          { identifier },
-          {
-            filter: compare => compare().empty()
-          },
+        { identifier },
+        {
+          filter: (compare) => compare().empty(),
+        },
       );
       expect(result).toEqual({
-        member: [preInserts2[0], preInserts2[1], preInserts2[2], preInserts2[3]],
+        member: [
+          preInserts2[0],
+          preInserts2[1],
+          preInserts2[2],
+          preInserts2[3],
+        ],
         count: 4,
         scannedCount: 4,
         consumedCapacity: undefined,
         next: undefined,
       });
-    })
+    });
   });
 
   describe('Scan Index Forward', () => {

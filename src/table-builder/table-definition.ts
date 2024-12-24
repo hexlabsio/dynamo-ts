@@ -17,12 +17,13 @@ export type SimpleDynamoType =
 
 type ValidKeyTypes = string | number | Buffer;
 
-export type ValidKeys<T> = T extends Record<string, any>
+export type ValidKeys<T> = (T extends Record<string, any>
   ? { [K in keyof T]: T[K] extends ValidKeyTypes ? K : never }[keyof T]
-  : never;
+  : never) &
+  keyof T;
 
 class TableDefinitionBuilder<T> {
-  withPartitionKey<K extends ValidKeys<T>>(
+  withPartitionKey<const K extends ValidKeys<T>>(
     partitionKey: K,
   ): TableDefinition<T, { partitionKey: K }> {
     return new TableDefinition<T, { partitionKey: K }>({ partitionKey }, {});
@@ -31,9 +32,12 @@ class TableDefinitionBuilder<T> {
 
 class IndexDefinitionBuilder<
   T,
-  KEYS extends DynamoTableKeyConfig<T>,
-  INDEXES extends Record<string, { global: boolean } & DynamoTableKeyConfig<T>>,
-  K extends keyof INDEXES,
+  const KEYS extends DynamoTableKeyConfig<T>,
+  const INDEXES extends Record<
+    string,
+    { global: boolean } & DynamoTableKeyConfig<T>
+  >,
+  const K extends keyof INDEXES,
 > {
   constructor(
     private readonly tableDefinition: TableDefinition<T, KEYS, INDEXES>,
@@ -44,7 +48,7 @@ class IndexDefinitionBuilder<
     return this.tableDefinition;
   }
 
-  withSortKey<SK extends keyof T>(
+  withSortKey<const SK extends keyof T>(
     sortKey: SK,
   ): TableDefinition<
     T,
@@ -62,13 +66,13 @@ type PartitionAndSort<T, KEYS extends DynamoTableKeyConfig<T>> = KEYS extends {
   sortKey: infer S;
   partitionKey: infer K;
 }
-  ? K | S
-  : KEYS['partitionKey'];
+  ? (K | S) & keyof T
+  : KEYS['partitionKey'] & keyof T;
 
 export class TableDefinition<
   T = any,
-  KEYS extends DynamoTableKeyConfig<T> = any,
-  INDEXES extends Record<
+  const KEYS extends DynamoTableKeyConfig<T> = any,
+  const INDEXES extends Record<
     string,
     { global: boolean } & DynamoTableKeyConfig<T>
   > = {},
@@ -86,7 +90,7 @@ export class TableDefinition<
     return new TableDefinition<T, INDEXES[I]>(this.indexes[index], {});
   }
 
-  withSortKey<K extends Exclude<ValidKeys<T>, KEYS['partitionKey']>>(
+  withSortKey<const K extends Exclude<ValidKeys<T>, KEYS['partitionKey']>>(
     sortKey: K,
   ): TableDefinition<
     T,
