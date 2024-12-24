@@ -176,7 +176,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
   }
 
   /**
-   * Allows up to 25 get requests to be sent in one request.
+   * Allows up to 100 get requests to be sent in one request.
    *
    * @returns - An executor that can be executed, or you can append more requests from other tables by calling **and()**.
    */
