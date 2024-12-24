@@ -59,7 +59,7 @@ export type NestedTable = {
 export type ComplexTable = {
   hash: string;
   text?: string;
-  obj?: { abc: string; def?: number };
+  obj?: { abc: string; def?: number; qvc?: { a: string } };
   arr?: { ghi?: number }[];
   jkl?: number;
 };

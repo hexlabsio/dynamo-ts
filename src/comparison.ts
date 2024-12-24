@@ -29,9 +29,9 @@ type NestedComparisonBuilder<Original, Type> = {
 };
 
 type Digger<T, Original = T> = Required<{
-  [K in keyof T]: Operation<T, T[K]> &
-    Digger<T[K], Original> &
-    NestedComparisonBuilder<Original, T[K]>;
+  [K in keyof Required<T>]-?: Operation<Required<T>, Required<Required<T>[K]>> &
+    Digger<Required<Required<T>[K]>, Original> &
+    NestedComparisonBuilder<Original, Required<Required<T>[K]>>;
 }>;
 
 export type ComparisonBuilderFrom<TableType> = {
@@ -135,7 +135,7 @@ class ComparisonBuilderType<T> {
   }
 
   empty(): Wrapper {
-    this.wrapper.expression = "";
+    this.wrapper.expression = '';
     return this.wrapper;
   }
 

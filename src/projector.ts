@@ -15,7 +15,7 @@ type FromKeys<KEYS extends any[], V> = KEYS extends [infer K, ...infer KS]
   ? { [KEY in K3 extends string ? K3 : never]: V }
   : V;
 interface Projector<T, PROJECTED = {}> {
-  project<PATH extends JsonPath<T>>(
+  project<const PATH extends JsonPath<T>>(
     path: PATH,
   ): Projector<
     T,
