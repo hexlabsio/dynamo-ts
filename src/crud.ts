@@ -4,7 +4,7 @@ import { ScanOptions } from './dynamo-scanner.js';
 import { UpdateItemOptions } from './dynamo-updater.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { TableClient } from './table-client.js';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { JsonPath } from './types/index.js';
 
 export type ProjectionOrTypeArray<PROJECTION, TableType> =
@@ -42,7 +42,7 @@ export class Crud<TableConfig extends TableDefinition> {
   async create(
     item: Omit<TableConfig['type'], TableConfig['keyNames']['partitionKey']>,
   ): Promise<TableConfig['type']> {
-    const identifier = uuid();
+    const identifier = randomUUID();
     const actualItem = {
       [this.tableClient.tableConfig.keyNames.partitionKey]: identifier,
       ...item,
