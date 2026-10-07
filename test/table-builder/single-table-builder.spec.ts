@@ -1,7 +1,7 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 
-import { TablePartClient, TablePartInfo } from '../../src';
+import { TableClient, TableDefinition, tableDefinition } from '../../src';
 import { singleTableDesignDefinition } from '../tables';
 
 const dynamo = new DynamoDB({
@@ -24,43 +24,35 @@ export type RunIds = WorkflowIds & { run: string };
 
 export type JobIds = RunIds & { job: string };
 
-export const repositoryTable = TablePartInfo.from<RepoIds>().withKeys(
-  'account',
-  'repo',
+export type StepIds = JobIds & { step: string };
+
+export type LogIds = StepIds & { log: string };
+
+export const workflowSingleTable = TableDefinition.singleTable(
+  'p2',
+  's2',
+  ({ part, join, child }) => ({
+    repo: part<RepoIds>().partitionedBy('account', {
+      workflow: join<WorkflowIds>().with({
+        run: child<RunIds>().with({
+          job: child<JobIds>().with({
+            step: join<StepIds>().with({
+              log: join<LogIds>(),
+            }),
+          }),
+        }),
+      }),
+    }),
+  }),
 );
 
-export const workflowTable = repositoryTable
-  .joinPart<WorkflowIds>()
-  .withKey('workflow');
+const config = {
+  client: dynamoClient,
+  logStatements: true,
+  tableName: 'singleTableDesignDefinition',
+};
 
-export const workflowRunTable = workflowTable
-  .childPart<RunIds>()
-  .withKey('run');
-
-export const jobTable = workflowRunTable.childPart<JobIds>().withKey('job');
-
-export const stepTable = jobTable
-  .joinPart<JobIds & { step: string }>()
-  .withKey('step');
-
-export const logTable = stepTable
-  .joinPart<JobIds & { step: string; log: string }>()
-  .withKey('log');
-
-const client = TablePartClient.fromPartsWithBaseTable(
-  singleTableDesignDefinition,
-  {
-    client: dynamoClient,
-    logStatements: true,
-    tableName: 'singleTableDesignDefinition',
-  },
-  repositoryTable,
-  workflowTable,
-  workflowRunTable,
-  jobTable,
-  stepTable,
-  logTable,
-);
+const client = workflowSingleTable.client(config);
 
 describe('Single Table Design', () => {
   beforeAll(async () => {
@@ -183,6 +175,122 @@ describe('Single Table Design', () => {
         ]),
       )
       .execute();
+  });
+
+  describe('Single table definition', () => {
+    it('should describe the same table as a hand written definition', () => {
+      expect(workflowSingleTable.asCloudFormation('table')).toEqual(
+        singleTableDesignDefinition.asCloudFormation('table'),
+      );
+      expect(tableDefinition({ shop: workflowSingleTable })).toEqual(
+        tableDefinition({ shop: singleTableDesignDefinition }),
+      );
+    });
+
+    it('should default to partition and sort keys', () => {
+      const definition = TableDefinition.singleTable(({ part }) => ({
+        repo: part<RepoIds>().partitionedBy('account'),
+      }));
+      expect(definition.keyNames).toEqual({
+        partitionKey: 'partition',
+        sortKey: 'sort',
+      });
+      expect(definition.asSst()).toEqual({
+        fields: { partition: 'string', sort: 'string' },
+        primaryIndex: { hashKey: 'partition', rangeKey: 'sort' },
+      });
+    });
+
+    it('should work as a raw table client definition', async () => {
+      const raw = TableClient.build(workflowSingleTable, config);
+      const result = await raw.get({
+        p2: '#ACCOUNT$account',
+        s2: '#WORKFLOW#REPO$repo#WORKFLOW$workflow',
+      });
+      expect(result.item).toEqual(
+        expect.objectContaining({ workflow: 'workflow' }),
+      );
+    });
+
+    it('should reject parts with the same name', () => {
+      expect(() =>
+        TableDefinition.singleTable(({ part, child }) => ({
+          repo: part<RepoIds>().partitionedBy('account', {
+            workflow: child<WorkflowIds>(),
+          }),
+          workflow: part<WorkflowIds>().partitionedBy('account'),
+        })),
+      ).toThrow(
+        'Single table parts must have unique names, found workflow more than once',
+      );
+    });
+
+    it('should define parts from the schema, parents first', () => {
+      expect(
+        workflowSingleTable.parts.map((it) => ({
+          name: it.prefix,
+          partitions: it.part.partitions,
+          sorts: it.part.sorts,
+          parent: it.parents?.prefix,
+        })),
+      ).toEqual([
+        { name: 'repo', partitions: ['account'], sorts: ['repo'] },
+        {
+          name: 'workflow',
+          partitions: ['account'],
+          sorts: ['repo', 'workflow'],
+          parent: 'repo',
+        },
+        {
+          name: 'run',
+          partitions: ['account', 'repo', 'workflow'],
+          sorts: ['run'],
+        },
+        {
+          name: 'job',
+          partitions: ['account', 'repo', 'workflow', 'run'],
+          sorts: ['job'],
+        },
+        {
+          name: 'step',
+          partitions: ['account', 'repo', 'workflow', 'run'],
+          sorts: ['job', 'step'],
+          parent: 'job',
+        },
+        {
+          name: 'log',
+          partitions: ['account', 'repo', 'workflow', 'run'],
+          sorts: ['job', 'step', 'log'],
+          parent: 'step',
+        },
+      ]);
+    });
+
+    it('should reject invalid schemas at compile time', () => {
+      TableDefinition.singleTable(({ part, join }) => ({
+        // @ts-expect-error repos has no attribute called workflows
+        repo: part<RepoIds>().partitionedBy('account', {
+          workflows: join<WorkflowIds>(),
+        }),
+      }));
+      TableDefinition.singleTable(({ part, child }) => ({
+        // @ts-expect-error the child is missing its parent's account key
+        repo: part<RepoIds>().partitionedBy('account', {
+          workflow: child<{ repo: string; workflow: string }>(),
+        }),
+      }));
+      TableDefinition.singleTable(({ part }) => ({
+        // @ts-expect-error the part name must be an attribute of the part
+        repos: part<RepoIds>().partitionedBy('account'),
+      }));
+      TableDefinition.singleTable(({ part }) => ({
+        // @ts-expect-error accounts is not an attribute of the part
+        repo: part<RepoIds>().partitionedBy('accounts'),
+      }));
+      const client = workflowSingleTable.client(config);
+      // @ts-expect-error there is no part called nope
+      expect(client.nope).toBeUndefined();
+    });
   });
 
   it('should return generated keys for single table put', async () => {

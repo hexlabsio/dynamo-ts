@@ -17,8 +17,8 @@ import {
 } from '../dynamo-puter.js';
 import { QuerierInput, QuerierReturn } from '../dynamo-querier.js';
 import { TableClient } from '../table-client.js';
-import { DynamoConfig } from '../types/index.js';
-import { TableDefinition, ValidKeys } from './table-definition.js';
+// Type only: table-definition imports this module at runtime to build clients
+import type { TableDefinition, ValidKeys } from './table-definition.js';
 
 type TablePart<T> = {
   partitions: (keyof T & string)[];
@@ -36,15 +36,13 @@ type SortKeys<
     }
   : never;
 
-export type TablePartClients<T, D extends TableDefinition> = T extends [
-  TablePartInfo<infer A, infer B, infer C, infer P>,
-]
-  ? { [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>, D> }
-  : T extends [TablePartInfo<infer A, infer B, infer C, infer P>, ...infer TAIL]
-  ? {
-      [K in C]: TablePartClient<A, B, TablePartInfo<A, B, C, P>, D>;
-    } & TablePartClients<TAIL, D>
-  : never;
+export type TablePartClients<Parts, D extends TableDefinition> = {
+  [P in Parts as P extends TablePartInfo<any, any, infer C, any>
+    ? C & string
+    : never]: P extends TablePartInfo<infer A, infer B, infer C, infer PP>
+    ? TablePartClient<A, B, TablePartInfo<A, B, C, PP>, D>
+    : never;
+};
 
 export type ParentTypes<T extends any[]> = T extends [infer A]
   ? A
@@ -72,13 +70,6 @@ export type CombinedTypes<
     ? A
     : A & CombinedTypes<PP, [...Depth, 0]>
   : {};
-
-export const defaultBaseTable = TableDefinition.ofType<{
-  partition: string;
-  sort: string;
-}>()
-  .withPartitionKey('partition')
-  .withSortKey('sort');
 
 export type PutItemReturnSingleTable<
   BaseDefinition extends TableDefinition,
@@ -448,39 +439,6 @@ export class TablePartClient<
     )) as any;
     return { ...result, keys };
   }
-
-  static fromPartsWithBaseTable<
-    Definition extends TableDefinition,
-    T extends TablePartInfo<any, any, any, any>[],
-  >(
-    baseTable: Definition,
-    config: DynamoConfig,
-    ...parts: T
-  ): TablePartClients<T, Definition> {
-    return parts.reduce(
-      (prev, next) => ({
-        ...prev,
-        [next.prefix]: new TablePartClient(
-          next.part,
-          next,
-          next.prefix,
-          new TableClient(baseTable, config) as any,
-        ),
-      }),
-      {},
-    ) as any;
-  }
-
-  static fromParts<T extends TablePartInfo<any, any, any, any>[]>(
-    config: DynamoConfig,
-    ...parts: T
-  ): TablePartClients<T, typeof defaultBaseTable> {
-    return TablePartClient.fromPartsWithBaseTable(
-      defaultBaseTable,
-      config,
-      ...parts,
-    );
-  }
 }
 
 export class TablePartInfo<
@@ -494,82 +452,224 @@ export class TablePartInfo<
     public readonly parents: Parent,
     public readonly prefix: string,
   ) {}
+}
 
-  joinPart<
-    JoinTableType extends Pick<
-      TableType,
-      T['partitions'][number] | T['sorts'][number]
-    >,
-  >(): {
-    withKey<K extends ValidKeys<JoinTableType>>(
-      key: K,
-    ): TablePartInfo<
-      JoinTableType,
-      { partitions: T['partitions']; sorts: [...T['sorts'], K] },
+type AnyPart = TablePartInfo<any, any, any, any>;
+
+// Extract keeps the key lists unchanged, while telling the compiler they are keys of the part's type
+type KeysOf<J, X> = Extract<X, (keyof J & string)[]>;
+
+export type RootPart<
+  TableType,
+  K extends string,
+  K2 extends string,
+> = TablePartInfo<
+  TableType,
+  { partitions: KeysOf<TableType, [K]>; sorts: KeysOf<TableType, [K2]> },
+  K2
+>;
+
+export type JoinedPart<
+  Parent extends AnyPart,
+  J,
+  K extends string,
+> = Parent extends TablePartInfo<any, infer T, any, any>
+  ? TablePartInfo<
+      J,
+      {
+        partitions: KeysOf<J, T['partitions']>;
+        sorts: KeysOf<J, [...T['sorts'], K]>;
+      },
       K,
-      TablePartInfo<TableType, T, NAME, Parent>
-    >;
-  } {
-    return {
-      withKey: (key: string) =>
-        new TablePartInfo(
-          {
-            partitions: this.part.partitions,
-            sorts: [...this.part.sorts, key],
-          } as any,
-          this,
-          key,
-        ),
-    } as any;
-  }
+      Parent
+    >
+  : never;
 
-  childPart<
-    JoinTableType extends Pick<
-      TableType,
-      T['partitions'][number] | T['sorts'][number]
-    >,
-  >(): {
-    withKey<K extends ValidKeys<JoinTableType>>(
-      key: K,
-    ): TablePartInfo<
-      JoinTableType,
-      { partitions: [...T['partitions'], ...T['sorts']]; sorts: [K] },
+export type ChildPart<
+  Parent extends AnyPart,
+  J,
+  K extends string,
+> = Parent extends TablePartInfo<any, infer T, any, any>
+  ? TablePartInfo<
+      J,
+      {
+        partitions: KeysOf<J, [...T['partitions'], ...T['sorts']]>;
+        sorts: KeysOf<J, [K]>;
+      },
       K
-    >;
-  } {
-    return {
-      withKey: (key: string) =>
-        new TablePartInfo(
-          {
-            partitions: [...this.part.partitions, ...this.part.sorts],
-            sorts: [key],
-          } as any,
-          null,
-          key,
-        ),
-    } as any;
-  }
+    >
+  : never;
 
-  static from<TableType>(): {
-    withKeys<
-      K extends ValidKeys<TableType> & string,
-      K2 extends Exclude<ValidKeys<TableType>, K> & string,
+/*
+ * Single table schema
+ *
+ * A single table is described as a tree of nodes, where each property name is the name of a part and the attribute
+ * used as its key.
+ */
+
+export type SchemaChildren = Record<
+  string,
+  JoinNode<any, any> | ChildNode<any, any>
+>;
+
+export interface PartNode<TableType, PK extends string, Children> {
+  readonly kind: 'part';
+  readonly partitionKey: PK;
+  readonly children: Children;
+  /** Type only */
+  readonly tableType?: TableType;
+}
+
+export interface JoinNode<TableType, Children> {
+  readonly kind: 'join';
+  readonly children: Children;
+  /** Type only */
+  readonly tableType?: TableType;
+}
+
+export interface ChildNode<TableType, Children> {
+  readonly kind: 'child';
+  readonly children: Children;
+  /** Type only */
+  readonly tableType?: TableType;
+}
+
+export type SingleTableSchema = Record<string, PartNode<any, any, any>>;
+
+export type SingleTableHelpers = {
+  /**
+   * A root part. Its partition key is the attribute passed to **partitionedBy**, and its sort key is the property name.
+   */
+  part<TableType>(): {
+    partitionedBy<const PK extends ValidKeys<TableType> & string>(
+      partitionKey: PK,
+    ): PartNode<TableType, PK, {}>;
+    partitionedBy<
+      const PK extends ValidKeys<TableType> & string,
+      const Children extends SchemaChildren,
     >(
-      partitionKey: K,
-      sortKey: K2,
-    ): TablePartInfo<
-      TableType,
-      { partitions: [K]; sorts: [K2]; parents: [] },
-      K2
-    >;
-  } {
-    return {
-      withKeys: (partitionKey: string, sortKey: string) =>
-        new TablePartInfo(
-          { partitions: [partitionKey], sorts: [sortKey] } as any,
-          null,
-          sortKey,
-        ),
-    } as any;
-  }
+      partitionKey: PK,
+      children: Children,
+    ): PartNode<TableType, PK, Children>;
+  };
+  /**
+   * A part that shares its parent's partition, so it can be read together with the parent. Use it for children that
+   * are small or bounded.
+   */
+  join<TableType>(): JoinNode<TableType, {}> & {
+    with<const Children extends SchemaChildren>(
+      children: Children,
+    ): JoinNode<TableType, Children>;
+  };
+  /**
+   * A part that gets its own partition under its parent. Use it for children that can grow without bound.
+   */
+  child<TableType>(): ChildNode<TableType, {}> & {
+    with<const Children extends SchemaChildren>(
+      children: Children,
+    ): ChildNode<TableType, Children>;
+  };
+};
+
+export const singleTableHelpers: SingleTableHelpers = {
+  part: () => ({
+    partitionedBy: (partitionKey: string, children = {}) => ({
+      kind: 'part',
+      partitionKey,
+      children,
+    }),
+  }),
+  join: () => ({
+    kind: 'join',
+    children: {},
+    with: (children: SchemaChildren) => ({ kind: 'join', children }),
+  }),
+  child: () => ({
+    kind: 'child',
+    children: {},
+    with: (children: SchemaChildren) => ({ kind: 'child', children }),
+  }),
+} as any;
+
+type SchemaError<Message extends string> = `Error: ${Message}`;
+
+type ValidateChildren<Children, ParentType, ParentKeys extends string> = {
+  [N in keyof Children]: Children[N] extends
+    | JoinNode<infer T, infer C>
+    | ChildNode<infer T, infer C>
+    ? T extends Pick<ParentType, ParentKeys & keyof ParentType>
+      ? N extends ValidKeys<T> & string
+        ? Children[N] & { children: ValidateChildren<C, T, ParentKeys | N> }
+        : SchemaError<`${N &
+            string} must be a string or number attribute of its part`>
+      : SchemaError<`${N &
+          string} must have all the key attributes of its parent`>
+    : SchemaError<`${N & string} must be created with join() or child()`>;
+};
+
+/**
+ * Maps any invalid node in the schema to an error message, so the mistake is reported on that property.
+ */
+export type ValidateSchema<S> = {
+  [N in keyof S]: S[N] extends PartNode<infer T, infer PK, infer C>
+    ? N extends ValidKeys<T> & string
+      ? N extends PK
+        ? SchemaError<`${N & string} can't be both the partition and sort key`>
+        : S[N] & { children: ValidateChildren<C, T, PK | N> }
+      : SchemaError<`${N &
+          string} must be a string or number attribute of its part`>
+    : SchemaError<`${N & string} must be created with part()`>;
+};
+
+type FlattenChildren<Children, Parent extends AnyPart> = {
+  [N in keyof Children & string]: Children[N] extends JoinNode<infer T, infer C>
+    ? JoinedPart<Parent, T, N> | FlattenChildren<C, JoinedPart<Parent, T, N>>
+    : Children[N] extends ChildNode<infer T, infer C>
+    ? ChildPart<Parent, T, N> | FlattenChildren<C, ChildPart<Parent, T, N>>
+    : never;
+}[keyof Children & string];
+
+/**
+ * Every part in the schema, as a union.
+ */
+export type SchemaParts<S> = {
+  [N in keyof S & string]: S[N] extends PartNode<infer T, infer PK, infer C>
+    ? RootPart<T, PK, N> | FlattenChildren<C, RootPart<T, PK, N>>
+    : never;
+}[keyof S & string];
+
+/**
+ * Builds the part definitions for a schema, parents before their children.
+ */
+export function schemaParts(schema: SingleTableSchema): AnyPart[] {
+  const children = (nodes: SchemaChildren, parent: AnyPart): AnyPart[] =>
+    Object.entries(nodes).flatMap(([name, node]) => {
+      const part =
+        node.kind === 'join'
+          ? new TablePartInfo<any, any, any, any>(
+              {
+                partitions: parent.part.partitions,
+                sorts: [...parent.part.sorts, name],
+              },
+              parent,
+              name,
+            )
+          : new TablePartInfo<any, any, any, any>(
+              {
+                partitions: [...parent.part.partitions, ...parent.part.sorts],
+                sorts: [name],
+              },
+              null,
+              name,
+            );
+      return [part, ...children(node.children, part)];
+    });
+  return Object.entries(schema).flatMap(([name, node]) => {
+    const root = new TablePartInfo<any, any, any, any>(
+      { partitions: [node.partitionKey], sorts: [name] },
+      null,
+      name,
+    );
+    return [root, ...children(node.children, root)];
+  });
 }

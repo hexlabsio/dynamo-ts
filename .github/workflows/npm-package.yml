@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set Version
-        run: npm --no-git-tag-version version 6.0.${{ github.run_number }}
+        run: npm --no-git-tag-version version 7.0.${{ github.run_number }}
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4

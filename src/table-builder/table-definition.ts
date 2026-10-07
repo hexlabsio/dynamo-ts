@@ -10,6 +10,19 @@ import {
   TerraformExtraArguments,
   toHcl,
 } from './infrastructure.js';
+import { TableClient } from '../table-client.js';
+import { DynamoConfig } from '../types/index.js';
+import {
+  SchemaParts,
+  SingleTableHelpers,
+  SingleTableSchema,
+  TablePartClient,
+  TablePartClients,
+  TablePartInfo,
+  ValidateSchema,
+  schemaParts,
+  singleTableHelpers,
+} from './single-table-builder.js';
 
 export type SimpleDynamoType =
   | 'string'
@@ -160,6 +173,47 @@ export class TableDefinition<
 
   static ofType<T>(): TableDefinitionBuilder<T> {
     return new TableDefinitionBuilder();
+  }
+
+  /**
+   * Defines a table for single table design as a tree of parts. Each property name is the name of a part and the
+   * attribute used as its key.
+   *
+   * ```ts
+   * TableDefinition.singleTable(({ part, join, child }) => ({
+   *   customer: part<Customer>().partitionedBy('store', {
+   *     address: join<Address>(),
+   *     order: child<Order>().with({ line: join<OrderLine>() }),
+   *   }),
+   * }));
+   * ```
+   *
+   * By default the table has a string partition key called **partition** and a string sort key called **sort**. Call
+   * **client** on the definition to get a client for each part.
+   */
+  static singleTable<S extends SingleTableSchema>(
+    define: (helpers: SingleTableHelpers) => S & ValidateSchema<S>,
+  ): SingleTableDefinition<'partition', 'sort', SchemaParts<S>>;
+  static singleTable<
+    const PK extends string,
+    const SK extends string,
+    S extends SingleTableSchema,
+  >(
+    partitionKey: PK,
+    sortKey: Exclude<SK, PK>,
+    define: (helpers: SingleTableHelpers) => S & ValidateSchema<S>,
+  ): SingleTableDefinition<PK, SK, SchemaParts<S>>;
+  static singleTable(
+    ...args:
+      | [(helpers: SingleTableHelpers) => SingleTableSchema]
+      | [string, string, (helpers: SingleTableHelpers) => SingleTableSchema]
+  ): any {
+    const [partitionKey, sortKey, define] =
+      args.length === 1 ? ['partition', 'sort', args[0]] : args;
+    return new SingleTableDefinition(
+      { partitionKey, sortKey },
+      schemaParts(define(singleTableHelpers)),
+    );
   }
 
   private indexKeysNames(): string[] {
@@ -500,3 +554,63 @@ export type DynamoTableKeyConfig<T> = {
   partitionKey: ValidKeys<T>;
   sortKey?: ValidKeys<T>;
 };
+
+type SingleTableType<PK extends string, SK extends string> = {
+  [K in PK | SK]: string;
+};
+
+// Intersecting with ValidKeys satisfies TableDefinition's constraint while PK and SK are generic
+type SingleTableKeys<PK extends string, SK extends string> = {
+  partitionKey: PK & ValidKeys<SingleTableType<PK, SK>>;
+  sortKey: SK & ValidKeys<SingleTableType<PK, SK>>;
+};
+
+/**
+ * A table definition for single table design, created with **TableDefinition.singleTable**.
+ *
+ * It is a normal **TableDefinition**, so it can be used anywhere one is expected (CloudFormation, CDK, Terraform, SST,
+ * jest setup or a raw **TableClient**). Call **client** to get a client for each part.
+ */
+export class SingleTableDefinition<
+  PK extends string,
+  SK extends string,
+  Parts extends TablePartInfo<any, any, any, any>,
+> extends TableDefinition<SingleTableType<PK, SK>, SingleTableKeys<PK, SK>> {
+  constructor(
+    keyNames: { partitionKey: PK; sortKey: SK },
+    public readonly parts: Parts[],
+  ) {
+    super(keyNames as any, {});
+    const names = parts.map((part) => part.prefix);
+    const duplicate = names.find(
+      (name, index) => names.indexOf(name) !== index,
+    );
+    if (duplicate) {
+      throw new Error(
+        `Single table parts must have unique names, found ${duplicate} more than once`,
+      );
+    }
+  }
+
+  /**
+   * Builds a client for each part, keyed by part name.
+   */
+  client(
+    config: DynamoConfig,
+  ): TablePartClients<Parts, SingleTableDefinition<PK, SK, Parts>> {
+    const tableClient = new TableClient(this, config);
+    const parts: TablePartInfo<any, any, any, any>[] = this.parts;
+    return parts.reduce(
+      (prev, next) => ({
+        ...prev,
+        [next.prefix]: new TablePartClient(
+          next.part,
+          next,
+          next.prefix,
+          tableClient as any,
+        ),
+      }),
+      {},
+    ) as any;
+  }
+}
