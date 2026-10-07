@@ -1,6 +1,6 @@
 import { myTableClient } from './use-client';
 
-const result = await myTableClient.transaction
+export const result = await myTableClient.transaction
   .put({
     item: { identifier: 'abc', sort: 'def', abc: { xyz: 3 } },
   })

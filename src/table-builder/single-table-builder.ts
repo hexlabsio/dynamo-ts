@@ -1,3 +1,4 @@
+import { ConsumedCapacity } from '@aws-sdk/client-dynamodb';
 import {
   BatchWriteClient,
   BatchWriteExecutor,
@@ -131,40 +132,62 @@ export class TablePartClient<
     return [info];
   }
 
+  private keySegments(keys: string[], values: Record<string, any>): string {
+    return keys.reduce(
+      (prev, next) => `${prev}#${next.toUpperCase()}$${values[next]}`,
+      '',
+    );
+  }
+
+  /**
+   * The sort key prefix shared by every item of a joined part that belongs to the given parent item.
+   */
+  private joinedPrefix(
+    info: TablePartInfo<any, any, any, any>,
+    parentInfo: TablePartInfo<any, any, any, any>,
+    parent: Record<string, any>,
+  ): string {
+    return `#${info.prefix.toUpperCase()}${this.keySegments(
+      parentInfo.part.sorts,
+      parent,
+    )}`;
+  }
+
+  private sumCapacity(
+    capacities: (ConsumedCapacity | undefined)[],
+  ): ConsumedCapacity | undefined {
+    const consumed = capacities.filter((it): it is ConsumedCapacity => !!it);
+    if (!consumed.length) return undefined;
+    return {
+      TableName: consumed[0].TableName,
+      CapacityUnits: consumed.reduce(
+        (total, it) => total + (it.CapacityUnits ?? 0),
+        0,
+      ),
+    };
+  }
+
   private intoParentage(
     items: any[],
-    chain: string[],
+    chain: { name: string; typePrefix: string }[],
     search: (item: any) => boolean = () => true,
   ): any {
-    if (chain.length === 1) {
-      const last = chain[0];
-      return items
-        .filter((it) => {
-          return (
-            it[this.tableClient.tableConfig.keyNames.sortKey].startsWith(
-              `#${last.toUpperCase()}`,
-            ) && search(it)
-          );
-        })
-        .map((it) => {
-          return it;
-        });
-    }
-    const name = chain[0];
+    const [{ name, typePrefix }, ...rest] = chain;
     const results = items.filter(
       (it) =>
         it[this.tableClient.tableConfig.keyNames.sortKey].startsWith(
-          `#${name.toUpperCase()}`,
+          typePrefix,
         ) && search(it),
     );
-    return results.map((it) => {
-      return {
-        item: it,
-        member: this.intoParentage(items, chain.slice(1), (o) => {
-          return search(o) && o[name] === it[name];
-        }),
-      };
-    });
+    if (rest.length === 0) return results;
+    return results.map((it) => ({
+      item: it,
+      member: this.intoParentage(
+        items,
+        rest,
+        (o) => search(o) && o[name] === it[name],
+      ),
+    }));
   }
 
   async query<PROJECTION = null>(
@@ -211,24 +234,112 @@ export class TablePartClient<
     return result as any;
   }
 
+  /**
+   * Queries the top level parents in the partition along with all of their joined children, grouped into a tree.
+   *
+   * Paging applies to the top level parents: **limit** caps how many are read per page and **next** continues from
+   * the previous page. Every page contains the complete set of children for the parents it returns.
+   */
   async queryWithParents<PROJECTION = null>(
     partition: { [K in T['partitions'][number]]: string },
     options: QuerierInput<CombinedTypes<Info>, PROJECTION> = {},
   ): Promise<QuerierReturn<ParentTypes<ParentType<Info>>, PROJECTION>> {
-    const partitionString = this.part.partitions.reduce(
-      (prev, next) =>
-        `${prev}#${next.toString().toUpperCase()}$${partition[next]}`,
-      '',
+    const { partitionKey, sortKey } = this.tableClient.tableConfig.keyNames;
+    const partitionString = this.keySegments(this.part.partitions, partition);
+    const chain = this.getParentChain();
+    // The chain root is a from or childPart (sort key #NAME$value), the rest are joinParts (#NAME#...)
+    const typePrefixes = chain.map(
+      (info, index) =>
+        `#${info.prefix.toUpperCase()}${index === 0 ? '$' : '#'}`,
     );
-    const result = await this.tableClient.query(
+    const root = await this.tableClient.query(
       {
-        [this.tableClient.tableConfig.keyNames.partitionKey]: partitionString,
+        [partitionKey]: partitionString,
+        [sortKey]: (sk: any) => sk.beginsWith(typePrefixes[0]),
       } as any,
       options as any,
     );
-    const chain = this.getParentChain().map((it) => it.prefix);
-    const member = this.intoParentage(result.member, chain);
-    return { ...result, member } as any;
+    const items: any[] = [...root.member];
+    const capacities = [root.consumedCapacity];
+    let parents: any[] = root.member;
+    for (let level = 1; level < chain.length && parents.length > 0; level++) {
+      const info = chain[level];
+      const parentInfo = chain[level - 1];
+      const prefixes = new Set(
+        parents.map((parent) => this.joinedPrefix(info, parentInfo, parent)),
+      );
+      // DynamoDB orders strings by their UTF-8 bytes, so the children of these parents all fall in this range
+      const sorted = [...prefixes].sort((a, b) =>
+        Buffer.compare(Buffer.from(a), Buffer.from(b)),
+      );
+      const from = sorted[0];
+      const to = `${sorted[sorted.length - 1]}\u{10FFFF}`;
+      const children: any[] = [];
+      let page: string | undefined;
+      do {
+        const result = await this.tableClient.query(
+          {
+            [partitionKey]: partitionString,
+            [sortKey]: (sk: any) => sk.between(from, to),
+          } as any,
+          { ...options, limit: undefined, next: page } as any,
+        );
+        capacities.push(result.consumedCapacity);
+        children.push(
+          ...result.member.filter((child: any) =>
+            prefixes.has(this.joinedPrefix(info, parentInfo, child)),
+          ),
+        );
+        page = result.next;
+      } while (page);
+      items.push(...children);
+      parents = children;
+    }
+    const member = this.intoParentage(
+      items,
+      chain.map((info, index) => ({
+        name: info.prefix,
+        typePrefix: typePrefixes[index],
+      })),
+    );
+    return {
+      ...root,
+      member,
+      consumedCapacity: this.sumCapacity(capacities),
+    } as any;
+  }
+
+  /**
+   * Queries every top level parent in the partition along with all of their joined children, grouped into a tree.
+   *
+   * Reads all pages of **queryWithParents** and combines them.
+   */
+  async queryAllWithParents<PROJECTION = null>(
+    partition: { [K in T['partitions'][number]]: string },
+    options: Omit<
+      QuerierInput<CombinedTypes<Info>, PROJECTION>,
+      'next' | 'limit'
+    > = {},
+  ): Promise<
+    Omit<QuerierReturn<ParentTypes<ParentType<Info>>, PROJECTION>, 'next'>
+  > {
+    const member: any[] = [];
+    const capacities: (ConsumedCapacity | undefined)[] = [];
+    let next: string | undefined;
+    do {
+      const page = await this.queryWithParents(partition, {
+        ...options,
+        next,
+      });
+      member.push(...page.member);
+      capacities.push(page.consumedCapacity);
+      next = page.next;
+    } while (next);
+    return {
+      member,
+      count: member.length,
+      consumedCapacity: this.sumCapacity(capacities),
+    } as any;
   }
 
   async put<RETURN extends PutReturnValues = 'NONE'>(

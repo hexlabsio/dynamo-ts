@@ -28,10 +28,16 @@ type NestedComparisonBuilder<Original, Type> = {
   ): CompareWrapperOperator<Original>;
 };
 
+// Required<any> becomes { [x: string]: any } rather than any, so leave any untouched
+type RequiredUnlessAny<T> = 0 extends 1 & T ? T : Required<T>;
+
 type Digger<T, Original = T> = Required<{
-  [K in keyof Required<T>]-?: Operation<Required<T>, Required<Required<T>[K]>> &
-    Digger<Required<Required<T>[K]>, Original> &
-    NestedComparisonBuilder<Original, Required<Required<T>[K]>>;
+  [K in keyof Required<T>]-?: Operation<
+    Required<T>,
+    RequiredUnlessAny<Required<T>[K]>
+  > &
+    Digger<RequiredUnlessAny<Required<T>[K]>, Original> &
+    NestedComparisonBuilder<Original, RequiredUnlessAny<Required<T>[K]>>;
 }>;
 
 export type ComparisonBuilderFrom<TableType> = {
