@@ -42,6 +42,7 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
   - [Generated keys](#generated-keys)
   - [Reading and writing](#reading-and-writing)
   - [Fetching a parent with its children](#fetching-a-parent-with-its-children)
+    - [Paging](#paging)
   - [Things to know](#things-to-know)
 - [CloudFormation](#cloudformation)
 - [Testing](#testing)
@@ -87,7 +88,7 @@ const dynamoConfig: DynamoConfig = {
   logStatements: true, // Logs all interactions with Dynamo
 };
 
-const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
+export const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
 ```
 <!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
 <!-- AUTO-GENERATED-CONTENT:END -->
@@ -468,8 +469,8 @@ await shop.line.query({ store: 'acme', customer: 'alice' }, keys => keys.order('
 
 ## Fetching a parent with its children
 
-`queryWithParents` reads the whole partition in a **single query** and groups the items into a tree that follows the
-`joinPart` chain:
+`queryWithParents` reads the top-level parents in a partition along with all of their joined children, and groups them
+into a tree that follows the `joinPart` chain:
 
 ```typescript
 const { member } = await shop.line.queryWithParents({ store: 'acme', customer: 'alice' });
@@ -489,18 +490,44 @@ const customersWithAddresses = await shop.address.queryWithParents({ store: 'acm
 
 The result is typed: `{ item: Order; member: OrderLine[] }[]`. Deeper join chains nest further.
 
+### Paging
+
+Paging works on the **top-level parents**. `limit` caps how many parents are read per page, and `next` continues from
+the previous page. Each page always contains the complete set of children for the parents it returns, so a parent and
+its children are never split across pages.
+
+```typescript
+let next: string | undefined;
+do {
+  const page = await shop.line.queryWithParents({ store: 'acme', customer: 'alice' }, { limit: 10, next });
+  page.member.forEach(({ item: order, member: lines }) => console.log(order.order, lines.length));
+  next = page.next;
+} while (next);
+```
+
+To read every page in one call, use `queryAllWithParents`. It accepts the same options apart from `limit` and `next`:
+
+```typescript
+const { member: orders } = await shop.line.queryAllWithParents({ store: 'acme', customer: 'alice' });
+```
+
+Under the hood this runs one query for a page of parents, then one query per level of the join chain. Each of those
+queries is bounded to the sort key range of the parents on the page, and the results are grouped in memory. The
+`consumedCapacity` returned is the total across all of these queries. `filter` and `projection` apply at every level, so
+make sure a projection keeps the key attributes that the grouping relies on.
+
 ## Things to know
 
 - **Choose join or child deliberately.** A `joinPart` shares its parent's partition, which keeps reads cheap but makes
   the partition grow. A single partition is limited in throughput, and one query page is at most 1 MB. Use
   `childPart` for anything unbounded.
-- **`queryWithParents` reads one page.** It runs one `Query` (up to 1 MB) and groups the results in memory. It does not
-  paginate yet.
+- **`queryWithParents` makes one query per level.** A chain of `n` parts costs at least `n` queries per page. Use `limit`
+  to keep the children of a page within memory and capacity budgets.
 - **Sort key narrowing is a prefix match.** `keys.order('o-1')` becomes `begins_with(sort, '#LINE#ORDER$o-1')`,
   which also matches order `o-10`. Use fixed-width or delimited identifiers (for example ULIDs or UUIDs) if this
   matters to you.
 - **Avoid `#` and `$` in key values.** They are used as separators in the generated keys.
-- **Part clients cover** `put`, `get`, `delete`, `batchPut`, `query` and `queryWithParents`. To change an item, `put`
+- **Part clients cover** `put`, `get`, `delete`, `batchPut`, `query`, `queryWithParents` and `queryAllWithParents`. To change an item, `put`
   it again.
 - **Part names must be unique.** Clients are keyed by the final key name, so two parts can't both end in `withKey('id')`.
 
