@@ -1,7 +1,4 @@
-import {
-  ConsumedCapacity,
-  WriteRequest,
-} from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
+import { ConsumedCapacity, WriteRequest } from '@aws-sdk/client-dynamodb';
 import {
   BatchWriteCommandInput,
   BatchWriteCommandOutput,
@@ -53,6 +50,27 @@ export class BatchWriteExecutorHolder<TableConfig extends TableDefinition>
   }
 }
 
+const MAX_BATCH_WRITE_ITEMS = 25;
+
+function chunkWriteRequests(
+  requestItems: Record<string, WriteRequest[]>,
+  size: number,
+): Record<string, WriteRequest[]>[] {
+  const flattened = Object.entries(requestItems).flatMap(([table, requests]) =>
+    requests.map((request) => [table, request] as const),
+  );
+  const chunks: Record<string, WriteRequest[]>[] = [];
+  for (let i = 0; i < flattened.length; i += size) {
+    chunks.push(
+      flattened.slice(i, i + size).reduce((chunk, [table, request]) => {
+        chunk[table] = [...(chunk[table] ?? []), request];
+        return chunk;
+      }, {} as Record<string, WriteRequest[]>),
+    );
+  }
+  return chunks;
+}
+
 export class BatchWriteClient<T extends BatchWriteExecutor[]> {
   public readonly input: BatchWriteCommandInput;
 
@@ -62,15 +80,13 @@ export class BatchWriteClient<T extends BatchWriteExecutor[]> {
     private readonly executors: T,
   ) {
     const RequestItems = this.executors.reduce((prev, next) => {
-      const tables = Object.keys(next.input.RequestItems ?? {});
-      return {
-        ...prev,
-        [tables[0]]: [
-          ...(prev[tables[0]] ?? []),
-          ...next.input.RequestItems![tables[0]],
-        ],
-      };
-    }, {} as Record<string, any>);
+      Object.entries(next.input.RequestItems ?? {}).forEach(
+        ([table, requests]) => {
+          prev[table] = [...(prev[table] ?? []), ...requests];
+        },
+      );
+      return prev;
+    }, {} as Record<string, any[]>);
     this.input = {
       ...this.executors[0].input,
       RequestItems,
@@ -84,6 +100,11 @@ export class BatchWriteClient<T extends BatchWriteExecutor[]> {
     ]);
   }
 
+  /**
+   * Executes the batch, splitting it into multiple requests of up to 25 items if required.
+   * @param reprocess - When true, any unprocessed items will be retried with exponential backoff.
+   * @param maxRetries - The maximum number of retries per request when reprocessing.
+   */
   async execute(
     reprocess = false,
     maxRetries = 10,
@@ -92,12 +113,55 @@ export class BatchWriteClient<T extends BatchWriteExecutor[]> {
     unprocessedItems?: Record<string, WriteRequest[]>;
   }> {
     if (this.logStatements) {
-      console.log(`GetItemInput: ${JSON.stringify(this.input, null, 2)}`);
+      console.log(`BatchWriteInput: ${JSON.stringify(this.input, null, 2)}`);
     }
-    let result = await this.client.batchWrite(this.input);
+    const chunks = chunkWriteRequests(
+      (this.input.RequestItems ?? {}) as Record<string, WriteRequest[]>,
+      MAX_BATCH_WRITE_ITEMS,
+    );
+    let consumedCapacity: ConsumedCapacity[] | undefined;
+    let unprocessedItems: Record<string, WriteRequest[]> | undefined;
+    for (const chunk of chunks) {
+      const result = await this.executeChunk(chunk, reprocess, maxRetries);
+      if (result.consumedCapacity) {
+        consumedCapacity = [
+          ...(consumedCapacity ?? []),
+          ...result.consumedCapacity,
+        ];
+      }
+      Object.entries(result.unprocessedItems ?? {}).forEach(
+        ([table, requests]) => {
+          unprocessedItems = unprocessedItems ?? {};
+          unprocessedItems[table] = [
+            ...(unprocessedItems[table] ?? []),
+            ...requests,
+          ];
+        },
+      );
+    }
+    return {
+      unprocessedItems: unprocessedItems ?? {},
+      consumedCapacity,
+    };
+  }
+
+  private async executeChunk(
+    requestItems: Record<string, WriteRequest[]>,
+    reprocess: boolean,
+    maxRetries: number,
+  ): Promise<{
+    consumedCapacity?: ConsumedCapacity[];
+    unprocessedItems?: Record<string, WriteRequest[]>;
+  }> {
+    let result = await this.client.batchWrite({
+      ...this.input,
+      RequestItems: requestItems as BatchWriteCommandInput['RequestItems'],
+    });
     let retry = 0;
     let returnType = {
-      unprocessedItems: result.UnprocessedItems,
+      unprocessedItems: result.UnprocessedItems as
+        | Record<string, WriteRequest[]>
+        | undefined,
       consumedCapacity: result.ConsumedCapacity,
     };
     while (
@@ -105,21 +169,26 @@ export class BatchWriteClient<T extends BatchWriteExecutor[]> {
       Object.keys(returnType.unprocessedItems ?? {}).length > 0 &&
       retry < maxRetries
     ) {
-      console.log('Reprocessing', returnType.unprocessedItems);
+      if (this.logStatements) {
+        console.log('Reprocessing', returnType.unprocessedItems);
+      }
       await new Promise((resolve) => setTimeout(resolve, 2 ** retry * 10));
       retry = retry + 1;
       result = await this.client.batchWrite({
-        ...this.executors[0].input,
-        RequestItems: returnType.unprocessedItems!,
+        ...this.input,
+        RequestItems:
+          returnType.unprocessedItems as BatchWriteCommandInput['RequestItems'],
       });
       returnType = {
-        unprocessedItems: result.UnprocessedItems,
+        unprocessedItems: result.UnprocessedItems as
+          | Record<string, WriteRequest[]>
+          | undefined,
         consumedCapacity: returnType.consumedCapacity
           ? [...returnType.consumedCapacity, ...(result.ConsumedCapacity ?? [])]
           : undefined,
       };
     }
-    return returnType as any;
+    return returnType;
   }
 }
 

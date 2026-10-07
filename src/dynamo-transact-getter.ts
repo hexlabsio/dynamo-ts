@@ -1,12 +1,10 @@
 import {
+  ConsumedCapacity,
+  KeysAndAttributes,
+  ReturnConsumedCapacity,
   TransactGetItemsCommandInput,
   TransactGetItemsInput,
 } from '@aws-sdk/client-dynamodb';
-import { ReturnConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models/index.js';
-import {
-  ConsumedCapacity,
-  KeysAndAttributes,
-} from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
 import { Projection, ProjectionHandler } from './projector.js';
@@ -100,7 +98,7 @@ export class TransactGetClient<TableTypes extends any[]> {
     items: TableTypes;
     consumedCapacity?: ConsumedCapacity[];
   }> {
-    let result = await this.client.transactGet({
+    const result = await this.client.transactGet({
       TransactItems: this.input.TransactItems,
       ReturnConsumedCapacity: options.returnConsumedCapacity,
     });

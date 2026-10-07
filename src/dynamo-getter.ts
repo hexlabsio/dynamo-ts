@@ -1,4 +1,4 @@
-import { ConsumedCapacity } from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
+import { ConsumedCapacity } from '@aws-sdk/client-dynamodb';
 import { GetCommandInput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
 import { Projection, ProjectionHandler } from './projector.js';

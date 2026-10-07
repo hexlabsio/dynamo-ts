@@ -60,7 +60,8 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
         receiver: any,
       ): any {
         if (p === 'get') return getter.get.bind(getter);
-        else return (writer as any)[p].bind(writer);
+        const method = (writer as any)[p];
+        return typeof method === 'function' ? method.bind(writer) : undefined;
       },
     }) as any;
   }
