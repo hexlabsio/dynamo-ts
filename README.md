@@ -360,17 +360,22 @@ easy to get wrong.
 
 ## How dynamo-ts models it
 
-You describe each entity as a **part** of the table using `TablePartInfo`. Each part is defined relative to its parent.
-There are three building blocks:
+You describe the table as a tree with `TableDefinition.singleTable`. Each entity is a **part**, and each property
+name is both the part's name and the attribute used as its key. Nesting a part inside another makes it a child of that
+part. There are three building blocks:
 
 | Builder | Partition key | Sort key | Use it when |
 |---|---|---|---|
-| `TablePartInfo.from<T>().withKeys(pk, sk)` | `pk` | `sk` | Defining a root entity. |
-| `parent.joinPart<T>().withKey(k)` | **same** as parent | parent's sort keys + `k` | The child is small or bounded and you want to read it **together with its parent** in one query. |
-| `parent.childPart<T>().withKey(k)` | parent's partition + sort keys | `k` | The child can grow without bound, so it gets its **own partition** under the parent. |
+| `name: part<T>().partitionedBy(pk, { ... })` | `pk` | `name` | Defining a root entity. |
+| `name: join<T>()` or `join<T>().with({ ... })` | **same** as parent | parent's sort keys + `name` | The child is small or bounded and you want to read it **together with its parent** in one query. |
+| `name: child<T>()` or `child<T>().with({ ... })` | parent's partition + sort keys | `name` | The child can grow without bound, so it gets its **own partition** under the parent. |
 
-The type passed to `joinPart<T>()` / `childPart<T>()` must include all of the parent's key attributes, and the new key
-must be an attribute of `T`. The compiler checks both.
+`partitionedBy` and `with` take the part's children; leave them out for a part with none. The compiler checks that:
+
+- each name and partition key is an attribute of the part's type;
+- each part's type has all of its parent's key attributes.
+
+If two parts have the same name, defining the table throws an error.
 
 ## Worked example: a shop
 
@@ -379,46 +384,42 @@ number of orders (unbounded, so each customer gets an order partition). Orders h
 order.
 
 ```typescript
-import { TablePartClient, TablePartInfo } from '@hexlabs/dynamo-ts';
+import { TableDefinition } from '@hexlabs/dynamo-ts';
 
 type Customer = { store: string; customer: string; name: string };
 type Address = { store: string; customer: string; address: string; city: string };
 type Order = { store: string; customer: string; order: string; total: number };
 type OrderLine = { store: string; customer: string; order: string; line: string; sku: string };
 
-// Root: partition = store, sort = customer
-const customers = TablePartInfo.from<Customer>().withKeys('store', 'customer');
+export const shopTable = TableDefinition.singleTable(({ part, join, child }) => ({
+  // Root: partition = store, sort = customer
+  customer: part<Customer>().partitionedBy('store', {
+    // Joined: lives in the customer's partition, read alongside the customer
+    address: join<Address>(),
+    // Child: gets its own partition per customer
+    order: child<Order>().with({
+      // Joined to orders: lives next to its order
+      line: join<OrderLine>(),
+    }),
+  }),
+}));
 
-// Joined: lives in the customer's partition, read alongside the customer
-const addresses = customers.joinPart<Address>().withKey('address');
-
-// Child: gets its own partition per customer
-const orders = customers.childPart<Order>().withKey('order');
-
-// Joined to orders: lives next to its order
-const orderLines = orders.joinPart<OrderLine>().withKey('line');
-
-const shop = TablePartClient.fromParts(
-  { client: dynamoClient, tableName: 'shop' },
-  customers,
-  addresses,
-  orders,
-  orderLines,
-);
+const shop = shopTable.client({ client: dynamoClient, tableName: 'shop' });
 ```
 
-`fromParts` returns an object with one client per part, **named after the key passed to `withKeys` / `withKey`**:
-`shop.customer`, `shop.address`, `shop.order` and `shop.line`.
+`client` returns an object with one client per part, keyed by part name: `shop.customer`, `shop.address`, `shop.order`
+and `shop.line`.
 
-By default the base table has a string partition key called `partition` and a string sort key called `sort`
-(exported as `defaultBaseTable`). To use different attribute names, pass your own definition:
+`shopTable` is a normal `TableDefinition`, so you can also use it to [generate the table](#infrastructure-as-code) or
+to [create test tables](#testing).
+
+By default the table has a string partition key called `partition` and a string sort key called `sort`. To use
+different attribute names, pass them to `singleTable`:
 
 ```typescript
-const baseTable = TableDefinition.ofType<{ pk: string; sk: string }>()
-  .withPartitionKey('pk')
-  .withSortKey('sk');
-
-const shop = TablePartClient.fromPartsWithBaseTable(baseTable, config, customers, addresses, orders, orderLines);
+export const shopTable = TableDefinition.singleTable('pk', 'sk', ({ part, join, child }) => ({
+  customer: part<Customer>().partitionedBy('store', { /* ... */ }),
+}));
 ```
 
 ## Generated keys
@@ -474,7 +475,7 @@ await shop.line.query({ store: 'acme', customer: 'alice' }, keys => keys.order('
 ## Fetching a parent with its children
 
 `queryWithParents` reads the top-level parents in a partition along with all of their joined children, and groups them
-into a tree that follows the `joinPart` chain:
+into a tree that follows the chain of `join` parts:
 
 ```typescript
 const { member } = await shop.line.queryWithParents({ store: 'acme', customer: 'alice' });
@@ -522,9 +523,9 @@ make sure a projection keeps the key attributes that the grouping relies on.
 
 ## Things to know
 
-- **Choose join or child deliberately.** A `joinPart` shares its parent's partition, which keeps reads cheap but makes
+- **Choose join or child deliberately.** A `join` part shares its parent's partition, which keeps reads cheap but makes
   the partition grow. A single partition is limited in throughput, and one query page is at most 1 MB. Use
-  `childPart` for anything unbounded.
+  `child` for anything unbounded.
 - **`queryWithParents` makes one query per level.** A chain of `n` parts costs at least `n` queries per page. Use `limit`
   to keep the children of a page within memory and capacity budgets.
 - **Sort key narrowing is a prefix match.** `keys.order('o-1')` becomes `begins_with(sort, '#LINE#ORDER$o-1')`,
@@ -533,11 +534,12 @@ make sure a projection keeps the key attributes that the grouping relies on.
 - **Avoid `#` and `$` in key values.** They are used as separators in the generated keys.
 - **Part clients cover** `put`, `get`, `delete`, `batchPut`, `query`, `queryWithParents` and `queryAllWithParents`. To change an item, `put`
   it again.
-- **Part names must be unique.** Clients are keyed by the final key name, so two parts can't both end in `withKey('id')`.
+- **Part names must be unique across the whole tree.** Clients are keyed by part name, so two parts can't both be
+  called `id`, even in different branches.
 
 # Infrastructure as code
 
-Any `TableDefinition`, including the base table for single table design, can describe its own table for your
+Any `TableDefinition`, including a [single table](#single-table-design) definition, can describe its own table for your
 infrastructure tool. The key schema, attribute definitions and indexes are filled in for you. Anything else (billing,
 tags, streams and so on) is passed through in the tool's own format.
 
@@ -550,10 +552,8 @@ dynamo-ts doesn't depend on any of these tools: each helper returns a plain obje
 Returns the properties of an `AWS::DynamoDB::Table` resource:
 
 ```typescript
-import { defaultBaseTable } from '@hexlabs/dynamo-ts';
-
 const carTableProperties = exampleCarTable.asCloudFormation('cars', { BillingMode: 'PAY_PER_REQUEST' });
-const shopTableProperties = defaultBaseTable.asCloudFormation('shop', { BillingMode: 'PAY_PER_REQUEST' });
+const shopTableProperties = shopTable.asCloudFormation('shop', { BillingMode: 'PAY_PER_REQUEST' });
 ```
 
 ## CDK
@@ -570,7 +570,7 @@ new dynamodb.TableV2(this, 'Cars', exampleCarTable.asCdk(dynamodb, 'cars', {
 }));
 
 // Leave the name out to let CloudFormation generate one
-new dynamodb.TableV2(this, 'Shop', defaultBaseTable.asCdk(dynamodb));
+new dynamodb.TableV2(this, 'Shop', shopTable.asCdk(dynamodb));
 ```
 
 ## Terraform
