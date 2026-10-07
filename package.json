@@ -1,7 +1,7 @@
 {
   "name": "@hexlabs/dynamo-ts",
   "sideEffects": false,
-  "version": "6.0.0",
+  "version": "7.0.0",
   "type": "module",
   "types": "dist/esm/index.d.ts",
   "exports": {
