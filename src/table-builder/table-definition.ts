@@ -2,6 +2,14 @@ import {
   LocalSecondaryIndexProperties,
   TableProperties,
 } from '../cloudformation/index.js';
+import {
+  CdkDynamoModule,
+  CdkTableProps,
+  SstDynamoArgs,
+  TerraformDynamoTable,
+  TerraformExtraArguments,
+  toHcl,
+} from './infrastructure.js';
 
 export type SimpleDynamoType =
   | 'string'
@@ -252,6 +260,239 @@ export class TableDefinition<
       ...localConfig,
       ...globalConfig,
     };
+  }
+
+  private indexList(): {
+    name: string;
+    global: boolean;
+    partitionKey: string;
+    sortKey?: string;
+  }[] {
+    return Object.keys(this.indexes ?? {}).map((name) => ({
+      name,
+      global: this.indexes[name].global,
+      partitionKey: this.indexes[name].partitionKey as string,
+      sortKey: this.indexes[name].sortKey as string | undefined,
+    }));
+  }
+
+  private globalIndexes() {
+    return this.indexList().filter((it) => it.global);
+  }
+
+  private localIndexes(): { name: string; sortKey: string }[] {
+    return this.indexList()
+      .filter((it) => !it.global)
+      .map((it) => {
+        if (!it.sortKey)
+          throw new Error(`Local secondary index ${it.name} needs a sort key`);
+        return { name: it.name, sortKey: it.sortKey };
+      });
+  }
+
+  /**
+   * Attributes used as keys. A local index always shares the table's partition key, so only its sort key is included.
+   */
+  private usedKeyNames(): string[] {
+    return [
+      ...new Set([
+        this.keyNames.partitionKey as string,
+        ...(this.keyNames.sortKey ? [this.keyNames.sortKey as string] : []),
+        ...this.globalIndexes().flatMap((it) => [
+          it.partitionKey,
+          ...(it.sortKey ? [it.sortKey] : []),
+        ]),
+        ...this.localIndexes().map((it) => it.sortKey),
+      ]),
+    ];
+  }
+
+  /**
+   * Arguments for a Terraform `aws_dynamodb_table` resource. Use with CDKTF or in a `.tf.json` file, or call
+   * **asTerraformHcl** for HCL.
+   *
+   * Extra arguments (billing_mode, tags, ttl and so on) are passed through. When read_capacity and write_capacity are
+   * set they are copied to each global index, as required by PROVISIONED billing.
+   */
+  asTerraform<
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    Props extends Record<string, unknown> = {},
+  >(
+    name: string,
+    properties: TerraformExtraArguments<Props> = {} as any,
+  ): TerraformDynamoTable & Props {
+    const { read_capacity, write_capacity } = properties;
+    const globalIndexes = this.globalIndexes();
+    const localIndexes = this.localIndexes();
+    return {
+      name,
+      ...properties,
+      hash_key: this.keyNames.partitionKey as string,
+      ...(this.keyNames.sortKey
+        ? { range_key: this.keyNames.sortKey as string }
+        : {}),
+      attribute: this.usedKeyNames().map((key) => ({ name: key, type: 'S' })),
+      ...(globalIndexes.length
+        ? {
+            global_secondary_index: globalIndexes.map((index) => ({
+              name: index.name,
+              key_schema: [
+                { attribute_name: index.partitionKey, key_type: 'HASH' },
+                ...(index.sortKey
+                  ? [{ attribute_name: index.sortKey, key_type: 'RANGE' }]
+                  : []),
+              ],
+              projection_type: 'ALL',
+              ...(read_capacity !== undefined ? { read_capacity } : {}),
+              ...(write_capacity !== undefined ? { write_capacity } : {}),
+            })),
+          }
+        : {}),
+      ...(localIndexes.length
+        ? {
+            local_secondary_index: localIndexes.map((index) => ({
+              name: index.name,
+              range_key: index.sortKey,
+              projection_type: 'ALL',
+            })),
+          }
+        : {}),
+    } as any;
+  }
+
+  /**
+   * A Terraform `aws_dynamodb_table` resource written in HCL, ready to save to a `.tf` file.
+   *
+   * @param resourceName - The Terraform resource name, e.g. `aws_dynamodb_table.<resourceName>`
+   * @param name - The DynamoDB table name
+   * @param properties - Extra arguments, as for **asTerraform**
+   */
+  asTerraformHcl<
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    Props extends Record<string, unknown> = {},
+  >(
+    resourceName: string,
+    name: string,
+    properties: TerraformExtraArguments<Props> = {} as any,
+  ): string {
+    return toHcl(
+      'aws_dynamodb_table',
+      resourceName,
+      this.asTerraform(name, properties),
+    );
+  }
+
+  /**
+   * Props for the CDK `TableV2` construct. Pass in the `aws-cdk-lib/aws-dynamodb` module so the real enums are used.
+   *
+   * ```ts
+   * import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+   * new dynamodb.TableV2(this, 'Table', definition.asCdk(dynamodb, 'my-table', { billing: dynamodb.Billing.onDemand() }));
+   * ```
+   *
+   * @param name - The table name, or undefined to let CloudFormation generate one
+   * @param properties - Extra TableV2 props, passed through
+   */
+  asCdk<
+    A,
+    P,
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    Props extends Record<string, unknown> = {},
+  >(
+    dynamodb: CdkDynamoModule<A, P>,
+    name?: string,
+    properties: Props & {
+      [K in keyof CdkTableProps<A, P>]?: never;
+    } = {} as any,
+  ): CdkTableProps<A, P> & Props {
+    const attribute = (key: string) => ({
+      name: key,
+      type: dynamodb.AttributeType.STRING,
+    });
+    const globalIndexes = this.globalIndexes();
+    const localIndexes = this.localIndexes();
+    return {
+      ...properties,
+      ...(name ? { tableName: name } : {}),
+      partitionKey: attribute(this.keyNames.partitionKey as string),
+      ...(this.keyNames.sortKey
+        ? { sortKey: attribute(this.keyNames.sortKey as string) }
+        : {}),
+      ...(globalIndexes.length
+        ? {
+            globalSecondaryIndexes: globalIndexes.map((index) => ({
+              indexName: index.name,
+              partitionKey: attribute(index.partitionKey),
+              ...(index.sortKey ? { sortKey: attribute(index.sortKey) } : {}),
+              projectionType: dynamodb.ProjectionType.ALL,
+            })),
+          }
+        : {}),
+      ...(localIndexes.length
+        ? {
+            localSecondaryIndexes: localIndexes.map((index) => ({
+              indexName: index.name,
+              sortKey: attribute(index.sortKey),
+              projectionType: dynamodb.ProjectionType.ALL,
+            })),
+          }
+        : {}),
+    } as any;
+  }
+
+  /**
+   * Args for the SST v3 `sst.aws.Dynamo` component.
+   *
+   * ```ts
+   * new sst.aws.Dynamo('MyTable', definition.asSst({ stream: 'new-and-old-images' }));
+   * ```
+   *
+   * @param properties - Extra Dynamo args (stream, ttl, transform and so on), passed through
+   */
+  asSst<
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    Props extends Record<string, unknown> = {},
+  >(
+    properties: Props & { [K in keyof SstDynamoArgs]?: never } = {} as any,
+  ): SstDynamoArgs & Props {
+    const globalIndexes = this.globalIndexes();
+    const localIndexes = this.localIndexes();
+    return {
+      ...properties,
+      fields: Object.fromEntries(
+        this.usedKeyNames().map((key) => [key, 'string']),
+      ),
+      primaryIndex: {
+        hashKey: this.keyNames.partitionKey as string,
+        ...(this.keyNames.sortKey
+          ? { rangeKey: this.keyNames.sortKey as string }
+          : {}),
+      },
+      ...(globalIndexes.length
+        ? {
+            globalIndexes: Object.fromEntries(
+              globalIndexes.map((index) => [
+                index.name,
+                {
+                  hashKey: index.partitionKey,
+                  ...(index.sortKey ? { rangeKey: index.sortKey } : {}),
+                  projection: 'all',
+                },
+              ]),
+            ),
+          }
+        : {}),
+      ...(localIndexes.length
+        ? {
+            localIndexes: Object.fromEntries(
+              localIndexes.map((index) => [
+                index.name,
+                { rangeKey: index.sortKey, projection: 'all' },
+              ]),
+            ),
+          }
+        : {}),
+    } as any;
   }
 }
 
