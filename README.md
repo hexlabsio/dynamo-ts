@@ -16,7 +16,7 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
 - **Typed projections.** Project `model` and `year` and the result type becomes `{ model: string; year: number }`.
 - **Batches and transactions** across multiple tables. Batches are chunked to DynamoDB's limits for you, and unprocessed items can optionally be retried.
 - **Single table design.** Model hierarchical entities in one table without hand-crafting `PK`/`SK` strings.
-- **Infrastructure from types.** Generate CloudFormation and local test tables from the same definition.
+- **Infrastructure from types.** Generate tables for CloudFormation, CDK, Terraform and SST, plus local test tables, from the same definition.
 
 > Version 6.x supports both CommonJS and ESM.
 
@@ -44,7 +44,11 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
   - [Fetching a parent with its children](#fetching-a-parent-with-its-children)
     - [Paging](#paging)
   - [Things to know](#things-to-know)
-- [CloudFormation](#cloudformation)
+- [Infrastructure as code](#infrastructure-as-code)
+  - [CloudFormation](#cloudformation)
+  - [CDK](#cdk)
+  - [Terraform](#terraform)
+  - [SST](#sst)
 - [Testing](#testing)
 - [Contributors](#contributors)
 
@@ -58,7 +62,7 @@ npm i @hexlabs/dynamo-ts @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 
 Create a definition for your table.
 
-> The definition holds the type information, and you can also use it to generate CloudFormation (see [CloudFormation](#cloudformation)).
+> The definition holds the type information, and you can also use it to generate the table in CloudFormation, CDK, Terraform or SST (see [Infrastructure as code](#infrastructure-as-code)).
 
 <!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/define-table.ts&lines=3-100) -->
 <!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
@@ -531,16 +535,102 @@ make sure a projection keeps the key attributes that the grouping relies on.
   it again.
 - **Part names must be unique.** Clients are keyed by the final key name, so two parts can't both end in `withKey('id')`.
 
-# CloudFormation
+# Infrastructure as code
 
-Any `TableDefinition`, including the base table for single table design, can produce a CloudFormation
-`AWS::DynamoDB::Table` properties object with the key schema, attribute definitions and indexes filled in:
+Any `TableDefinition`, including the base table for single table design, can describe its own table for your
+infrastructure tool. The key schema, attribute definitions and indexes are filled in for you. Anything else (billing,
+tags, streams and so on) is passed through in the tool's own format.
+
+dynamo-ts doesn't depend on any of these tools: each helper returns a plain object (or a string for HCL).
+
+> Key attributes are always declared as strings (`S`), because the attribute types aren't known at runtime.
+
+## CloudFormation
+
+Returns the properties of an `AWS::DynamoDB::Table` resource:
 
 ```typescript
 import { defaultBaseTable } from '@hexlabs/dynamo-ts';
 
 const carTableProperties = exampleCarTable.asCloudFormation('cars', { BillingMode: 'PAY_PER_REQUEST' });
 const shopTableProperties = defaultBaseTable.asCloudFormation('shop', { BillingMode: 'PAY_PER_REQUEST' });
+```
+
+## CDK
+
+Returns props for the `TableV2` construct. Pass in the `aws-cdk-lib/aws-dynamodb` module so the props use the CDK's
+own enums and type-check without casts:
+
+```typescript
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+
+new dynamodb.TableV2(this, 'Cars', exampleCarTable.asCdk(dynamodb, 'cars', {
+  billing: dynamodb.Billing.onDemand(),
+  pointInTimeRecovery: true,
+}));
+
+// Leave the name out to let CloudFormation generate one
+new dynamodb.TableV2(this, 'Shop', defaultBaseTable.asCdk(dynamodb));
+```
+
+## Terraform
+
+`asTerraformHcl` writes an `aws_dynamodb_table` resource that you can save to a `.tf` file:
+
+```typescript
+import { writeFileSync } from 'fs';
+
+writeFileSync('cars.tf', exampleCarTable.asTerraformHcl('cars', 'cars', {
+  billing_mode: 'PAY_PER_REQUEST',
+  tags: { team: 'cars' },
+  point_in_time_recovery: { enabled: true },
+}));
+```
+
+```hcl
+resource "aws_dynamodb_table" "cars" {
+  name = "cars"
+  billing_mode = "PAY_PER_REQUEST"
+  ...
+  hash_key = "make"
+  range_key = "identifier"
+  attribute {
+    name = "make"
+    type = "S"
+  }
+  ...
+  global_secondary_index {
+    name = "model-index"
+    key_schema {
+      attribute_name = "make"
+      key_type = "HASH"
+    }
+    ...
+  }
+}
+```
+
+`asTerraform` returns the same arguments as an object, for `.tf.json` files or CDKTF:
+
+```typescript
+const tfJson = {
+  resource: { aws_dynamodb_table: { cars: exampleCarTable.asTerraform('cars', { billing_mode: 'PAY_PER_REQUEST' }) } },
+};
+```
+
+- Extra arguments use the provider's snake_case names. Objects become nested blocks (apart from `tags`, which is a map).
+- With `billing_mode = "PROVISIONED"`, the `read_capacity` and `write_capacity` you pass are copied to each global
+  index, as the provider requires.
+- Global indexes use `key_schema` blocks, so you need a recent AWS provider (6.x). The older `hash_key`/`range_key`
+  index arguments are deprecated.
+- The output isn't aligned. Run `terraform fmt` if you want the usual formatting.
+
+## SST
+
+Returns args for the SST v3 `sst.aws.Dynamo` component:
+
+```typescript
+const cars = new sst.aws.Dynamo('Cars', exampleCarTable.asSst({ stream: 'new-and-old-images' }));
 ```
 
 # Testing
