@@ -651,12 +651,12 @@ writeJestDynamoConfig(
 );
 ```
 
-2. In **package.json**, add a `pretest` script that runs the setup file (you may need `ts-node` as a dev dependency).
+2. In **package.json**, add a `pretest` script that runs the setup file (for example with [`tsx`](https://tsx.is), installed as a dev dependency).
    It writes `jest-dynamodb-config.js` to the project root, which is the file `@shelf/jest-dynamodb` looks for.
 
 ```json
 "scripts": {
-  "pretest": "ts-node ./jest-setup.ts",
+  "pretest": "tsx ./jest-setup.ts",
   ...
 }
 ```

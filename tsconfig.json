@@ -21,10 +21,6 @@
     "inlineSources": false,
     "esModuleInterop": false
   },
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  },
   "include": [
     "src/**/*", "jest.config.ts"
   ]
