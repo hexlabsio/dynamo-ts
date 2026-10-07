@@ -1,12 +1,21 @@
 {
   "name": "@hexlabs/dynamo-ts",
-  "sideEfects": false,
+  "sideEffects": false,
   "version": "6.0.0",
   "type": "module",
   "types": "dist/esm/index.d.ts",
   "exports": {
-    "require": "./dist/cjs/index.js",
-    "import": "./dist/esm/index.js"
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -14,14 +23,10 @@
   "files": [
     "dist"
   ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ],
   "scripts": {
     "build:esm": "tsc --project tsconfig.json && echo '{\"type\": \"module\"}' > dist/esm/package.json",
     "build:cjs": "tsc --project tsconfig.cjs.json && echo '{\"type\": \"commonjs\"}' > dist/cjs/package.json",
-    "build": "npm run format:fix && npm run build:esm && npm run build:cjs",
+    "build": "npm run build:esm && npm run build:cjs",
     "prepare": "husky install",
     "format": "prettier --single-quote --trailing-comma all --check './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
     "format:fix": "prettier --single-quote --trailing-comma all --write './src/**.{ts,tsx}' './src/**/**.{ts,tsx}' './test/**.{ts,tsx}' './test/**/**.{ts,tsx}'",
@@ -29,7 +34,8 @@
     "test": "jest --ci --runInBand --coverage --reporters=default --reporters=jest-junit --passWithNoTests",
     "format:pretty": "prettier --single-quote --trailing-comma all --write './src/**/*.ts'",
     "format:lint": "eslint src/**/*.ts --fix",
-    "docs": "md-magic"
+    "docs": "md-magic",
+    "lint": "eslint \"src/**/*.ts\""
   },
   "eslintConfig": {
     "extends": [
@@ -70,17 +76,14 @@
   "bugs": {
     "url": "https://github.com/hexlabsio/dynamo-ts/issues"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "npm run format:fix && npm run lint && npm outdated"
-    }
-  },
   "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
   "peerDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.49.0"
+    "@aws-sdk/client-dynamodb": "^3.49.0",
+    "@aws-sdk/lib-dynamodb": "^3.49.0"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.348.0",
+    "@aws-sdk/lib-dynamodb": "^3.379.1",
     "@shelf/jest-dynamodb": "^3.4.2",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.17.10",

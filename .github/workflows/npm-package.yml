@@ -21,7 +21,7 @@ jobs:
         run: npm --no-git-tag-version version 6.0.${{ github.run_number }}
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 

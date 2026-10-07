@@ -1,12 +1,16 @@
 export * from './table-client.js';
+export { default as IndexClient } from './index-client.js';
 export * from './operation.js';
 export * from './types/index.js';
 export * from './dynamo-batch-getter.js';
 export * from './dynamo-batch-writer.js';
+export * from './dynamo-deleter.js';
 export * from './dynamo-getter.js';
 export * from './dynamo-puter.js';
 export * from './dynamo-querier.js';
 export * from './dynamo-scanner.js';
+export * from './dynamo-transact-getter.js';
+export * from './dynamo-transact-writer.js';
 export * from './dynamo-updater.js';
 export * from './table-builder/single-table-builder.js';
 export * from './table-builder/table-definition.js';

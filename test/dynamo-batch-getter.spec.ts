@@ -1,6 +1,6 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { TableClient } from '../src';
+import { BatchGetClient, TableClient } from '../src';
 import {
   SimpleTable,
   SimpleTable2,
@@ -96,5 +96,71 @@ describe('Dynamo Batch Getter', () => {
         [{ sort: '8' }, { sort: '0' }],
       ]);
     });
+  });
+
+  describe('Reprocessing', () => {
+    it('should complete when there are no unprocessed keys', async () => {
+      const result = await testTable
+        .batchGet([{ identifier: '0' }])
+        .and(testTable2.batchGet([{ identifier: '10000', sort: '0' }]))
+        .execute(true);
+      expect(result.items).toEqual([
+        [{ identifier: '0', sort: '0' }],
+        [{ identifier: '10000', sort: '0', text: 'test' }],
+      ]);
+      expect(result.unprocessedKeys).toEqual({});
+    });
+
+    it('should retry unprocessed keys', async () => {
+      const calls: any[] = [];
+      const client = {
+        batchGet: async (input: any) => {
+          calls.push(input);
+          if (calls.length === 1) {
+            return {
+              Responses: { table: [{ identifier: '0' }] },
+              UnprocessedKeys: {
+                table: { Keys: [{ identifier: '1' }] },
+              },
+            };
+          }
+          return { Responses: { table: [{ identifier: '1' }] } };
+        },
+      } as unknown as DynamoDBDocument;
+      const executor = new TableClient(simpleTableDefinition, {
+        tableName: 'table',
+        client,
+      }).batchGet([{ identifier: '0' }, { identifier: '1' }]);
+      const result = await new BatchGetClient(client, [executor]).execute(true);
+      expect(calls.length).toEqual(2);
+      expect(calls[1].RequestItems).toEqual({
+        table: { Keys: [{ identifier: '1' }] },
+      });
+      expect(result.items).toEqual([
+        [{ identifier: '0' }, { identifier: '1' }],
+      ]);
+      expect(result.unprocessedKeys).toEqual({});
+    });
+  });
+
+  describe('Chunking', () => {
+    it('should split requests larger than 100 keys', async () => {
+      const keys = preInserts
+        .slice(0, 250)
+        .map(({ identifier }) => ({ identifier }));
+      const result = await testTable.batchGet(keys).execute();
+      expect(result.items.length).toEqual(250);
+      expect(result.items).toEqual(
+        expect.arrayContaining(preInserts.slice(0, 250)),
+      );
+    });
+  });
+
+  it('should reject multiple requests for the same table', () => {
+    expect(() =>
+      testTable
+        .batchGet([{ identifier: '0' }])
+        .and(testTable.batchGet([{ identifier: '1' }])),
+    ).toThrow(/already contains a request for table/);
   });
 });

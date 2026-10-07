@@ -444,6 +444,19 @@ describe('Dynamo Querier', () => {
       const result = await testTable2.queryAll({ identifier }, { limit: 2 });
       expect(result.member.length).toEqual(2);
     });
+    it('should preserve sort order across multiple pages', async () => {
+      const pagingTable = new DynamoQuerier(simpleTableDefinition2, {
+        tableName: TableName2,
+        client: {
+          query: (input: any) => dynamoClient.query({ ...input, Limit: 1 }),
+        } as unknown as DynamoDBDocument,
+      });
+      const all = await pagingTable.queryAll({ identifier });
+      expect(all.member).toEqual(preInserts2.slice(0, 4));
+      const limited = await pagingTable.queryAll({ identifier }, { limit: 3 });
+      expect(limited.member).toEqual(preInserts2.slice(0, 3));
+      expect(limited.next).toBeDefined();
+    });
     it('should fetch all from index items', async () => {
       const result = await testTableClient
         .index('abc')

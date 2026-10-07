@@ -5,9 +5,9 @@ import {
   ReturnConsumedCapacity,
   ReturnItemCollectionMetrics,
   TransactWriteItemsInput,
+  TransactWriteItemsOutput,
   Update,
-} from '@aws-sdk/client-dynamodb/dist-types/models/index.js';
-import { TransactWriteItemsOutput } from '@aws-sdk/client-dynamodb/dist-types/models/models_0.js';
+} from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
 import { filterParts } from './comparison.js';

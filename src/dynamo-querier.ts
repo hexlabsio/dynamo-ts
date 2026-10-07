@@ -272,7 +272,7 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
     );
   }
 
-  private async _recQuery(
+  private async queryPages(
     queryInput: QueryCommandInput,
     keyFields: {
       partitionKey: string;
@@ -282,57 +282,35 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
     },
     enrichedFields?: string[],
     queryLimit?: number,
-    accumulation: QueryCommandOutput['Items'] = [],
-    accumulationCount?: number,
   ): Promise<{
     Items: QueryCommandOutput['Items'];
     LastEvaluatedKey?: string;
   }> {
-    const res = await this.clientConfig.client.query(queryInput);
-
-    const resLength = res?.Items?.length ?? 0;
-    const accLength = accumulationCount ?? 0;
-    const updatedAccLength = accLength + resLength;
     const limit = queryLimit ?? 0;
-
-    if (limit > 0 && limit <= updatedAccLength) {
-      const nextKey = this.buildNext(
-        res.Items![limit - accLength - 1],
-        keyFields,
-      );
-      const accumulatedResults = [
-        ...res.Items!.slice(0, limit - accLength),
-        ...accumulation,
-      ];
-      if (enrichedFields) {
-        this.removeFields(accumulatedResults, enrichedFields);
+    const accumulation: Record<string, NativeAttributeValue>[] = [];
+    let input = queryInput;
+    let lastEvaluatedKey: any;
+    for (;;) {
+      const res = await this.clientConfig.client.query(input);
+      const items = res.Items ?? [];
+      if (limit > 0 && accumulation.length + items.length >= limit) {
+        const remaining = limit - accumulation.length;
+        accumulation.push(...items.slice(0, remaining));
+        lastEvaluatedKey = this.buildNext(items[remaining - 1], keyFields);
+        break;
       }
-      return {
-        Items: accumulatedResults,
-        LastEvaluatedKey: nextKey,
-      };
-    } else if (!res.LastEvaluatedKey) {
-      const accumulatedResults = [...(res.Items ?? []), ...accumulation];
-      if (enrichedFields) {
-        this.removeFields(accumulatedResults, enrichedFields);
-      }
-      return {
-        Items: accumulatedResults,
-      };
-    } else {
-      return await this._recQuery(
-        { ...queryInput, ExclusiveStartKey: res.LastEvaluatedKey },
-        keyFields,
-        enrichedFields,
-        queryLimit,
-        [...accumulation, ...(res.Items ?? [])],
-        updatedAccLength,
-      );
+      accumulation.push(...items);
+      if (!res.LastEvaluatedKey) break;
+      input = { ...input, ExclusiveStartKey: res.LastEvaluatedKey };
     }
+    if (enrichedFields) {
+      this.removeFields(accumulation, enrichedFields);
+    }
+    return { Items: accumulation, LastEvaluatedKey: lastEvaluatedKey };
   }
 
   async execute(): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
-    const result = await this._recQuery(
+    const result = await this.queryPages(
       this.input,
       {
         partitionKey: this.tableConfig.keyNames.partitionKey as string,

@@ -67,4 +67,34 @@ describe('Dynamo Batch Writer', () => {
       await executor.execute();
     });
   });
+
+  describe('Chunking', () => {
+    it('should split requests larger than 25 items', async () => {
+      const items = new Array(60).fill(0).map((a, index) => ({
+        identifier: `chunk-${index}`,
+        sort: `${index}`,
+      }));
+      const result = await testTable.batchPut(items).execute(true);
+      expect(result.unprocessedItems).toEqual({});
+      const stored = await testTable
+        .batchGet(items.map(({ identifier }) => ({ identifier })))
+        .execute();
+      expect(stored.items).toEqual(expect.arrayContaining(items));
+      expect(stored.items.length).toEqual(60);
+    });
+  });
+
+  it('should merge requests for the same table from every executor', () => {
+    const executor = testTable
+      .batchPut(preInserts.slice(0, 1))
+      .and(testTable2.batchPut(preInserts2.slice(0, 1)))
+      .and(testTable.batchPut(preInserts.slice(1, 2)))
+      .and(testTable2.batchPut(preInserts2.slice(1, 2)));
+    expect(
+      executor.input.RequestItems!['simpleTableDefinition'].length,
+    ).toEqual(2);
+    expect(
+      executor.input.RequestItems!['simpleTableDefinition2'].length,
+    ).toEqual(2);
+  });
 });
