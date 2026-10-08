@@ -64,7 +64,7 @@ export type TransactWriteReturn = CamelCaseKeys<TransactWriteItemsOutput>;
 
 export interface TransactWriteExecutor {
   input: TransactWriteItemsInput;
-  execute(options: TransactWriteOptions): Promise<TransactWriteReturn>;
+  execute(options?: TransactWriteOptions): Promise<TransactWriteReturn>;
   then<B extends TransactWriteExecutor>(
     other: B,
   ): TransactWriteClient<[this, B]>;
@@ -80,7 +80,9 @@ export class TransactWriteExecutorHolder implements TransactWriteExecutor {
   /**
    * Execute the transactional write request
    */
-  async execute(options: TransactWriteOptions): Promise<TransactWriteReturn> {
+  async execute(
+    options: TransactWriteOptions = {},
+  ): Promise<TransactWriteReturn> {
     return await new TransactWriteClient(
       this.client,
       [this],

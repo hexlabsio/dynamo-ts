@@ -156,11 +156,24 @@ describe('Dynamo Batch Getter', () => {
     });
   });
 
-  it('should reject multiple requests for the same table', () => {
-    expect(() =>
-      testTable
-        .batchGet([{ identifier: '0' }])
-        .and(testTable.batchGet([{ identifier: '1' }])),
-    ).toThrow(/already contains a request for table/);
+  it('should get several requests for the same table, each with its own projection', async () => {
+    const result = await testTable
+      .batchGet([{ identifier: '0' }])
+      .and(testTable2.batchGet([{ identifier: '10000', sort: '0' }]))
+      .and(
+        testTable.batchGet([{ identifier: '3' }, { identifier: '4' }], {
+          projection: (projector) => projector.project('identifier'),
+        }),
+      )
+      .execute();
+    expect(result.items[0]).toEqual([{ identifier: '0', sort: '0' }]);
+    expect(result.items[1]).toEqual([
+      { identifier: '10000', sort: '0', text: 'test' },
+    ]);
+    expect(result.items[2].map((it) => it.identifier).sort()).toEqual([
+      '3',
+      '4',
+    ]);
+    expect(result.items[2][0]).toEqual({ identifier: expect.any(String) });
   });
 });

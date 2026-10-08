@@ -13,7 +13,7 @@ const orderTable = TableDefinition.ofType<Order>()
   .withSortKey('order')
   .withGlobalSecondaryIndex('status-index', 'status')
   .withSortKey('created')
-  .withLocalSecondaryIndex('created-index', 'customer')
+  .withLocalSecondaryIndex('created-index')
   .withSortKey('created');
 
 const simpleTable = TableDefinition.ofType<{
@@ -25,6 +25,7 @@ const simpleTable = TableDefinition.ofType<{
 enum AttributeType {
   STRING = 'S',
   NUMBER = 'N',
+  BINARY = 'B',
 }
 enum ProjectionType {
   ALL = 'ALL',
@@ -213,14 +214,21 @@ describe('Infrastructure output', () => {
     });
   });
 
-  it('should reject a local index without a sort key', () => {
-    const table = TableDefinition.ofType<{ a: string; b: string }>()
-      .withPartitionKey('a')
-      .withSortKey('b')
-      .withLocalSecondaryIndex('broken', 'a')
-      .withNoSortKey();
-    expect(() => table.asSst()).toThrow(
-      'Local secondary index broken needs a sort key',
+  it('should only allow local indexes with a sort key on tables with a sort key', () => {
+    const base = TableDefinition.ofType<{
+      a: string;
+      b: string;
+      c: number;
+    }>().withPartitionKey('a');
+    // @ts-expect-error local indexes need a table with a sort key
+    expect(() => base.withLocalSecondaryIndex('broken')).toThrow(
+      'Local secondary index broken needs a table with a sort key',
     );
+    const local = base.withSortKey('b').withLocalSecondaryIndex('by-c');
+    // @ts-expect-error local indexes always have a sort key
+    expect(local.withNoSortKey).toBeUndefined();
+    expect(local.withSortKey('c', 'number').indexes).toEqual({
+      'by-c': { global: false, partitionKey: 'a', sortKey: 'c' },
+    });
   });
 });

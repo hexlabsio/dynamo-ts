@@ -13,6 +13,7 @@ import {
 import { TableClient } from '../table-client.js';
 import { DynamoConfig } from '../types/index.js';
 import {
+  IndexKeys,
   SchemaParts,
   SingleTableHelpers,
   SingleTableSchema,
@@ -43,11 +44,57 @@ export type ValidKeys<T> = (T extends Record<string, any>
   : never) &
   keyof T;
 
+/**
+ * The DynamoDB type of a key attribute.
+ */
+export type KeyAttributeType = 'string' | 'number' | 'binary';
+
+type DynamoAttributeType = 'S' | 'N' | 'B';
+
+const dynamoAttributeTypes: Record<KeyAttributeType, DynamoAttributeType> = {
+  string: 'S',
+  number: 'N',
+  binary: 'B',
+};
+
+/**
+ * The key attribute type matching a TypeScript type, or never if it can't be a key.
+ */
+export type KeyAttributeTypeOf<V> = [NonNullable<V>] extends [string]
+  ? 'string'
+  : [NonNullable<V>] extends [number]
+  ? 'number'
+  : [NonNullable<V>] extends [Uint8Array]
+  ? 'binary'
+  : never;
+
+/**
+ * String keys don't need a type. Number and binary keys must say so, because types aren't available at runtime. Any
+ * other type, including a mix such as string | number, can't be a key.
+ */
+export type KeyTypeArgument<V> = [KeyAttributeTypeOf<V>] extends [never]
+  ? [type: never]
+  : KeyAttributeTypeOf<V> extends 'string'
+  ? [type?: 'string']
+  : [type: KeyAttributeTypeOf<V>];
+
+function attributeType(
+  name: string,
+  type: KeyAttributeType = 'string',
+): Record<string, DynamoAttributeType> {
+  return { [name]: dynamoAttributeTypes[type] };
+}
+
 class TableDefinitionBuilder<T> {
   withPartitionKey<const K extends ValidKeys<T>>(
     partitionKey: K,
+    ...[type]: KeyTypeArgument<T[K]>
   ): TableDefinition<T, { partitionKey: K }> {
-    return new TableDefinition<T, { partitionKey: K }>({ partitionKey }, {});
+    return new TableDefinition<T, { partitionKey: K }>(
+      { partitionKey },
+      {},
+      attributeType(partitionKey as string, type),
+    );
   }
 }
 
@@ -71,15 +118,23 @@ class IndexDefinitionBuilder<
 
   withSortKey<const SK extends keyof T>(
     sortKey: SK,
+    ...[type]: KeyTypeArgument<T[SK]>
   ): TableDefinition<
     T,
     KEYS,
     INDEXES & { [KK in K]: INDEXES[K] & { sortKey: SK } }
   > {
-    return new TableDefinition(this.tableDefinition.keyNames, {
-      ...this.tableDefinition.indexes,
-      [this.index]: { ...this.tableDefinition.indexes[this.index], sortKey },
-    });
+    return new TableDefinition(
+      this.tableDefinition.keyNames,
+      {
+        ...this.tableDefinition.indexes,
+        [this.index]: { ...this.tableDefinition.indexes[this.index], sortKey },
+      },
+      {
+        ...this.tableDefinition.attributeTypes,
+        ...attributeType(sortKey as string, type),
+      },
+    );
   }
 }
 
@@ -105,14 +160,21 @@ export class TableDefinition<
   constructor(
     public readonly keyNames: KEYS,
     public readonly indexes: INDEXES,
+    /** DynamoDB types of key attributes, string if not listed */
+    public readonly attributeTypes: Record<string, DynamoAttributeType> = {},
   ) {}
 
   asIndex<I extends keyof INDEXES>(index: I): TableDefinition<T, INDEXES[I]> {
-    return new TableDefinition<T, INDEXES[I]>(this.indexes[index], {});
+    return new TableDefinition<T, INDEXES[I]>(
+      this.indexes[index],
+      {},
+      this.attributeTypes,
+    );
   }
 
   withSortKey<const K extends Exclude<ValidKeys<T>, KEYS['partitionKey']>>(
     sortKey: K,
+    ...[type]: KeyTypeArgument<T[K]>
   ): TableDefinition<
     T,
     { partitionKey: KEYS['partitionKey']; sortKey: K },
@@ -122,12 +184,16 @@ export class TableDefinition<
       T,
       { partitionKey: KEYS['partitionKey']; sortKey: K },
       INDEXES
-    >({ ...this.keyNames, sortKey }, this.indexes);
+    >({ ...this.keyNames, sortKey }, this.indexes, {
+      ...this.attributeTypes,
+      ...attributeType(sortKey as string, type),
+    });
   }
 
   withGlobalSecondaryIndex<K extends string, PK extends keyof T>(
     name: K,
     partitionKey: PK,
+    ...[type]: KeyTypeArgument<T[PK]>
   ): IndexDefinitionBuilder<
     T,
     KEYS,
@@ -140,35 +206,65 @@ export class TableDefinition<
       INDEXES & { [KK in K]: { partitionKey: PK; global: true } },
       K
     >(
-      new TableDefinition(this.keyNames, {
-        ...this.indexes,
-        [name]: { global: true, partitionKey },
-      }),
+      new TableDefinition(
+        this.keyNames,
+        {
+          ...this.indexes,
+          [name]: { global: true, partitionKey },
+        },
+        {
+          ...this.attributeTypes,
+          ...attributeType(partitionKey as string, type),
+        },
+      ),
       name,
     );
   }
 
-  withLocalSecondaryIndex<K extends string, PK extends keyof T>(
+  /**
+   * Adds a local secondary index: the same partition key as the table, sorted by a different attribute. Local indexes
+   * can only be created with the table, and limit each partition key value to 10 GB across the table and its local
+   * indexes, but support strongly consistent reads.
+   */
+  withLocalSecondaryIndex<K extends string>(
+    this: TableDefinition<T, KEYS & { sortKey: keyof T }, INDEXES>,
     name: K,
-    partitionKey: PK,
-  ): IndexDefinitionBuilder<
-    T,
-    KEYS,
-    INDEXES & { [KK in K]: { partitionKey: PK; global: false } },
-    K
-  > {
-    return new IndexDefinitionBuilder<
+  ): {
+    withSortKey<const SK extends keyof T>(
+      sortKey: SK,
+      ...[type]: KeyTypeArgument<T[SK]>
+    ): TableDefinition<
       T,
       KEYS,
-      INDEXES & { [KK in K]: { partitionKey: PK; global: false } },
-      K
-    >(
-      new TableDefinition(this.keyNames, {
-        ...this.indexes,
-        [name]: { global: false, partitionKey },
-      }),
+      INDEXES & {
+        [KK in K]: {
+          partitionKey: KEYS['partitionKey'];
+          sortKey: SK;
+          global: false;
+        };
+      }
+    >;
+  } {
+    if (!this.keyNames.sortKey)
+      throw new Error(
+        `Local secondary index ${name} needs a table with a sort key`,
+      );
+    const builder = new IndexDefinitionBuilder(
+      new TableDefinition(
+        this.keyNames as any,
+        {
+          ...this.indexes,
+          [name]: { global: false, partitionKey: this.keyNames.partitionKey },
+        } as any,
+        this.attributeTypes,
+      ),
       name,
     );
+    // Local indexes always have a sort key, so withNoSortKey isn't offered
+    return {
+      withSortKey: (sortKey: any, type?: any) =>
+        (builder.withSortKey as any)(sortKey, type),
+    } as any;
   }
 
   static ofType<T>(): TableDefinitionBuilder<T> {
@@ -181,39 +277,52 @@ export class TableDefinition<
    *
    * ```ts
    * TableDefinition.singleTable(({ part, join, child }) => ({
-   *   customer: part<Customer>().partitionedBy('store', {
-   *     address: join<Address>(),
-   *     order: child<Order>().with({ line: join<OrderLine>() }),
-   *   }),
+   *   customer: part<Customer>()
+   *     .partitionedBy('store')
+   *     .index('byName', { partition: [], sort: ['name'] })
+   *     .with({
+   *       address: join<Address>(),
+   *       order: child<Order>().with({ line: join<OrderLine>() }),
+   *     }),
    * }));
    * ```
    *
-   * By default the table has a string partition key called **partition** and a string sort key called **sort**. Call
-   * **client** on the definition to get a client for each part.
+   * By default the table has a string partition key called **partition** and a string sort key called **sort**, and
+   * each index uses attributes called **<index>_partition** and **<index>_sort**. Pass options first to change these.
+   * Call **client** on the definition to get a client for each part.
    */
   static singleTable<S extends SingleTableSchema>(
     define: (helpers: SingleTableHelpers) => S & ValidateSchema<S>,
   ): SingleTableDefinition<'partition', 'sort', SchemaParts<S>>;
   static singleTable<
-    const PK extends string,
-    const SK extends string,
+    const O extends SingleTableOptions,
     S extends SingleTableSchema,
   >(
-    partitionKey: PK,
-    sortKey: Exclude<SK, PK>,
+    options: O,
     define: (helpers: SingleTableHelpers) => S & ValidateSchema<S>,
-  ): SingleTableDefinition<PK, SK, SchemaParts<S>>;
+  ): SingleTableDefinition<
+    O extends { partitionKey: infer PK extends string } ? PK : 'partition',
+    O extends { sortKey: infer SK extends string } ? SK : 'sort',
+    SchemaParts<S>
+  >;
   static singleTable(
     ...args:
       | [(helpers: SingleTableHelpers) => SingleTableSchema]
-      | [string, string, (helpers: SingleTableHelpers) => SingleTableSchema]
+      | [SingleTableOptions, (helpers: SingleTableHelpers) => SingleTableSchema]
   ): any {
-    const [partitionKey, sortKey, define] =
-      args.length === 1 ? ['partition', 'sort', args[0]] : args;
+    const [options, define] = args.length === 1 ? [{}, args[0]] : args;
     return new SingleTableDefinition(
-      { partitionKey, sortKey },
+      {
+        partitionKey: options.partitionKey ?? 'partition',
+        sortKey: options.sortKey ?? 'sort',
+      },
       schemaParts(define(singleTableHelpers)),
+      options.indexes,
     );
+  }
+
+  private attributeTypeOf(name: string): DynamoAttributeType {
+    return this.attributeTypes[name] ?? 'S';
   }
 
   private indexKeysNames(): string[] {
@@ -309,7 +418,7 @@ export class TableDefinition<
       ],
       AttributeDefinitions: keys.map((key) => ({
         AttributeName: key as string,
-        AttributeType: 'S',
+        AttributeType: this.attributeTypeOf(key),
       })),
       ...localConfig,
       ...globalConfig,
@@ -385,7 +494,10 @@ export class TableDefinition<
       ...(this.keyNames.sortKey
         ? { range_key: this.keyNames.sortKey as string }
         : {}),
-      attribute: this.usedKeyNames().map((key) => ({ name: key, type: 'S' })),
+      attribute: this.usedKeyNames().map((key) => ({
+        name: key,
+        type: this.attributeTypeOf(key),
+      })),
       ...(globalIndexes.length
         ? {
             global_secondary_index: globalIndexes.map((index) => ({
@@ -461,7 +573,11 @@ export class TableDefinition<
   ): CdkTableProps<A, P> & Props {
     const attribute = (key: string) => ({
       name: key,
-      type: dynamodb.AttributeType.STRING,
+      type: {
+        S: dynamodb.AttributeType.STRING,
+        N: dynamodb.AttributeType.NUMBER,
+        B: dynamodb.AttributeType.BINARY,
+      }[this.attributeTypeOf(key)],
     });
     const globalIndexes = this.globalIndexes();
     const localIndexes = this.localIndexes();
@@ -514,7 +630,12 @@ export class TableDefinition<
     return {
       ...properties,
       fields: Object.fromEntries(
-        this.usedKeyNames().map((key) => [key, 'string']),
+        this.usedKeyNames().map((key) => [
+          key,
+          ({ S: 'string', N: 'number', B: 'binary' } as const)[
+            this.attributeTypeOf(key)
+          ],
+        ]),
       ),
       primaryIndex: {
         hashKey: this.keyNames.partitionKey as string,
@@ -566,21 +687,154 @@ type SingleTableKeys<PK extends string, SK extends string> = {
 };
 
 /**
+ * Options for **TableDefinition.singleTable**.
+ */
+export type SingleTableOptions = {
+  /** The table's partition key attribute. Defaults to **partition**. */
+  partitionKey?: string;
+  /** The table's sort key attribute. Defaults to **sort**. */
+  sortKey?: string;
+  /**
+   * Attribute names for indexes. Indexes not listed use **<index>_partition** and **<index>_sort**. Local indexes only
+   * have a sort key attribute, as they use the table's partition key.
+   */
+  indexes?: Record<string, { partitionKey?: string; sortKey?: string }>;
+};
+
+const MAX_LOCAL_INDEXES = 5;
+
+type SingleTableIndex = {
+  global: boolean;
+  partitionKey: string;
+  sortKey?: string;
+};
+
+/**
+ * Works out the table's secondary indexes from the indexes its parts use.
+ */
+function singleTableIndexes(
+  keyNames: { partitionKey: string; sortKey: string },
+  parts: TablePartInfo<any, any, any, any, any>[],
+  configured: SingleTableOptions['indexes'] = {},
+): Record<string, SingleTableIndex> {
+  const usage: Record<
+    string,
+    { parts: string[]; sorted: boolean[]; local: boolean[] }
+  > = {};
+  parts.forEach((part) =>
+    Object.entries(part.indexes as Record<string, IndexKeys>).forEach(
+      ([name, keys]) => {
+        usage[name] = usage[name] ?? { parts: [], sorted: [], local: [] };
+        usage[name].parts.push(part.prefix);
+        usage[name].sorted.push(keys.sort.length > 0);
+        usage[name].local.push(keys.local);
+      },
+    ),
+  );
+  Object.keys(configured).forEach((name) => {
+    if (!usage[name])
+      throw new Error(`Index ${name} is configured but no part uses it`);
+  });
+  const indexes: Record<string, SingleTableIndex> = Object.fromEntries(
+    Object.entries(usage).map(([name, { parts: users, sorted, local }]) => {
+      const check = (values: boolean[], message: string) => {
+        if (values.some((it) => it !== values[0]))
+          throw new Error(
+            `Every part using index ${name} must ${message}, check parts ${users.join(
+              ', ',
+            )}`,
+          );
+      };
+      check(local, 'agree on whether it is local or global');
+      check(sorted, 'either have sort keys or not');
+      if (local[0]) {
+        const attributes = configured[name] ?? { sortKey: `${name}_sort` };
+        if (attributes.partitionKey)
+          throw new Error(
+            `Index ${name} is local so it uses the table's partition key, only configure its sortKey`,
+          );
+        if (!attributes.sortKey)
+          throw new Error(`Index ${name} needs a sort key attribute name`);
+        return [
+          name,
+          {
+            global: false,
+            partitionKey: keyNames.partitionKey,
+            sortKey: attributes.sortKey,
+          },
+        ];
+      }
+      const hasSort = sorted[0];
+      const attributes = configured[name] ?? {
+        partitionKey: `${name}_partition`,
+        ...(hasSort ? { sortKey: `${name}_sort` } : {}),
+      };
+      if (!attributes.partitionKey)
+        throw new Error(`Index ${name} needs a partition key attribute name`);
+      if (hasSort && !attributes.sortKey)
+        throw new Error(`Index ${name} needs a sort key attribute name`);
+      if (!hasSort && attributes.sortKey)
+        throw new Error(
+          `Index ${name} has a sort key attribute name but its parts have no sort keys`,
+        );
+      return [
+        name,
+        {
+          global: true,
+          partitionKey: attributes.partitionKey,
+          ...(attributes.sortKey ? { sortKey: attributes.sortKey } : {}),
+        },
+      ];
+    }),
+  );
+  const localCount = Object.values(indexes).filter((it) => !it.global).length;
+  if (localCount > MAX_LOCAL_INDEXES)
+    throw new Error(
+      `A table can have at most ${MAX_LOCAL_INDEXES} local indexes, found ${localCount}`,
+    );
+  // Local indexes use the table's partition key, so only their sort key is a new attribute
+  const attributes = [
+    keyNames.partitionKey,
+    keyNames.sortKey,
+    ...Object.values(indexes).flatMap((it) => [
+      ...(it.global ? [it.partitionKey] : []),
+      ...(it.sortKey ? [it.sortKey] : []),
+    ]),
+  ];
+  const duplicate = attributes.find(
+    (name, index) => attributes.indexOf(name) !== index,
+  );
+  if (duplicate)
+    throw new Error(
+      `Single table key attributes must be unique, found ${duplicate} more than once`,
+    );
+  return indexes;
+}
+
+// Referring to the base class keeps the compiler from comparing generic single table definitions member by member
+type SingleTableBase<PK extends string, SK extends string> = TableDefinition<
+  SingleTableType<PK, SK>,
+  SingleTableKeys<PK, SK>
+>;
+
+/**
  * A table definition for single table design, created with **TableDefinition.singleTable**.
  *
  * It is a normal **TableDefinition**, so it can be used anywhere one is expected (CloudFormation, CDK, Terraform, SST,
- * jest setup or a raw **TableClient**). Call **client** to get a client for each part.
+ * jest setup or a raw **TableClient**). Its secondary indexes come from the indexes its parts use. Call
+ * **client** to get a client for each part.
  */
 export class SingleTableDefinition<
   PK extends string,
   SK extends string,
-  Parts extends TablePartInfo<any, any, any, any>,
+  Parts extends TablePartInfo<any, any, any, any, any>,
 > extends TableDefinition<SingleTableType<PK, SK>, SingleTableKeys<PK, SK>> {
   constructor(
     keyNames: { partitionKey: PK; sortKey: SK },
     public readonly parts: Parts[],
+    indexes: SingleTableOptions['indexes'] = {},
   ) {
-    super(keyNames as any, {});
+    super(keyNames as any, singleTableIndexes(keyNames, parts, indexes) as any);
     const names = parts.map((part) => part.prefix);
     const duplicate = names.find(
       (name, index) => names.indexOf(name) !== index,
@@ -597,9 +851,10 @@ export class SingleTableDefinition<
    */
   client(
     config: DynamoConfig,
-  ): TablePartClients<Parts, SingleTableDefinition<PK, SK, Parts>> {
-    const tableClient = new TableClient(this, config);
-    const parts: TablePartInfo<any, any, any, any>[] = this.parts;
+  ): TablePartClients<Parts, SingleTableBase<PK, SK>> {
+    const base: SingleTableBase<PK, SK> = this;
+    const tableClient = new TableClient(base, config);
+    const parts: TablePartInfo<any, any, any, any, any>[] = this.parts;
     return parts.reduce(
       (prev, next) => ({
         ...prev,

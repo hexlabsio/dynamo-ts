@@ -16,7 +16,7 @@ export type TerraformDynamoTable = {
   name: string;
   hash_key: string;
   range_key?: string;
-  attribute: { name: string; type: 'S' }[];
+  attribute: { name: string; type: 'S' | 'N' | 'B' }[];
   global_secondary_index?: {
     name: string;
     key_schema: TerraformKeySchema[];
@@ -66,7 +66,7 @@ export type CdkTableProps<A, P> = {
  * The parts of the `aws-cdk-lib/aws-dynamodb` module needed to build table props.
  */
 export type CdkDynamoModule<A, P> = {
-  AttributeType: { STRING: A };
+  AttributeType: { STRING: A; NUMBER: A; BINARY: A };
   ProjectionType: { ALL: P };
 };
 
@@ -74,7 +74,7 @@ export type CdkDynamoModule<A, P> = {
  * Args for the SST v3 `sst.aws.Dynamo` component.
  */
 export type SstDynamoArgs = {
-  fields: Record<string, 'string'>;
+  fields: Record<string, 'string' | 'number' | 'binary'>;
   primaryIndex: { hashKey: string; rangeKey?: string };
   globalIndexes?: Record<
     string,

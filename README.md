@@ -18,29 +18,37 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
 - **Single table design.** Model hierarchical entities in one table without hand-crafting `PK`/`SK` strings.
 - **Infrastructure from types.** Generate tables for CloudFormation, CDK, Terraform and SST, plus local test tables, from the same definition.
 
-> Version 6.x supports both CommonJS and ESM.
+> Supports both CommonJS and ESM.
 
 ## Table of contents
 
 - [Installation](#installation)
-- [Get Started](#get-started)
-- [Examples](#examples)
-  - [Scan Table](#scan-table)
-  - [Get Item](#get-item)
-  - [Put Item](#put-item)
-  - [Delete Item](#delete-item)
-  - [Query Items](#query-items)
-  - [Update Items](#update-items)
-  - [Multi-Table Batch Gets (With Projections)](#multi-table-batch-gets-with-projections)
-  - [Multi-Table Batch Writes](#multi-table-batch-writes)
-  - [Transactional Writes](#transactional-writes)
-  - [Transactional Gets](#transactional-gets)
+- [Quick start](#quick-start)
+- [Reference](#reference)
+  - [Put](#put)
+  - [Get](#get)
+  - [Delete](#delete)
+  - [Update](#update)
+  - [Query](#query)
+  - [Scan](#scan)
+  - [Querying indexes](#querying-indexes)
+  - [Paging through results](#paging-through-results)
+  - [Filters and conditions](#filters-and-conditions)
+  - [Projections](#projections)
+  - [Batch operations](#batch-operations)
+  - [Transactions](#transactions)
+  - [Crud helper](#crud-helper)
+  - [Key types and local indexes](#key-types-and-local-indexes)
+  - [Errors](#errors)
 - [Single Table Design](#single-table-design)
   - [Why single table design?](#why-single-table-design)
   - [How dynamo-ts models it](#how-dynamo-ts-models-it)
   - [Worked example: a shop](#worked-example-a-shop)
   - [Generated keys](#generated-keys)
   - [Reading and writing](#reading-and-writing)
+  - [Transactions across parts](#transactions-across-parts)
+  - [Indexes](#indexes)
+    - [Local indexes](#local-indexes)
   - [Fetching a parent with its children](#fetching-a-parent-with-its-children)
     - [Paging](#paging)
   - [Things to know](#things-to-know)
@@ -58,15 +66,15 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
 npm i @hexlabs/dynamo-ts @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
-## Get Started
+# Quick start
 
-Create a definition for your table.
+Describe your table once:
 
-> The definition holds the type information, and you can also use it to generate the table in CloudFormation, CDK, Terraform or SST (see [Infrastructure as code](#infrastructure-as-code)).
-
-<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/define-table.ts&lines=3-100) -->
+<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/define-table.ts) -->
 <!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
 ```ts
+import { TableDefinition } from '@hexlabs/dynamo-ts';
+
 type MyTableType = { identifier: string; sort: string; abc: { xyz: number } };
 
 export const myTableDefinition = TableDefinition.ofType<MyTableType>()
@@ -77,11 +85,12 @@ export const myTableDefinition = TableDefinition.ofType<MyTableType>()
 ```
 <!-- AUTO-GENERATED-CONTENT:END -->
 
-Build a client from the definition above:
+Build a client from the definition:
 
-<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/create-client.ts&lines=2-100) -->
+<!-- AUTO-GENERATED-CONTENT:START (CODE:src=./test/examples/create-client.ts) -->
 <!-- The below code snippet is automatically added from ./test/examples/create-client.ts -->
 ```ts
+import { DynamoConfig, TableClient } from '@hexlabs/dynamo-ts';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { myTableDefinition } from './define-table';
@@ -94,236 +103,393 @@ const dynamoConfig: DynamoConfig = {
 
 export const myTableClient = TableClient.build(myTableDefinition, dynamoConfig);
 ```
-<!-- The below code snippet is automatically added from ./test/examples/define-table.ts -->
 <!-- AUTO-GENERATED-CONTENT:END -->
 
-You can now use the client to talk to DynamoDB:
+Every operation is now checked against `MyTableType`:
 
 ```typescript
-// PUT ITEM
-await myTableClient.put({ identifier: 'id', sort: 'a', abc: { xyz: 1 } }); // must match MyTableType
+await myTableClient.put({ identifier: 'id', sort: 'a', abc: { xyz: 1 } }); // the item must match MyTableType
 
-// GET ITEM
-const result = await myTableClient.get({ identifier: 'id', sort: 'a' }); // must be the full key
-// typeof result.item is MyTableType | undefined
-
-// QUERY AN INDEX
-await myTableClient.index('my-index').query({ sort: 'a' }); // index names are type checked too
+const { item } = await myTableClient.get({ identifier: 'id', sort: 'a' }); // the full key is required
+// typeof item is MyTableType | undefined
 ```
 
-# Examples
+The [Reference](#reference) covers every operation, starting with the simple ones. For many entity types in one
+table, see [Single Table Design](#single-table-design).
 
-The examples below use this table of cars (also in [`examples/example-table.ts`](examples/example-table.ts)):
+# Reference
+
+The examples use this table of cars:
 
 ```typescript
-type Car = { make: string; identifier: string; model: string; year: number; colour: string };
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { TableClient, TableDefinition } from '@hexlabs/dynamo-ts';
 
-const exampleCarTable = TableDefinition.ofType<Car>()
+type Car = {
+  make: string;
+  identifier: string;
+  model: string;
+  year: number;
+  colour: string;
+  specs?: { seats: number; doors: number };
+  tags?: string[];
+};
+
+const carTable = TableDefinition.ofType<Car>()
   .withPartitionKey('make')
   .withSortKey('identifier')
   .withGlobalSecondaryIndex('model-index', 'make').withSortKey('model')
-  .withGlobalSecondaryIndex('model-year-index', 'model').withSortKey('year');
+  .withGlobalSecondaryIndex('model-year-index', 'model').withSortKey('year', 'number');
 
-const tableClient = TableClient.build(exampleCarTable, { client, tableName: 'cars' });
+const client = DynamoDBDocument.from(new DynamoDB({}));
+
+const cars = TableClient.build(carTable, {
+  client,
+  tableName: 'cars',
+  logStatements: false, // set to true to log every request
+});
 ```
 
-## Scan Table
+## Put
+
+`put` writes a whole item, replacing any item with the same key.
 
 ```typescript
-// Scan one page of the table
-const { member, next } = await tableClient.scan();
-// typeof member = Car[]
+await cars.put({ make: 'Tesla', identifier: '1234', model: 'Model S', year: 2022, colour: 'white' });
 
-// Fetch the next page by passing the token back in
-await tableClient.scan({ next });
-
-// Filter results: all cars from the year 2000
-await tableClient.scan({ filter: compare => compare().year.eq(2000) });
-
-// Read every page
-const { member: allCars } = await tableClient.scanAll();
-```
-
-## Get Item
-
-```typescript
-// Get Item (Partition Key and Sort Key)
-const { item } = await tableClient.get({ make: 'Tesla', identifier: '1234' });
-// typeof item = Car | undefined
-
-// Get a projected item
-const result = await tableClient.get(
-  { make: 'Tesla', identifier: '1234' },
-  { projection: projector => projector.project('model') },
-);
-// typeof result.item = { model: string } | undefined
-```
-
-## Put Item
-
-```typescript
-// Put Item
-await tableClient.put({ identifier: '1234', make: 'Tesla', model: 'Model S', year: 2022, colour: 'white' });
-
-// Put Item and return the overwritten item
-const result = await tableClient.put(
-  { identifier: '1234', make: 'Tesla', model: 'Model S', year: 2022, colour: 'white' },
+// Return the item that was replaced
+const { item } = await cars.put(
+  { make: 'Tesla', identifier: '1234', model: 'Model S', year: 2023, colour: 'red' },
   { returnValues: 'ALL_OLD' },
 );
-// typeof result.item = Car | undefined
+// typeof item = Car | undefined
 
-// Only put the item if it doesn't already exist (throws ConditionalCheckFailedException otherwise)
-await tableClient.put(
-  { identifier: '1234', make: 'Tesla', model: 'Model S', year: 2022, colour: 'white' },
-  { condition: compare => compare().identifier.notExists },
+// Only write the item if it doesn't exist yet (otherwise throws ConditionalCheckFailedException)
+await cars.put(
+  { make: 'Tesla', identifier: '5678', model: 'Model 3', year: 2021, colour: 'blue' },
+  { condition: (compare) => compare().identifier.notExists },
 );
 ```
 
-## Delete Item
+Options: `condition` ([conditions](#filters-and-conditions)), `returnValues` (`'NONE'` or `'ALL_OLD'`),
+`returnConsumedCapacity` and `returnItemCollectionMetrics`.
+
+## Get
+
+`get` reads one item by its full key, and returns `undefined` if there isn't one.
 
 ```typescript
-// Delete (requires the full key)
-await tableClient.delete({ identifier: '1234', make: 'Tesla' });
+const { item } = await cars.get({ make: 'Tesla', identifier: '1234' });
+// typeof item = Car | undefined
 
-// Delete conditionally and return what was removed
-const { item } = await tableClient.delete(
-  { identifier: '1234', make: 'Tesla' },
-  { condition: compare => compare().colour.eq('white'), returnValues: 'ALL_OLD' },
+// Only read some attributes
+const { item: model } = await cars.get(
+  { make: 'Tesla', identifier: '1234' },
+  { projection: (projector) => projector.project('model').project('year') },
 );
+// typeof model = { model: string; year: number } | undefined
+
+// Read the latest write
+await cars.get({ make: 'Tesla', identifier: '1234' }, { consistentRead: true });
 ```
 
-## Query Items
+Options: `projection` ([projections](#projections)), `consistentRead` and `returnConsumedCapacity`.
 
-`query(keys, options)` takes the key condition first and the options (filter, projection, paging and so on) second.
+## Delete
+
+`delete` removes one item by its full key.
 
 ```typescript
-// Get all cars with make 'Tesla'
-await tableClient.query({ make: 'Tesla' });
+await cars.delete({ make: 'Tesla', identifier: '5678' });
 
-// Sort key conditions: eq, lt, lte, gt, gte, between, beginsWith
-await tableClient.query({ make: 'Tesla', identifier: sortKey => sortKey.beginsWith('12') });
-
-// Query and filter: all Nissan cars from 2006
-await tableClient.query({ make: 'Nissan' }, { filter: compare => compare().year.eq(2006) });
-
-// Query an index, newest first
-// All Nissan cars with a model beginning with '3'
-await tableClient.index('model-index').query(
-  { make: 'Nissan', model: sortKey => sortKey.beginsWith('3') },
-  { scanIndexForward: false },
+// Only delete a red car, and return what was deleted
+const { item } = await cars.delete(
+  { make: 'Tesla', identifier: '1234' },
+  { condition: (compare) => compare().colour.eq('red'), returnValues: 'ALL_OLD' },
 );
+// typeof item = Car | undefined
+```
 
-// Filter with between: all Nissan cars between 2006 and 2022
-await tableClient.query({ make: 'Nissan' }, { filter: compare => compare().year.between(2006, 2022) });
+Options: `condition`, `returnValues` (`'NONE'` or `'ALL_OLD'`), `returnConsumedCapacity` and
+`returnItemCollectionMetrics`.
 
-// Combine comparisons with and / or / not
-await tableClient.query(
-  { make: 'Nissan' },
-  { filter: compare => compare().year.between(2006, 2007).and(compare().colour.eq('Metallic Black')) },
-);
+## Update
 
-// Projection: only return model and year
-const result = await tableClient.query(
+`update` changes some attributes and leaves the rest alone. If the item doesn't exist, it's created.
+
+```typescript
+const key = { make: 'Tesla', identifier: '1234' };
+
+// Set attributes. Undefined values are removed.
+await cars.update({ key, updates: { year: 2024, colour: undefined } });
+
+// Set a whole map, or one nested attribute by its path (the map it's in must already exist)
+await cars.update({ key, updates: { specs: { seats: 5, doors: 4 } } });
+await cars.update({ key, updates: { 'specs.seats': 7 } });
+
+// Add to a number atomically, starting from 2020 if it doesn't exist yet (giving 2021)
+await cars.update({ key, updates: { year: 1 }, increments: [{ key: 'year', start: 2020 }] });
+
+// Only update if a condition holds, and return the new item
+const { item } = await cars.update({
+  key,
+  updates: { colour: 'black' },
+  condition: (compare) => compare().year.gte(2020),
+  return: 'ALL_NEW',
+});
+// typeof item = Car
+```
+
+`return` can be `'NONE'` (the default), `'ALL_OLD'`, `'ALL_NEW'`, `'UPDATED_OLD'` or `'UPDATED_NEW'`. The last two
+return only the updated attributes, typed as `Partial<Car>`. Key attributes can't be updated.
+
+## Query
+
+`query` reads items from one partition, optionally narrowed by the sort key. It returns one page of results
+(see [paging](#paging-through-results)).
+
+```typescript
+// Every Tesla
+const { member } = await cars.query({ make: 'Tesla' });
+// typeof member = Car[]
+
+// Narrow by the sort key: eq, lt, lte, gt, gte, between or beginsWith
+await cars.query({ make: 'Tesla', identifier: (sortKey) => sortKey.beginsWith('12') });
+await cars.query({ make: 'Tesla', identifier: (sortKey) => sortKey.between('1000', '1999') });
+
+// Filter the results (applied after reading, so filtered items still use capacity)
+await cars.query({ make: 'Tesla' }, { filter: (compare) => compare().year.gte(2020) });
+
+// Only some attributes, in reverse sort key order, at most 10 items
+const { member: models } = await cars.query(
   { make: 'Tesla' },
-  { projection: projector => projector.project('model').project('year') },
+  { projection: (projector) => projector.project('model'), scanIndexForward: false, limit: 10 },
 );
-// typeof result.member = { model: string; year: number }[]
+// typeof models = { model: string }[]
 
-// Read every page
-await tableClient.queryAll({ make: 'Tesla' });
+// Every page
+await cars.queryAll({ make: 'Tesla' });
 ```
 
-## Update Items
+Options: `filter`, `projection`, `limit`, `next`, `scanIndexForward`, `consistentRead` and `returnConsumedCapacity`.
+
+## Scan
+
+`scan` reads the whole table, one page at a time. Prefer `query` where you can, as a scan reads (and pays for) every
+item.
 
 ```typescript
-// Set the year to 2022 and remove the colour (undefined means REMOVE)
-await tableClient.update({
-  key: { identifier: '1234', make: 'Tesla' },
-  updates: { year: 2022, colour: undefined },
-});
+const { member, next } = await cars.scan();
 
-// Atomic increment
-// Add 1 to the year (start at 2020 if it doesn't exist) and set the model
-await tableClient.update({
-  key: { identifier: '1234', make: 'Tesla' },
-  updates: { year: 1, model: 'Another Model' },
-  increments: [{ key: 'year', start: 2020 }],
-});
+// Filter the results
+await cars.scan({ filter: (compare) => compare().colour.eq('red') });
 
-// Return old values
-const result = await tableClient.update({
-  key: { identifier: '1234', make: 'Tesla' },
-  updates: { year: 2022, colour: undefined },
-  return: 'ALL_OLD',
-});
-// typeof result.item = Car
+// Every page
+const { member: allCars } = await cars.scanAll();
+
+// Scan in parallel: run one scan per segment
+await Promise.all([0, 1, 2, 3].map((segment) => cars.scanAll({ segment, totalSegments: 4 })));
 ```
 
-Nested attributes can be updated by path, e.g. `updates: { 'abc.xyz': 9 }`.
+Options: `filter`, `projection`, `limit`, `next`, `segment`, `totalSegments`, `consistentRead` and
+`returnConsumedCapacity`.
 
-## Multi-Table Batch Gets (With Projections)
+## Querying indexes
+
+`index(name)` returns a client for one of the table's indexes, with `query`, `queryAll`, `scan` and `scanAll`. Index
+names and their keys are type checked.
 
 ```typescript
-const result = await testTable
-  .batchGet([{ identifier: '0' }, { identifier: '3' }, { identifier: '4' }])
-  // Use and() to combine requests against other tables
-  .and(
-    testTable2.batchGet(
-      [
-        { identifier: '10000', sort: '0' },
-        { identifier: '10008', sort: '8' },
-      ],
-      { projection: projector => projector.project('sort') },
-    ),
-  )
+// Every Model S from 2020 onwards
+await cars.index('model-year-index').query({ model: 'Model S', year: (year) => year.gte(2020) });
+
+// Teslas by model name
+await cars.index('model-index').query({ make: 'Tesla', model: (model) => model.beginsWith('Model') });
+```
+
+## Paging through results
+
+`query` and `scan` return at most one page (up to 1 MB, or `limit` items). When there's more, the result has a `next`
+token: pass it back to get the next page.
+
+```typescript
+let next: string | undefined;
+do {
+  const page = await cars.query({ make: 'Tesla' }, { limit: 25, next });
+  page.member.forEach((car) => console.log(car.model));
+  next = page.next;
+} while (next);
+```
+
+`queryAll` and `scanAll` read every page for you.
+
+## Filters and conditions
+
+Filters (`query`, `scan`) and conditions (`put`, `update`, `delete`, transactions) use the same builder. It's passed
+a `compare` function: call it to start a comparison on any attribute, including nested ones.
+
+```typescript
+await cars.scan({ filter: (compare) => compare().year.gt(2020) });
+
+// Combine with and / or / not
+await cars.scan({
+  filter: (compare) =>
+    compare().year.gt(2020).and(compare().colour.eq('red').or(compare().colour.eq('black'))),
+});
+await cars.scan({ filter: (compare) => compare().not(compare().colour.eq('white')) });
+
+// Nested attributes and list elements
+await cars.scan({ filter: (compare) => compare().specs.seats.gte(5) });
+await cars.scan({ filter: (compare) => compare().tags[0].eq('electric') });
+```
+
+| Operator | Example |
+|---|---|
+| `eq`, `neq` | `compare().colour.eq('red')` |
+| `lt`, `lte`, `gt`, `gte` | `compare().year.gte(2020)` |
+| `between` | `compare().year.between(2018, 2022)` |
+| `in` | `compare().colour.in(['red', 'blue'])` |
+| `exists`, `notExists` | `compare().specs.exists` |
+| `beginsWith` | `compare().model.beginsWith('Model')` |
+| `contains` | `compare().tags.contains('electric')` or `compare().model.contains('S')` |
+| `isType` | `compare().year.isType('number')` |
+| `and`, `or` | `a.and(b)`, or `compare().and(a, b, c)` |
+| `not` | `compare().not(a)` |
+
+Values are type checked against the attribute: `compare().year.eq('2020')` doesn't compile.
+
+## Projections
+
+A projection reads only some attributes, and the result type follows. Projections work with `get`, `query`, `scan`,
+batch gets and transactional gets.
+
+```typescript
+const { member } = await cars.query(
+  { make: 'Tesla' },
+  { projection: (projector) => projector.project('model').project('specs.seats') },
+);
+// typeof member = { model: string; specs: { seats: number } }[]
+```
+
+## Batch operations
+
+Batch gets and writes send many requests at once, across one or more tables. Batches larger than DynamoDB's limits
+(100 keys for gets, 25 items for writes) are split into several requests for you.
+
+```typescript
+// Get several items
+const { items } = await cars.batchGet([
+  { make: 'Tesla', identifier: '1234' },
+  { make: 'Nissan', identifier: '350' },
+]).execute();
+// typeof items = Car[]
+
+// Write several items: start with batchPut or batchDelete, and add more with and()
+await cars
+  .batchPut([{ make: 'Ford', identifier: '1', model: 'Focus', year: 2019, colour: 'grey' }])
+  .and(cars.batchDelete([{ make: 'Nissan', identifier: '350' }]))
   .execute();
-// result.items is a typed tuple, one entry per table
 ```
 
-Batches larger than DynamoDB's limits (100 keys for gets, 25 items for writes) are split into multiple requests. Call
-`execute(true)` on a write batch, or on a get batch combined with `and()`, to retry unprocessed keys or items with
-exponential backoff. The optional second argument sets the maximum number of retries (default 10).
-
-## Multi-Table Batch Writes
+Use `and()` to combine requests, for the same table or different ones (here `ownerTable` is a client for a table of
+`Owner`s). A combined batch get returns one list per request, in order, each with its own type:
 
 ```typescript
-await testTable
-  // Start with batchPut or batchDelete against one table
-  .batchDelete([{ identifier: 'id1' }])
-  // Then use and() to combine other operations against other tables
-  .and(testTable.batchPut([{ identifier: 'id2', text: 'text' }]))
-  .and(testTable2.batchPut([{ identifier: 'id3', text: 'text' }]))
+const { items: [teslas, owners] } = await cars
+  .batchGet([{ make: 'Tesla', identifier: '1234' }], { projection: (projector) => projector.project('model') })
+  .and(ownerTable.batchGet([{ id: 'owner-1' }]))
   .execute();
+// typeof teslas = { model: string }[], typeof owners = Owner[]
 ```
 
-## Transactional Writes
+DynamoDB can leave some requests unprocessed when it's busy. Call `execute(true)` on a write batch, or on a combined
+get batch, to retry them with exponential backoff; the optional second argument sets the maximum number of retries
+(default 10).
+
+## Transactions
+
+A transaction applies several writes, across one or more tables, all or nothing. If any condition fails, nothing is
+written and it throws `TransactionCanceledException`.
 
 ```typescript
-await transactionTable.transaction
+await cars.transaction
   .put({
-    item: { identifier: '777', count: 1, description: 'some description' },
-    condition: compare => compare().description.notExists,
+    item: { make: 'Tesla', identifier: '9999', model: 'Cybertruck', year: 2024, colour: 'steel' },
+    condition: (compare) => compare().identifier.notExists,
   })
+  .then(cars.transaction.update({ key: { make: 'Tesla', identifier: '1234' }, updates: { colour: 'blue' } }))
+  .then(cars.transaction.delete({ key: { make: 'Ford', identifier: '1' } }))
   .then(
-    transactionTable.transaction.update({
-      key: { identifier: '777-000' },
-      increments: [{ key: 'count', start: 0 }],
-      updates: { count: 5 },
+    cars.transaction.conditionCheck({
+      key: { make: 'Nissan', identifier: '350' },
+      condition: (compare) => compare().identifier.notExists,
     }),
   )
   .execute();
 ```
 
-`transaction.delete` and `transaction.conditionCheck` can also be chained with `.then()`.
-
-## Transactional Gets
+Transactional gets read several items at a consistent point in time. The result has one entry per key, in order:
 
 ```typescript
-const result = await transactionTable.transaction
-  .get([{ identifier: '0' }])
-  .and(testTable2.transaction.get([{ identifier: '10000', sort: '0' }]))
+const { items: [tesla, ford] } = await cars.transaction
+  .get([{ make: 'Tesla', identifier: '1234' }])
+  .and(cars.transaction.get([{ make: 'Ford', identifier: '1' }]))
   .execute();
+// typeof tesla = Car | undefined
 ```
+
+## Crud helper
+
+`Crud` wraps a client for tables keyed by a single generated id. `create` adds a random UUID as the partition key.
+
+```typescript
+import { Crud } from '@hexlabs/dynamo-ts';
+
+type User = { id: string; name: string };
+const users = new Crud(
+  TableClient.build(TableDefinition.ofType<User>().withPartitionKey('id'), { client, tableName: 'users' }),
+);
+
+const user = await users.create({ name: 'Ada' }); // { id: '<uuid>', name: 'Ada' }
+await users.read({ id: user.id }); // User | undefined
+await users.readMany([{ id: user.id }]); // User[]
+await users.readAll(); // every user
+await users.update({ key: { id: user.id }, updates: { name: 'Ada Lovelace' } }); // returns the updated User
+await users.deleteItem({ id: user.id });
+```
+
+## Key types and local indexes
+
+Key attributes that aren't strings must say what type they are, because TypeScript types aren't available at
+runtime. The compiler requires it, and only accepts the matching type:
+
+```typescript
+type Reading = { sensor: string; time: number; data: Buffer; recorded: number };
+
+TableDefinition.ofType<Reading>()
+  .withPartitionKey('sensor') // string: no type needed
+  .withSortKey('time', 'number') // leaving out 'number' (or passing 'string') is a compile error
+  .withGlobalSecondaryIndex('by-data', 'data', 'binary')
+  .withNoSortKey()
+  .withLocalSecondaryIndex('by-recorded')
+  .withSortKey('recorded', 'number');
+```
+
+Attributes whose type could be more than one of these (such as `string | number`), or that are objects or arrays,
+can't be keys.
+
+Local secondary indexes always use the table's partition key, so they only take a name and a sort key, and need a
+table with a sort key. They support strongly consistent reads, but can only be created with the table; see
+[local indexes](#local-indexes) for their limitations.
+
+## Errors
+
+dynamo-ts doesn't wrap AWS errors, so they're thrown as the AWS SDK throws them. The common ones are:
+
+- `ConditionalCheckFailedException` when a `put`, `update` or `delete` condition isn't met;
+- `TransactionCanceledException` when a transaction is cancelled, for example because one of its conditions failed;
+- `ValidationException` for requests DynamoDB rejects, such as an item missing a key attribute.
 
 # Single Table Design
 
@@ -366,11 +532,12 @@ part. There are three building blocks:
 
 | Builder | Partition key | Sort key | Use it when |
 |---|---|---|---|
-| `name: part<T>().partitionedBy(pk, { ... })` | `pk` | `name` | Defining a root entity. |
-| `name: join<T>()` or `join<T>().with({ ... })` | **same** as parent | parent's sort keys + `name` | The child is small or bounded and you want to read it **together with its parent** in one query. |
-| `name: child<T>()` or `child<T>().with({ ... })` | parent's partition + sort keys | `name` | The child can grow without bound, so it gets its **own partition** under the parent. |
+| `name: part<T>().partitionedBy(pk)` | `pk` | `name` | Defining a root entity. |
+| `name: join<T>()` | **same** as parent | parent's sort keys + `name` | The child is small or bounded and you want to read it **together with its parent** in one query. |
+| `name: child<T>()` | parent's partition + sort keys | `name` | The child can grow without bound, so it gets its **own partition** under the parent. |
 
-`partitionedBy` and `with` take the part's children; leave them out for a part with none. The compiler checks that:
+Nest a part's children with `.with({ ... })`, and add it to [indexes](#indexes) with `.index(...)`. The compiler checks
+that:
 
 - each name and partition key is an attribute of the part's type;
 - each part's type has all of its parent's key attributes.
@@ -393,7 +560,7 @@ type OrderLine = { store: string; customer: string; order: string; line: string;
 
 export const shopTable = TableDefinition.singleTable(({ part, join, child }) => ({
   // Root: partition = store, sort = customer
-  customer: part<Customer>().partitionedBy('store', {
+  customer: part<Customer>().partitionedBy('store').with({
     // Joined: lives in the customer's partition, read alongside the customer
     address: join<Address>(),
     // Child: gets its own partition per customer
@@ -404,7 +571,7 @@ export const shopTable = TableDefinition.singleTable(({ part, join, child }) => 
   }),
 }));
 
-const shop = shopTable.client({ client: dynamoClient, tableName: 'shop' });
+const shop = shopTable.client({ client, tableName: 'shop' });
 ```
 
 `client` returns an object with one client per part, keyed by part name: `shop.customer`, `shop.address`, `shop.order`
@@ -414,11 +581,11 @@ and `shop.line`.
 to [create test tables](#testing).
 
 By default the table has a string partition key called `partition` and a string sort key called `sort`. To use
-different attribute names, pass them to `singleTable`:
+different attribute names, pass options first:
 
 ```typescript
-export const shopTable = TableDefinition.singleTable('pk', 'sk', ({ part, join, child }) => ({
-  customer: part<Customer>().partitionedBy('store', { /* ... */ }),
+export const shopTable = TableDefinition.singleTable({ partitionKey: 'pk', sortKey: 'sk' }, ({ part, join, child }) => ({
+  customer: part<Customer>().partitionedBy('store').with({ /* ... */ }),
 }));
 ```
 
@@ -458,8 +625,23 @@ await shop.line
   .execute();
 ```
 
+`update(key, options)` changes some attributes and leaves the rest alone, creating the item if it doesn't exist.
+Undefined values are removed, and `condition`, `increments` and `return` work as they do on a [table
+client](#update). Key attributes can't be updated, since they decide where the item lives.
+
+```typescript
+await shop.customer.update({ store: 'acme', customer: 'alice' }, { updates: { name: 'Alice Smith' } });
+
+// Atomic increment, starting at 0, returning the new item
+const { item } = await shop.order.update(
+  { store: 'acme', customer: 'alice', order: 'o-1' },
+  { updates: { total: 5 }, increments: [{ key: 'total', start: 0 }], return: 'ALL_NEW' },
+);
+```
+
 `query(partition, sortKeys?, options?)` takes the partition identifiers, then an optional builder that narrows the
-sort key from left to right, then the usual query options (`filter`, `projection`, `limit` and so on):
+sort key from left to right, then the usual query options (`filter`, `projection`, `limit` and so on). Matching is
+precise: a partial key matches whole segments, so order `o-1` doesn't match `o-10`, and a full key uses equality.
 
 ```typescript
 // Every customer in the store (addresses share the partition but are excluded)
@@ -471,6 +653,166 @@ await shop.line.query({ store: 'acme', customer: 'alice' }, keys => keys.order('
 // A specific line
 await shop.line.query({ store: 'acme', customer: 'alice' }, keys => keys.order('o-1').line('2'));
 ```
+
+Part clients also have the other operations you'd expect from a [table client](#reference). Keys are typed from the
+part, so a number key takes a number:
+
+```typescript
+// Every page
+await shop.line.queryAll({ store: 'acme', customer: 'alice' });
+
+// Batch gets and deletes, combined across parts with and()
+const { items: [customers, orders] } = await shop.customer
+  .batchGet([{ store: 'acme', customer: 'alice' }])
+  .and(shop.order.batchGet([{ store: 'acme', customer: 'alice', order: 'o-1' }]))
+  .execute();
+await shop.address.batchDelete([{ store: 'acme', customer: 'alice', address: 'home' }]).execute();
+
+// Scan the table for one part's items (reads, and pays for, the whole table)
+const { member: everyOrder } = await shop.order.scanAll({ filter: (compare) => compare().total.gt(20) });
+```
+
+## Transactions across parts
+
+Each part client has a `transaction` property with the same requests as a [table client's](#transactions): `put`,
+`update`, `delete`, `conditionCheck` and `get`. Keys are generated, index keys are maintained, and `update` follows
+the same rules as above. Requests from different parts, and from other tables, combine into one transaction:
+
+```typescript
+// Create an order with its lines, only if the customer exists. All or nothing.
+await shop.order.transaction
+  .put({ item: { store: 'acme', customer: 'alice', order: 'o-2', total: 25 } })
+  .then(shop.line.transaction.put({ item: { store: 'acme', customer: 'alice', order: 'o-2', line: '1', sku: 'hat' } }))
+  .then(shop.line.transaction.put({ item: { store: 'acme', customer: 'alice', order: 'o-2', line: '2', sku: 'scarf' } }))
+  .then(
+    shop.customer.transaction.conditionCheck({
+      key: { store: 'acme', customer: 'alice' },
+      condition: (compare) => compare().customer.exists,
+    }),
+  )
+  .execute();
+
+// Read a customer and an order at the same point in time
+const { items: [customer, order] } = await shop.customer.transaction
+  .get([{ store: 'acme', customer: 'alice' }])
+  .and(shop.order.transaction.get([{ store: 'acme', customer: 'alice', order: 'o-2' }]))
+  .execute();
+// typeof customer = Customer | undefined, typeof order = Order | undefined
+```
+
+A transaction can include up to 100 requests, and can't touch the same item twice.
+
+## Indexes
+
+Parts can add themselves to global and [local](#local-indexes) secondary indexes to support other access patterns.
+The table's indexes come from the parts, so there's nothing else to declare.
+
+```typescript
+type Store = { org: string; store: string; zone: string; status?: 'open' | 'closed'; name: string };
+type Employee = { org: string; store: string; employee: string; role: string };
+
+export const storeTable = TableDefinition.singleTable(({ part, child }) => ({
+  store: part<Store>()
+    .partitionedBy('org')
+    .index('byZone', { partition: [], sort: ['zone', 'status'] })
+    .with({
+      employee: child<Employee>().index('byRole', { partition: ['role'], sort: ['employee'] }),
+    }),
+}));
+
+const stores = storeTable.client({ client, tableName: 'stores' });
+```
+
+`.index(name, { partition, sort })` lists the attributes that make up the index keys, in order. The index partition key
+always starts with the part name, so `partition: []` means "every store". `sort` is optional.
+
+| Item | `byZone_partition` | `byZone_sort` |
+|---|---|---|
+| Store `s1` in zone `AMER`, open | `#STORE` | `#ZONE$AMER#STATUS$open` |
+| Store `s4` in zone `AMER`, no status | *(not in the index)* | |
+
+`put` and `batchPut` write the index keys for you. If any attribute an index uses is missing, the item is left out of
+that index (a sparse index). Putting the item again recomputes its index keys.
+
+`update` keeps index keys up to date too, without reading the item first. Because of that, changing an attribute an
+index uses means providing the rest of that index's attributes in the same update (attributes in the item's key are
+already known). The compiler and the client both check this:
+
+```typescript
+await stores.store.update({ org: 'walmart', store: 's1' }, { updates: { zone: 'EMEA', status: 'closed' } }); // ✓
+await stores.store.update({ org: 'walmart', store: 's1' }, { updates: { status: 'closed' } }); // ✗ byZone also needs zone
+await stores.employee.update({ org: 'walmart', store: 's1', employee: 'e1' }, { updates: { role: 'manager' } }); // ✓ employee is in the key
+await stores.store.update({ org: 'walmart', store: 's1' }, { updates: { zone: 'AMER', status: undefined } }); // ✓ leaves byZone
+```
+
+Setting an index attribute to undefined removes the item from that index. Index attributes can't be incremented,
+because their new value isn't known until DynamoDB applies it.
+
+Query an index through the part, narrowing the sort key from left to right just like `query`:
+
+```typescript
+await stores.store.index('byZone').query({});                                            // every store with a zone and status
+await stores.store.index('byZone').query({}, (keys) => keys.zone('AMER'));                 // in AMER (not AMERICA)
+await stores.store.index('byZone').query({}, (keys) => keys.zone('AMER').status('open'));  // open stores in AMER
+await stores.employee.index('byRole').query({ role: 'manager' }, (keys) => keys.employee('e1'), { limit: 10 });
+```
+
+Index names, attributes and query keys are all type checked, and several parts can share one index with different key
+layouts. Each index uses attributes called `<index>_partition` and `<index>_sort` unless you configure them:
+
+```typescript
+TableDefinition.singleTable(
+  { indexes: { byRole: { partitionKey: 'gsi1pk', sortKey: 'gsi1sk' } } },
+  ({ part, child }) => ({ /* ... */ }),
+);
+```
+
+Defining the table throws if parts sharing an index disagree on whether it has a sort key, if a configured index isn't
+used by any part, or if two key attributes have the same name.
+
+### Local indexes
+
+A local index keeps the table's partition key and sorts it by different attributes, so it can read a partition in
+another order. Unlike global indexes, local indexes support strongly consistent reads.
+
+```typescript
+type Account = { tenant: string; account: string; name: string };
+type Invoice = { tenant: string; account: string; invoice: string; due: string; status?: 'open' | 'paid' };
+
+export const billingTable = TableDefinition.singleTable(({ part, join }) => ({
+  account: part<Account>()
+    .partitionedBy('tenant')
+    .with({
+      invoice: join<Invoice>()
+        .localIndex('byDue', { sort: ['due'] })
+        .localIndex('byStatus', { sort: ['status', 'due'] }),
+    }),
+}));
+
+const billing = billingTable.client({ client, tableName: 'billing' });
+
+// A tenant's invoices by due date, including ones just written
+await billing.invoice.index('byDue').query({ tenant: 't1' }, undefined, { consistentRead: true });
+
+// Open invoices, by due date
+await billing.invoice.index('byStatus').query({ tenant: 't1' }, (keys) => keys.status('open'));
+```
+
+Local index queries take the part's own partition attributes. The index sort key starts with the part name (e.g.
+`#INVOICE#DUE$2026-10-01`), so parts sharing a partition can share a local index without seeing each other's items.
+`put`, `update` and sparse indexes work the same way as for global indexes. Local indexes use a `<index>_sort`
+attribute, which you can configure with `indexes: { byDue: { sortKey: 'lsi1' } }`.
+
+Local indexes come with real limitations, so prefer global indexes unless you need strongly consistent reads:
+
+- **They can only be created with the table.** Adding a local index to a part later means creating a new table and
+  moving the data.
+- **They can't cross partitions.** They re-sort a partition, so access patterns like "every open invoice" need a global
+  index.
+- **Each partition key value is limited to 10 GB** across the table and its local indexes, and its throughput can't be
+  spread over more than one DynamoDB partition. Single table design often puts many items in one partition, so check
+  this before using them.
+- **A table can have at most 5.** Defining the table throws if parts use more.
 
 ## Fetching a parent with its children
 
@@ -528,12 +870,11 @@ make sure a projection keeps the key attributes that the grouping relies on.
   `child` for anything unbounded.
 - **`queryWithParents` makes one query per level.** A chain of `n` parts costs at least `n` queries per page. Use `limit`
   to keep the children of a page within memory and capacity budgets.
-- **Sort key narrowing is a prefix match.** `keys.order('o-1')` becomes `begins_with(sort, '#LINE#ORDER$o-1')`,
-  which also matches order `o-10`. Use fixed-width or delimited identifiers (for example ULIDs or UUIDs) if this
-  matters to you.
 - **Avoid `#` and `$` in key values.** They are used as separators in the generated keys.
-- **Part clients cover** `put`, `get`, `delete`, `batchPut`, `query`, `queryWithParents` and `queryAllWithParents`. To change an item, `put`
-  it again.
+- **Key values are stored as strings.** Numbers in keys and indexes sort as text, so `10` comes before `9`. Pad them
+  (e.g. `009`) if their order matters.
+- **Part clients cover** `put`, `update`, `get`, `delete`, `batchGet`, `batchPut`, `batchDelete`, `query`, `queryAll`,
+  `scan`, `scanAll`, `index(...).query` and `queryAll`, `queryWithParents`, `queryAllWithParents` and `transaction`.
 - **Part names must be unique across the whole tree.** Clients are keyed by part name, so two parts can't both be
   called `id`, even in different branches.
 
@@ -545,14 +886,15 @@ tags, streams and so on) is passed through in the tool's own format.
 
 dynamo-ts doesn't depend on any of these tools: each helper returns a plain object (or a string for HCL).
 
-> Key attributes are always declared as strings (`S`), because the attribute types aren't known at runtime.
+> Key attributes are declared with the types given in the definition (see [key types](#key-types-and-local-indexes)), so number and
+> binary keys get `N` and `B`. Single table keys are always strings.
 
 ## CloudFormation
 
 Returns the properties of an `AWS::DynamoDB::Table` resource:
 
 ```typescript
-const carTableProperties = exampleCarTable.asCloudFormation('cars', { BillingMode: 'PAY_PER_REQUEST' });
+const carTableProperties = carTable.asCloudFormation('cars', { BillingMode: 'PAY_PER_REQUEST' });
 const shopTableProperties = shopTable.asCloudFormation('shop', { BillingMode: 'PAY_PER_REQUEST' });
 ```
 
@@ -564,7 +906,7 @@ own enums and type-check without casts:
 ```typescript
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 
-new dynamodb.TableV2(this, 'Cars', exampleCarTable.asCdk(dynamodb, 'cars', {
+new dynamodb.TableV2(this, 'Cars', carTable.asCdk(dynamodb, 'cars', {
   billing: dynamodb.Billing.onDemand(),
   pointInTimeRecovery: true,
 }));
@@ -580,7 +922,7 @@ new dynamodb.TableV2(this, 'Shop', shopTable.asCdk(dynamodb));
 ```typescript
 import { writeFileSync } from 'fs';
 
-writeFileSync('cars.tf', exampleCarTable.asTerraformHcl('cars', 'cars', {
+writeFileSync('cars.tf', carTable.asTerraformHcl('cars', 'cars', {
   billing_mode: 'PAY_PER_REQUEST',
   tags: { team: 'cars' },
   point_in_time_recovery: { enabled: true },
@@ -614,7 +956,7 @@ resource "aws_dynamodb_table" "cars" {
 
 ```typescript
 const tfJson = {
-  resource: { aws_dynamodb_table: { cars: exampleCarTable.asTerraform('cars', { billing_mode: 'PAY_PER_REQUEST' }) } },
+  resource: { aws_dynamodb_table: { cars: carTable.asTerraform('cars', { billing_mode: 'PAY_PER_REQUEST' }) } },
 };
 ```
 
@@ -630,7 +972,7 @@ const tfJson = {
 Returns args for the SST v3 `sst.aws.Dynamo` component:
 
 ```typescript
-const cars = new sst.aws.Dynamo('Cars', exampleCarTable.asSst({ stream: 'new-and-old-images' }));
+const table = new sst.aws.Dynamo('Cars', carTable.asSst({ stream: 'new-and-old-images' }));
 ```
 
 # Testing
