@@ -4,7 +4,7 @@ import { NativeAttributeValue } from '@aws-sdk/util-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
 import { filterParts, KeyComparisonBuilder, Wrapper } from './comparison.js';
 import { KeyOperation } from './operation.js';
-import { Projection, ProjectionHandler } from './projector.js';
+import { Projected, Select, selectExpression } from './projector.js';
 import {
   DynamoTableKeyConfig,
   TableDefinition,
@@ -26,7 +26,8 @@ export type KeyCompare<
 
 export type QuerierInput<TableType, PROJECTION> = {
   filter?: DynamoFilter<TableType>;
-  projection?: Projection<TableType, PROJECTION>;
+  /** Only read these attribute paths */
+  select?: Select<TableType, PROJECTION>;
   next?: string;
 } & Partial<
   CamelCaseKeys<
@@ -47,7 +48,7 @@ export type QueryAllInput<TableType, PROJECTION> = QuerierInput<
 >;
 
 export type QuerierReturn<TableType, PROJECTION = null> = {
-  member: PROJECTION extends null ? TableType[] : PROJECTION[];
+  member: Projected<TableType, PROJECTION>[];
   next?: string;
   consumedCapacity?: QueryCommandOutput['ConsumedCapacity'];
   count?: number;
@@ -91,7 +92,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     return expression;
   }
 
-  query<PROJECTION = null>(
+  query<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
@@ -102,7 +103,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     return executor.execute();
   }
 
-  async queryAll<PROJECTION = null>(
+  async queryAll<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QueryAllInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
@@ -113,7 +114,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     return executor.execute();
   }
 
-  queryExecutor<PROJECTION = null>(
+  queryExecutor<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): QueryExecutor<TableConfig['type'], PROJECTION> {
@@ -122,11 +123,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     const filterPart =
       options.filter && filterParts(attributeBuilder, options.filter);
     const projection =
-      options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      );
+      options.select && selectExpression(attributeBuilder, options.select);
     const input: QueryCommandInput = {
       TableName: this.clientConfig.tableName,
       ...(this.clientConfig.indexName
@@ -134,7 +131,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
         : {}),
       ...{ KeyConditionExpression: keyExpression },
       ...(options.filter && filterPart ? { FilterExpression: filterPart } : {}),
-      ...(options.projection ? { ProjectionExpression: projection } : {}),
+      ...(options.select ? { ProjectionExpression: projection } : {}),
       ReturnConsumedCapacity: options.returnConsumedCapacity,
       ScanIndexForward: options.scanIndexForward,
       ConsistentRead: options.consistentRead,
@@ -168,7 +165,7 @@ export class DynamoQuerier<TableConfig extends TableDefinition> {
     };
   }
 
-  queryAllExecutor<PROJECTION = null>(
+  queryAllExecutor<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QueryAllInput<TableConfig['type'], PROJECTION> = {},
   ): QueryExecutor<TableConfig['type'], PROJECTION> {
@@ -187,6 +184,7 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
   implements QueryExecutor<TableConfig, PROJECTION>
 {
   input: QueryCommandInput;
+  private readonly enrichedFields: string[];
   constructor(
     private readonly tableConfig: TableConfig,
     private readonly clientConfig: DynamoConfig,
@@ -201,12 +199,25 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
     ) => string,
     readonly parentKeys?: DynamoTableKeyConfig<TableConfig['type']>,
     private readonly attributeBuilder = AttributeBuilder.create(),
-    private readonly projectionWithEnrichedKeys = options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      ),
   ) {
+    // Paging needs the key attributes of the last item, so read them even if they weren't selected
+    const keyFields = [
+      this.tableConfig.keyNames.partitionKey,
+      this.tableConfig.keyNames.sortKey,
+      this.parentKeys?.partitionKey,
+      this.parentKeys?.sortKey,
+    ].filter((it): it is string => !!it);
+    this.enrichedFields = this.options.select
+      ? [...new Set(keyFields)].filter(
+          (it) => !(this.options.select as readonly string[]).includes(it),
+        )
+      : [];
+    const projection =
+      this.options.select &&
+      selectExpression(this.attributeBuilder, [
+        ...this.options.select,
+        ...this.enrichedFields,
+      ]);
     this.input = {
       TableName: this.clientConfig.tableName,
       ...(this.clientConfig.indexName
@@ -226,7 +237,7 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
             ),
           }
         : {}),
-      ProjectionExpression: this.projectionWithEnrichedKeys,
+      ProjectionExpression: projection,
       ReturnConsumedCapacity: this.options.returnConsumedCapacity,
       ScanIndexForward: this.options.scanIndexForward,
       ConsistentRead: this.options.consistentRead,
@@ -318,7 +329,7 @@ class QueryAllExecutor<TableConfig extends TableDefinition, PROJECTION>
         parentPartitionKey: this.parentKeys?.partitionKey as string | undefined,
         parentSortKey: this.parentKeys?.sortKey as string | undefined,
       },
-      undefined,
+      this.enrichedFields,
       this.options.limit,
     );
 

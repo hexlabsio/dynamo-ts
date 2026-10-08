@@ -99,10 +99,11 @@ describe('Dynamo Getter', () => {
     it('should project result', async () => {
       const result = await testTable.get(
         { hash: 'get-item-test' },
-        { projection: (projector) => projector.project('obj.abc') },
+        { select: ['obj.abc'] },
       );
       expect(result.item).toEqual({ obj: { abc: 'xyz' } });
-      expect(result.item!.obj.abc).toEqual('xyz'); //verifies that obj.abc exists on type of item
+      // obj is optional on the table, so it stays optional when projected
+      expect(result.item!.obj?.abc).toEqual('xyz');
     });
   });
 

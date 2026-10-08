@@ -83,7 +83,7 @@ describe('Dynamo Batch Getter', () => {
               { identifier: '10000', sort: '0' },
               { identifier: '10008', sort: '8' },
             ],
-            { projection: (projector) => projector.project('sort') },
+            { select: ['sort'] },
           ),
         )
         .execute();
@@ -162,7 +162,7 @@ describe('Dynamo Batch Getter', () => {
       .and(testTable2.batchGet([{ identifier: '10000', sort: '0' }]))
       .and(
         testTable.batchGet([{ identifier: '3' }, { identifier: '4' }], {
-          projection: (projector) => projector.project('identifier'),
+          select: ['identifier'],
         }),
       )
       .execute();

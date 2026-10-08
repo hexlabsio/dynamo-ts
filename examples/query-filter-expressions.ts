@@ -10,7 +10,7 @@ export async function queryTeslas(): Promise<Car[]> {
 }
 
 export async function queryTeslasProjected(): Promise<{model: string; year: number}[]> {
-    const result = await tableClient.query({make: 'Tesla'}, { projection: projector => projector.project('model').project('year') });
+    const result = await tableClient.query({make: 'Tesla'}, { select: ['model', 'year'] });
     return result.member;
 }
 

@@ -1,7 +1,7 @@
 import { ConsumedCapacity, KeysAndAttributes } from '@aws-sdk/client-dynamodb';
 import { BatchGetCommandInput, DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
-import { Projection, ProjectionHandler } from './projector.js';
+import { Projected, Select, selectExpression } from './projector.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { CamelCaseKeys, DynamoConfig } from './types/index.js';
 
@@ -9,11 +9,12 @@ export type BatchGetItemOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &
     Pick<BatchGetCommandInput, 'ReturnConsumedCapacity'>
 > & {
-  projection?: Projection<TableType, PROJECTION>;
+  /** Only read these attribute paths */
+  select?: Select<TableType, PROJECTION>;
 };
 
 export type BatchGetItemReturn<TableType, PROJECTION> = {
-  items: PROJECTION extends null ? TableType[] : PROJECTION[];
+  items: Projected<TableType, PROJECTION>[];
   consumedCapacity?: ConsumedCapacity;
 };
 
@@ -264,22 +265,18 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
 export class DynamoBatchGetter<TableConfig extends TableDefinition> {
   constructor(private readonly clientConfig: DynamoConfig) {}
 
-  batchGetExecutor<PROJECTION = null>(
+  batchGetExecutor<const PROJECTION = null>(
     keys: TableConfig['keys'][],
     options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): BatchGetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression =
-      options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      );
+      options.select && selectExpression(attributeBuilder, options.select);
     const input = {
       RequestItems: {
         [this.clientConfig.tableName]: {
           Keys: keys,
-          ...(options.projection ? { ProjectionExpression: expression } : {}),
+          ...(options.select ? { ProjectionExpression: expression } : {}),
           ...attributeBuilder.asInput(),
         },
       },

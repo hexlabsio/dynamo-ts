@@ -7,19 +7,20 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
-import { Projection, ProjectionHandler } from './projector.js';
+import { Projected, Select, selectExpression } from './projector.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { CamelCaseKeys, DynamoConfig } from './types/index.js';
 
 export type TypeOrProjection<T, PROJECTION> =
-  | (PROJECTION extends null ? T : PROJECTION)
+  | Projected<T, PROJECTION>
   | undefined;
 
 export type TransactGetItemOptions<TableType, PROJECTION> = CamelCaseKeys<
   Pick<KeysAndAttributes, 'ConsistentRead'> &
     Pick<TransactGetItemsInput, 'ReturnConsumedCapacity'>
 > & {
-  projection?: Projection<TableType, PROJECTION>;
+  /** Only read these attribute paths */
+  select?: Select<TableType, PROJECTION>;
 };
 
 export interface TransactGetExecutor<TableTypes extends any[]> {
@@ -118,7 +119,7 @@ export type ReturnTypesFor<K extends any[], T> = K extends [any]
 export class DynamoTransactGetter<TableConfig extends TableDefinition> {
   constructor(private readonly clientConfig: DynamoConfig) {}
 
-  get<const K extends TableConfig['keys'][], PROJECTION = null>(
+  get<const K extends TableConfig['keys'][], const PROJECTION = null>(
     keys: K,
     options: TransactGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): TransactGetExecutor<
@@ -126,17 +127,13 @@ export class DynamoTransactGetter<TableConfig extends TableDefinition> {
   > {
     const attributeBuilder = AttributeBuilder.create();
     const expression =
-      options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      );
+      options.select && selectExpression(attributeBuilder, options.select);
     const input: TransactGetItemsCommandInput = {
       TransactItems: keys.map((key) => ({
         Get: {
           TableName: this.clientConfig.tableName,
           Key: key,
-          ...(options.projection ? { ProjectionExpression: expression } : {}),
+          ...(options.select ? { ProjectionExpression: expression } : {}),
           ...attributeBuilder.asInput(),
         },
       })),

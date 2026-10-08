@@ -152,7 +152,7 @@ describe('Single table transactions', () => {
     const {
       items: [foundStore, foundEmployee, missing],
     } = await shop.store.transaction
-      .get([s1], { projection: (projector) => projector.project('name') })
+      .get([s1], { select: ['name'] })
       .and(shop.employee.transaction.get([e1, { ...s1, employee: 'nobody' }]))
       .execute();
     const name: { name: string } | undefined = foundStore;
