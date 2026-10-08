@@ -1,4 +1,4 @@
-import { TableDefinition } from '../../src/table-builder/table-definition';
+import { TableDefinition } from '@hexlabs/dynamo-ts';
 
 type MyTableType = { identifier: string; sort: string; abc: { xyz: number } };
 

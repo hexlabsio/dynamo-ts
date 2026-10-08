@@ -139,3 +139,92 @@ export const singleTableDesignDefinition = TableDefinition.ofType<{
 }>()
   .withPartitionKey('p2')
   .withSortKey('s2');
+
+export type Store = {
+  org: string;
+  store: string;
+  zone: string;
+  status?: 'open' | 'closed';
+  name: string;
+  visits?: number;
+};
+
+export type Employee = {
+  org: string;
+  store: string;
+  employee: string;
+  role: string;
+};
+
+export const storeSingleTable = TableDefinition.singleTable(
+  { indexes: { byRole: { partitionKey: 'gsi2pk', sortKey: 'gsi2sk' } } },
+  ({ part, child }) => ({
+    store: part<Store>()
+      .partitionedBy('org')
+      .index('byZone', { partition: [], sort: ['zone', 'status'] })
+      .with({
+        employee: child<Employee>().index('byRole', {
+          partition: ['role'],
+          sort: ['employee'],
+        }),
+      }),
+  }),
+);
+
+// The same schema in its own table, so update tests don't change the index test data
+export const storeUpdatesSingleTable = storeSingleTable;
+
+// And again for transaction tests
+export const storeTransactionsSingleTable = storeSingleTable;
+
+export type Reading = {
+  sensor: string;
+  time: number;
+  site: string;
+  value?: number;
+};
+
+// Number keys, to check the table and its indexes are created with number attributes
+export const numberKeyTable = TableDefinition.ofType<Reading>()
+  .withPartitionKey('sensor')
+  .withSortKey('time', 'number')
+  .withGlobalSecondaryIndex('by-value', 'site')
+  .withSortKey('value', 'number');
+
+export type Account = { tenant: string; account: string; name: string };
+
+export type Invoice = {
+  tenant: string;
+  account: string;
+  invoice: string;
+  due: string;
+  status?: 'open' | 'paid';
+  amount: number;
+};
+
+// Local indexes, shared by accounts and the invoices that live in their partition
+export const invoiceSingleTable = TableDefinition.singleTable(
+  { indexes: { byStatus: { sortKey: 'lsi1' } } },
+  ({ part, join }) => ({
+    account: part<Account>()
+      .partitionedBy('tenant')
+      .localIndex('byName', { sort: ['name'] })
+      .localIndex('byLabel', { sort: ['name'] })
+      .with({
+        invoice: join<Invoice>()
+          .localIndex('byLabel', { sort: ['invoice'] })
+          .localIndex('byDue', { sort: ['due'] })
+          .localIndex('byStatus', { sort: ['status', 'due'] }),
+      }),
+  }),
+);
+
+// And again for the part batch, scan and paging tests
+export const storeOperationsSingleTable = storeSingleTable;
+
+export type Ticket = { project: string; ticket: number; title: string };
+
+// A part keyed by a number
+export const ticketSingleTable = TableDefinition.singleTable(({ part }) => ({
+  ticket: part<Ticket>().partitionedBy('project'),
+}));

@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
     "rootDir": "src",
-    "baseUrl": ".",
     "outDir": "dist",
-    "moduleResolution": "node",
-    "module": "commonjs",
-    "target": "es5",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": true
   },
   "include": [
     "src/**/*"

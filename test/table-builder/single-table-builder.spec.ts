@@ -29,20 +29,21 @@ export type StepIds = JobIds & { step: string };
 export type LogIds = StepIds & { log: string };
 
 export const workflowSingleTable = TableDefinition.singleTable(
-  'p2',
-  's2',
+  { partitionKey: 'p2', sortKey: 's2' },
   ({ part, join, child }) => ({
-    repo: part<RepoIds>().partitionedBy('account', {
-      workflow: join<WorkflowIds>().with({
-        run: child<RunIds>().with({
-          job: child<JobIds>().with({
-            step: join<StepIds>().with({
-              log: join<LogIds>(),
+    repo: part<RepoIds>()
+      .partitionedBy('account')
+      .with({
+        workflow: join<WorkflowIds>().with({
+          run: child<RunIds>().with({
+            job: child<JobIds>().with({
+              step: join<StepIds>().with({
+                log: join<LogIds>(),
+              }),
             }),
           }),
         }),
       }),
-    }),
   }),
 );
 
@@ -215,7 +216,7 @@ describe('Single Table Design', () => {
     it('should reject parts with the same name', () => {
       expect(() =>
         TableDefinition.singleTable(({ part, child }) => ({
-          repo: part<RepoIds>().partitionedBy('account', {
+          repo: part<RepoIds>().partitionedBy('account').with({
             workflow: child<WorkflowIds>(),
           }),
           workflow: part<WorkflowIds>().partitionedBy('account'),
@@ -269,13 +270,13 @@ describe('Single Table Design', () => {
     it('should reject invalid schemas at compile time', () => {
       TableDefinition.singleTable(({ part, join }) => ({
         // @ts-expect-error repos has no attribute called workflows
-        repo: part<RepoIds>().partitionedBy('account', {
+        repo: part<RepoIds>().partitionedBy('account').with({
           workflows: join<WorkflowIds>(),
         }),
       }));
       TableDefinition.singleTable(({ part, child }) => ({
         // @ts-expect-error the child is missing its parent's account key
-        repo: part<RepoIds>().partitionedBy('account', {
+        repo: part<RepoIds>().partitionedBy('account').with({
           workflow: child<{ repo: string; workflow: string }>(),
         }),
       }));
@@ -291,6 +292,30 @@ describe('Single Table Design', () => {
       // @ts-expect-error there is no part called nope
       expect(client.nope).toBeUndefined();
     });
+  });
+
+  it('should match sort keys precisely when querying', async () => {
+    const workflow = { account: 'account3', repo: 'repo', workflow: 'wf' };
+    await client.run
+      .batchPut([
+        { ...workflow, run: 'run1' },
+        { ...workflow, run: 'run10' },
+      ])
+      .and(
+        client.job.batchPut([
+          { ...workflow, run: 'run1', job: 'job1' },
+          { ...workflow, run: 'run1', job: 'job10' },
+        ]),
+      )
+      .execute();
+    const runs = await client.run.query(workflow, (keys) => keys.run('run1'));
+    expect(runs.member.map((it) => it.run)).toEqual(['run1']);
+    const allRuns = await client.run.query(workflow);
+    expect(allRuns.member.map((it) => it.run)).toEqual(['run1', 'run10']);
+    const jobs = await client.job.query({ ...workflow, run: 'run1' }, (keys) =>
+      keys.job('job1'),
+    );
+    expect(jobs.member.map((it) => it.job)).toEqual(['job1']);
   });
 
   it('should return generated keys for single table put', async () => {

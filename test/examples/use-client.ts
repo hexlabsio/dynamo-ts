@@ -1,4 +1,4 @@
-import { DynamoConfig, TableClient } from '../../src';
+import { DynamoConfig, TableClient } from '@hexlabs/dynamo-ts';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { myTableDefinition } from './define-table';

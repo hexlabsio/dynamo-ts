@@ -21,4 +21,4 @@ export const exampleCarTable = TableDefinition.ofType<Car>()
   .withPartitionKey('make')
   .withSortKey('identifier')
   .withGlobalSecondaryIndex('model-index', 'make').withSortKey('model')
-  .withGlobalSecondaryIndex('model-year-index', 'model').withSortKey('year');
+  .withGlobalSecondaryIndex('model-year-index', 'model').withSortKey('year', 'number');

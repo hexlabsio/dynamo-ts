@@ -10,6 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@hexlabs/dynamo-ts": "file:../hexlabs-dynamo-ts-6.0.0.tgz"
+    "@hexlabs/dynamo-ts": "file:../hexlabs-dynamo-ts.tgz"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
   }
 }

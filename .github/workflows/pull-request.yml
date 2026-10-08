@@ -24,6 +24,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm pack
+      # The smoke tests install the packed package by a fixed name, whatever its version
+      - run: mv hexlabs-dynamo-ts-*.tgz hexlabs-dynamo-ts.tgz
 
       - uses: actions/setup-node@v4
         with:

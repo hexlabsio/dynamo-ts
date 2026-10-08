@@ -98,26 +98,45 @@ function chunkKeys(
   return chunks;
 }
 
+type BatchGetRound = {
+  /** The executors in this round, by position in the batch */
+  executors: number[];
+  requestItems: Record<string, KeysAndAttributes>;
+};
+
 export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
+  /** The request for the first round. Batches with several requests for one table need more than one round. */
   public readonly input: BatchGetCommandInput;
+  private readonly rounds: BatchGetRound[];
 
   constructor(
     private readonly client: DynamoDBDocument,
     private readonly executors: T,
   ) {
-    const RequestItems = this.executors.reduce((prev, next) => {
-      Object.keys(next.input.RequestItems ?? {}).forEach((table) => {
-        if (prev[table]) {
-          throw new Error(
-            `Batch get already contains a request for table '${table}', combine the keys into a single batchGet call instead.`,
-          );
-        }
-      });
-      return { ...prev, ...next.input.RequestItems };
-    }, {} as Record<string, any>);
+    // A request can only include each table once, so further requests for a table go in later rounds
+    this.rounds = this.executors.reduce((rounds, executor, index) => {
+      const requestItems = executor.input.RequestItems as Record<
+        string,
+        KeysAndAttributes
+      >;
+      const tables = Object.keys(requestItems ?? {});
+      const round = rounds.find((it) =>
+        tables.every((table) => !it.requestItems[table]),
+      );
+      if (round) {
+        round.executors.push(index);
+        Object.assign(round.requestItems, requestItems);
+        return rounds;
+      }
+      return [
+        ...rounds,
+        { executors: [index], requestItems: { ...requestItems } },
+      ];
+    }, [] as BatchGetRound[]);
     this.input = {
       ...this.executors[0].input,
-      RequestItems,
+      RequestItems: this.rounds[0]
+        .requestItems as BatchGetCommandInput['RequestItems'],
     };
   }
 
@@ -143,17 +162,61 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
     consumedCapacity?: ConsumedCapacity[];
     unprocessedKeys?: Record<string, KeysAndAttributes>;
   }> {
-    const tableNameList = this.executors.map(
-      (it) => Object.keys(it.input.RequestItems!)[0],
-    );
-    const responses: Record<string, Record<string, any>[]> = {};
+    const items: Record<string, any>[][] = this.executors.map(() => []);
     let consumedCapacity: ConsumedCapacity[] | undefined;
     let unprocessedKeys: Record<string, KeysAndAttributes> | undefined;
-    const chunks = chunkKeys(
-      (this.input.RequestItems ?? {}) as Record<string, KeysAndAttributes>,
-      MAX_BATCH_GET_ITEMS,
-    );
-    for (const chunk of chunks) {
+    for (const round of this.rounds) {
+      const result = await this.executeRound(
+        round.requestItems,
+        reprocess,
+        maxRetries,
+      );
+      round.executors.forEach((index) => {
+        const table = Object.keys(
+          this.executors[index].input.RequestItems ?? {},
+        )[0];
+        items[index] = result.responses[table] ?? [];
+      });
+      if (result.consumedCapacity) {
+        consumedCapacity = [
+          ...(consumedCapacity ?? []),
+          ...result.consumedCapacity,
+        ];
+      }
+      Object.entries(result.unprocessedKeys).forEach(([table, request]) => {
+        unprocessedKeys = unprocessedKeys ?? {};
+        unprocessedKeys[table] = {
+          ...request,
+          Keys: [
+            ...(unprocessedKeys[table]?.Keys ?? []),
+            ...(request.Keys ?? []),
+          ],
+        };
+      });
+    }
+    return {
+      items: items as BatchGetExecutorResult<T>,
+      unprocessedKeys: unprocessedKeys ?? {},
+      consumedCapacity,
+    };
+  }
+
+  /**
+   * Gets one round of requests, at most one per table, in chunks of up to 100 keys.
+   */
+  private async executeRound(
+    roundItems: Record<string, KeysAndAttributes>,
+    reprocess: boolean,
+    maxRetries: number,
+  ): Promise<{
+    responses: Record<string, Record<string, any>[]>;
+    consumedCapacity?: ConsumedCapacity[];
+    unprocessedKeys: Record<string, KeysAndAttributes>;
+  }> {
+    const responses: Record<string, Record<string, any>[]> = {};
+    let consumedCapacity: ConsumedCapacity[] | undefined;
+    const unprocessedKeys: Record<string, KeysAndAttributes> = {};
+    for (const chunk of chunkKeys(roundItems, MAX_BATCH_GET_ITEMS)) {
       let requestItems: Record<string, KeysAndAttributes> | undefined = chunk;
       let retry = 0;
       do {
@@ -166,8 +229,8 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
           ...this.input,
           RequestItems: requestItems as BatchGetCommandInput['RequestItems'],
         });
-        Object.entries(result.Responses ?? {}).forEach(([table, items]) => {
-          responses[table] = [...(responses[table] ?? []), ...items];
+        Object.entries(result.Responses ?? {}).forEach(([table, found]) => {
+          responses[table] = [...(responses[table] ?? []), ...found];
         });
         if (result.ConsumedCapacity) {
           consumedCapacity = [
@@ -185,7 +248,6 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
         retry <= maxRetries
       );
       Object.entries(requestItems ?? {}).forEach(([table, request]) => {
-        unprocessedKeys = unprocessedKeys ?? {};
         unprocessedKeys[table] = {
           ...request,
           Keys: [
@@ -195,13 +257,7 @@ export class BatchGetClient<T extends BatchGetExecutor<any, any>[]> {
         };
       });
     }
-    return {
-      items: tableNameList.map(
-        (tableName) => responses[tableName] ?? [],
-      ) as BatchGetExecutorResult<T>,
-      unprocessedKeys: unprocessedKeys ?? {},
-      consumedCapacity,
-    };
+    return { responses, consumedCapacity, unprocessedKeys };
   }
 }
 
