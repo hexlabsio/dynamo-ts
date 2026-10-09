@@ -6,24 +6,28 @@ import { TableDefinition } from './table-builder/table-definition.js';
 import { TableClient } from './table-client.js';
 import { randomUUID } from 'node:crypto';
 import { JsonPath } from './types/index.js';
+import { Projected } from './projector.js';
 
-export type ProjectionOrTypeArray<PROJECTION, TableType> =
-  PROJECTION extends null ? TableType[] : PROJECTION[];
+export type ProjectionOrTypeArray<PROJECTION, TableType> = Projected<
+  TableType,
+  PROJECTION
+>[];
 
-export type ProjectionOrType<PROJECTION, TableType> = PROJECTION extends null
-  ? TableType
-  : PROJECTION;
+export type ProjectionOrType<PROJECTION, TableType> = Projected<
+  TableType,
+  PROJECTION
+>;
 export class Crud<TableConfig extends TableDefinition> {
   constructor(protected readonly tableClient: TableClient<TableConfig>) {}
 
-  async readAll<PROJECTION = null>(
+  async readAll<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ProjectionOrTypeArray<PROJECTION, TableConfig['type']>> {
     const result = await this.tableClient.scanAll(options);
     return result.member;
   }
 
-  async readMany<PROJECTION = null>(
+  async readMany<const PROJECTION = null>(
     keys: TableConfig['keys'][],
     options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ProjectionOrTypeArray<PROJECTION, TableConfig['type']>> {
@@ -31,7 +35,7 @@ export class Crud<TableConfig extends TableDefinition> {
     return result.items;
   }
 
-  async read<PROJECTION = null>(
+  async read<const PROJECTION = null>(
     keys: TableConfig['keys'],
     options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ProjectionOrType<PROJECTION, TableConfig['type']> | undefined> {

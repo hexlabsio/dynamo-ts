@@ -18,3 +18,4 @@ export * from './table-builder/infrastructure.js';
 export * from './cloudformation/index.js';
 export * from './dynamo-jest-setup.js';
 export * from './crud.js';
+export * from './projector.js';

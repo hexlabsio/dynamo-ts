@@ -78,7 +78,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.
    * @returns - A list of items (1 page only)
    */
-  scan<PROJECTION = null>(
+  scan<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ScanReturn<TableConfig['type'], PROJECTION>> {
     return new DynamoScanner<TableConfig>(this.clientConfig).scan(options);
@@ -88,7 +88,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
    * Scans an entire table, use filter to narrow the results however the filter will be applied after the results have been returned.
    * @returns - A list of all items
    */
-  scanAll<PROJECTION = null>(
+  scanAll<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<Omit<ScanReturn<TableConfig['type'], PROJECTION>, 'next'>> {
     return new DynamoScanner<TableConfig>(this.clientConfig).scanAll(options);
@@ -98,7 +98,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
    * Returns an item that matches the given keys or **undefined** if not present
    * @returns - The item or **undefined**
    */
-  get<PROJECTION = null>(
+  get<const PROJECTION = null>(
     keys: TableConfig['keys'],
     options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<GetItemReturn<TableConfig['type'], PROJECTION>> {
@@ -134,7 +134,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
    * Queries a partition with any given key conditions and filters
    * @returns - A list of results (1 page only).
    */
-  query<PROJECTION = null>(
+  query<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
@@ -145,13 +145,14 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
   }
 
   /**
-   * Queries a partition with any given key conditions and filters. All pages will be returned.
+   * Queries a partition with any given key conditions and filters, reading every page. With **limit**, it stops after
+   * that many items and returns **next** to continue from there.
    * @returns - A list of results.
    */
-  queryAll<PROJECTION = null>(
+  queryAll<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
-  ): Promise<Omit<QuerierReturn<TableConfig['type'], PROJECTION>, 'next'>> {
+  ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
     return new DynamoQuerier(this.tableConfig, this.clientConfig).queryAll(
       keys,
       options,
@@ -181,7 +182,7 @@ export class TableClient<TableConfig extends TableDefinition<any, any, any>> {
    *
    * @returns - An executor that can be executed, or you can append more requests from other tables by calling **and()**.
    */
-  batchGet<PROJECTION = null>(
+  batchGet<const PROJECTION = null>(
     keys: TableConfig['keys'][],
     options: BatchGetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): BatchGetExecutor<TableConfig['type'], PROJECTION> {

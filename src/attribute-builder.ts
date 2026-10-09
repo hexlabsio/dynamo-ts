@@ -33,7 +33,7 @@ export class AttributeBuilder {
   }
 
   buildPath(path: string): string {
-    const parts = path.replace('.[', '[').split('.');
+    const parts = path.replace(/\.\[/g, '[').split('.');
     const names = parts.map((part) =>
       part.includes('[') ? part.substring(0, part.indexOf('[')) : part,
     );

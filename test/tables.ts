@@ -228,3 +228,6 @@ export type Ticket = { project: string; ticket: number; title: string };
 export const ticketSingleTable = TableDefinition.singleTable(({ part }) => ({
   ticket: part<Ticket>().partitionedBy('project'),
 }));
+
+// And again for select tests
+export const invoiceSelectSingleTable = invoiceSingleTable;

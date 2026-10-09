@@ -7,7 +7,7 @@ export async function getModelS(): Promise<Car | undefined> {
 }
 
 export async function getModelSProjected(): Promise<{ model: string } | undefined> {
-    const result = await tableClient.get({identifier: '1234', make: 'Tesla'}, {projection: projector => projector.project('model')})
+    const result = await tableClient.get({identifier: '1234', make: 'Tesla'}, {select: ['model']})
     return result.item
 }
 

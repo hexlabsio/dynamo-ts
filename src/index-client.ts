@@ -18,7 +18,7 @@ export default class IndexClient<TableConfig extends TableDefinition> {
     private readonly clientConfig: DynamoConfig,
   ) {}
 
-  query<PROJECTION = null>(
+  query<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
@@ -28,7 +28,7 @@ export default class IndexClient<TableConfig extends TableDefinition> {
     ).query(keys, options);
   }
 
-  queryAll<PROJECTION = null>(
+  queryAll<const PROJECTION = null>(
     keys: KeyCompare<TableConfig['type'], TableConfig['keyNames']>,
     options: QuerierInput<TableConfig['type'], PROJECTION> = {},
   ): Promise<QuerierReturn<TableConfig['type'], PROJECTION>> {
@@ -39,13 +39,13 @@ export default class IndexClient<TableConfig extends TableDefinition> {
     ).queryAll(keys, options);
   }
 
-  scan<PROJECTION = null>(
+  scan<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ScanReturn<TableConfig['type'], PROJECTION>> {
     return new DynamoScanner<TableConfig>(this.clientConfig).scan(options);
   }
 
-  scanAll<PROJECTION = null>(
+  scanAll<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<Omit<ScanReturn<TableConfig['type'], PROJECTION>, 'next'>> {
     return new DynamoScanner<TableConfig>(this.clientConfig).scanAll(options);

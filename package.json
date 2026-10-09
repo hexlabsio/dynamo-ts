@@ -76,7 +76,7 @@
   "bugs": {
     "url": "https://github.com/hexlabsio/dynamo-ts/issues"
   },
-  "homepage": "https://github.com/hexlabsio/dynamo-ts#readme",
+  "homepage": "https://hexlabs.io/dynamo-ts",
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.49.0",
     "@aws-sdk/lib-dynamodb": "^3.49.0"

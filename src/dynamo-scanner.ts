@@ -1,7 +1,7 @@
 import { ScanCommandInput, ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
 import { filterParts } from './comparison.js';
-import { Projection, ProjectionHandler } from './projector.js';
+import { Projected, Select, selectExpression } from './projector.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { CamelCaseKeys } from './types/camel-case.js';
 import { DynamoConfig } from './types/dynamo-config.js';
@@ -17,13 +17,14 @@ export type ScanOptions<TableType, PROJECTION> = CamelCaseKeys<
     | 'ConsistentRead'
   >
 > & {
-  projection?: Projection<TableType, PROJECTION>;
+  /** Only read these attribute paths */
+  select?: Select<TableType, PROJECTION>;
   filter?: DynamoFilter<TableType>;
   next?: string;
 };
 
 export type ScanReturn<TableType, PROJECTION> = {
-  member: PROJECTION extends null ? TableType[] : PROJECTION[];
+  member: Projected<TableType, PROJECTION>[];
   consumedCapacity?: ScanCommandOutput['ConsumedCapacity'];
   count?: number;
   scannedCount?: number;
@@ -38,7 +39,7 @@ export interface ScanExecutor<TableType, PROJECTION> {
 export class DynamoScanner<TableConfig extends TableDefinition> {
   constructor(private readonly clientConfig: DynamoConfig) {}
 
-  async scan<PROJECTION = null>(
+  async scan<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<ScanReturn<TableConfig['type'], PROJECTION>> {
     const scanInput = this.scanExecutor(options);
@@ -48,7 +49,7 @@ export class DynamoScanner<TableConfig extends TableDefinition> {
     return await scanInput.execute();
   }
 
-  async scanAll<PROJECTION = null>(
+  async scanAll<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<Omit<ScanReturn<TableConfig['type'], PROJECTION>, 'next'>> {
     const executor = this.scanExecutor(options);
@@ -77,16 +78,12 @@ export class DynamoScanner<TableConfig extends TableDefinition> {
     };
   }
 
-  scanExecutor<PROJECTION = null>(
+  scanExecutor<const PROJECTION = null>(
     options: ScanOptions<TableConfig['type'], PROJECTION>,
   ): ScanExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression =
-      options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      );
+      options.select && selectExpression(attributeBuilder, options.select);
     const filterPart =
       options.filter && filterParts(attributeBuilder, options.filter);
     const input = {

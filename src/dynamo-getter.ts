@@ -1,7 +1,7 @@
 import { ConsumedCapacity } from '@aws-sdk/client-dynamodb';
 import { GetCommandInput } from '@aws-sdk/lib-dynamodb';
 import { AttributeBuilder } from './attribute-builder.js';
-import { Projection, ProjectionHandler } from './projector.js';
+import { Projected, Select, selectExpression } from './projector.js';
 import { TableDefinition } from './table-builder/table-definition.js';
 import { CamelCaseKeys, DynamoConfig } from './types/index.js';
 
@@ -10,10 +10,11 @@ export type GetItemOptions<TableType, PROJECTION> = Partial<
     Pick<GetCommandInput, 'ConsistentRead' | 'ReturnConsumedCapacity'>
   >
 > & {
-  projection?: Projection<TableType, PROJECTION>;
+  /** Only read these attribute paths */
+  select?: Select<TableType, PROJECTION>;
 };
 export type GetItemReturn<TableType, PROJECTION> = {
-  item: (PROJECTION extends null ? TableType : PROJECTION) | undefined;
+  item: Projected<TableType, PROJECTION> | undefined;
   consumedCapacity?: ConsumedCapacity;
 };
 
@@ -25,7 +26,7 @@ export interface GetExecutor<TableType, PROJECTION> {
 export class DynamoGetter<TableConfig extends TableDefinition> {
   constructor(private readonly clientConfig: DynamoConfig) {}
 
-  async get<PROJECTION = null>(
+  async get<const PROJECTION = null>(
     keys: TableConfig['keys'],
     options: GetItemOptions<TableConfig['type'], PROJECTION> = {},
   ): Promise<GetItemReturn<TableConfig['type'], PROJECTION>> {
@@ -36,17 +37,13 @@ export class DynamoGetter<TableConfig extends TableDefinition> {
     return await getInput.execute();
   }
 
-  getExecutor<PROJECTION = null>(
+  getExecutor<const PROJECTION = null>(
     keys: TableConfig['keys'],
     options: GetItemOptions<TableConfig['type'], PROJECTION>,
   ): GetExecutor<TableConfig['type'], PROJECTION> {
     const attributeBuilder = AttributeBuilder.create();
     const expression =
-      options.projection &&
-      ProjectionHandler.projectionExpressionFor(
-        attributeBuilder,
-        options.projection,
-      );
+      options.select && selectExpression(attributeBuilder, options.select);
     const input = {
       TableName: this.clientConfig.tableName,
       Key: keys,

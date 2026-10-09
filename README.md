@@ -7,13 +7,15 @@
 
 **DynamoDB + TypeScript made simple.**
 
+**Documentation:** [hexlabs.io/dynamo-ts](https://hexlabs.io/dynamo-ts) · [Getting started](https://hexlabs.io/dynamo-ts/getting-started) · [Reference](https://hexlabs.io/dynamo-ts/reference) · [Comparisons](https://hexlabs.io/dynamo-ts/comparisons)
+
 dynamo-ts is a thin, type-safe layer over the AWS SDK v3 `DynamoDBDocument` client. You describe your table once, and
-every operation (keys, filters, conditions, projections, updates) is checked against that description at compile time.
+every operation (keys, filters, conditions, selected attributes, updates) is checked against that description at compile time.
 You never write an expression string or an `ExpressionAttributeNames` map by hand.
 
 - **Typed keys.** `get`, `delete` and `update` only accept the key attributes you defined.
 - **Typed expressions.** Filters, conditions and key conditions are built with a fluent, autocompleting API.
-- **Typed projections.** Project `model` and `year` and the result type becomes `{ model: string; year: number }`.
+- **Typed selections.** Select `model` and `year` and the result type becomes `{ model: string; year: number }`.
 - **Batches and transactions** across multiple tables. Batches are chunked to DynamoDB's limits for you, and unprocessed items can optionally be retried.
 - **Single table design.** Model hierarchical entities in one table without hand-crafting `PK`/`SK` strings.
 - **Infrastructure from types.** Generate tables for CloudFormation, CDK, Terraform and SST, plus local test tables, from the same definition.
@@ -34,7 +36,7 @@ You never write an expression string or an `ExpressionAttributeNames` map by han
   - [Querying indexes](#querying-indexes)
   - [Paging through results](#paging-through-results)
   - [Filters and conditions](#filters-and-conditions)
-  - [Projections](#projections)
+  - [Selecting attributes](#selecting-attributes)
   - [Batch operations](#batch-operations)
   - [Transactions](#transactions)
   - [Crud helper](#crud-helper)
@@ -186,7 +188,7 @@ const { item } = await cars.get({ make: 'Tesla', identifier: '1234' });
 // Only read some attributes
 const { item: model } = await cars.get(
   { make: 'Tesla', identifier: '1234' },
-  { projection: (projector) => projector.project('model').project('year') },
+  { select: ['model', 'year'] },
 );
 // typeof model = { model: string; year: number } | undefined
 
@@ -194,7 +196,7 @@ const { item: model } = await cars.get(
 await cars.get({ make: 'Tesla', identifier: '1234' }, { consistentRead: true });
 ```
 
-Options: `projection` ([projections](#projections)), `consistentRead` and `returnConsumedCapacity`.
+Options: `select` ([selecting attributes](#selecting-attributes)), `consistentRead` and `returnConsumedCapacity`.
 
 ## Delete
 
@@ -264,7 +266,7 @@ await cars.query({ make: 'Tesla' }, { filter: (compare) => compare().year.gte(20
 // Only some attributes, in reverse sort key order, at most 10 items
 const { member: models } = await cars.query(
   { make: 'Tesla' },
-  { projection: (projector) => projector.project('model'), scanIndexForward: false, limit: 10 },
+  { select: ['model'], scanIndexForward: false, limit: 10 },
 );
 // typeof models = { model: string }[]
 
@@ -272,7 +274,7 @@ const { member: models } = await cars.query(
 await cars.queryAll({ make: 'Tesla' });
 ```
 
-Options: `filter`, `projection`, `limit`, `next`, `scanIndexForward`, `consistentRead` and `returnConsumedCapacity`.
+Options: `filter`, `select`, `limit`, `next`, `scanIndexForward`, `consistentRead` and `returnConsumedCapacity`.
 
 ## Scan
 
@@ -292,7 +294,7 @@ const { member: allCars } = await cars.scanAll();
 await Promise.all([0, 1, 2, 3].map((segment) => cars.scanAll({ segment, totalSegments: 4 })));
 ```
 
-Options: `filter`, `projection`, `limit`, `next`, `segment`, `totalSegments`, `consistentRead` and
+Options: `filter`, `select`, `limit`, `next`, `segment`, `totalSegments`, `consistentRead` and
 `returnConsumedCapacity`.
 
 ## Querying indexes
@@ -359,18 +361,25 @@ await cars.scan({ filter: (compare) => compare().tags[0].eq('electric') });
 
 Values are type checked against the attribute: `compare().year.eq('2020')` doesn't compile.
 
-## Projections
+## Selecting attributes
 
-A projection reads only some attributes, and the result type follows. Projections work with `get`, `query`, `scan`,
-batch gets and transactional gets.
+`select` reads only the attribute paths you list, and the result type follows. It works with `get`, `query`,
+`queryAll`, `scan`, `scanAll`, batch gets, transactional gets and index queries.
 
 ```typescript
 const { member } = await cars.query(
   { make: 'Tesla' },
-  { projection: (projector) => projector.project('model').project('specs.seats') },
+  { select: ['model', 'specs.seats', 'specs.doors', 'tags.[0]'] },
 );
-// typeof member = { model: string; specs: { seats: number } }[]
+// typeof member = { model: string; specs?: { seats: number; doors: number }; tags?: string[] }[]
 ```
+
+- Paths are type checked and autocompleted. Nested attributes use dots (`'specs.seats'`), and list elements use their
+  index (`'tags.[0]'`, `'owners.[0].name'`).
+- Optional attributes stay optional, as an item might not have them.
+- Paths that overlap (`'specs'` and `'specs.seats'`) or repeat are fine.
+- You don't need to select key attributes for paging or for [single table](#single-table-design) grouping to work:
+  dynamo-ts reads any it needs and leaves them out of the results.
 
 ## Batch operations
 
@@ -397,7 +406,7 @@ Use `and()` to combine requests, for the same table or different ones (here `own
 
 ```typescript
 const { items: [teslas, owners] } = await cars
-  .batchGet([{ make: 'Tesla', identifier: '1234' }], { projection: (projector) => projector.project('model') })
+  .batchGet([{ make: 'Tesla', identifier: '1234' }], { select: ['model'] })
   .and(ownerTable.batchGet([{ id: 'owner-1' }]))
   .execute();
 // typeof teslas = { model: string }[], typeof owners = Owner[]
@@ -640,7 +649,7 @@ const { item } = await shop.order.update(
 ```
 
 `query(partition, sortKeys?, options?)` takes the partition identifiers, then an optional builder that narrows the
-sort key from left to right, then the usual query options (`filter`, `projection`, `limit` and so on). Matching is
+sort key from left to right, then the usual query options (`filter`, `select`, `limit` and so on). Matching is
 precise: a partial key matches whole segments, so order `o-1` doesn't match `o-10`, and a full key uses equality.
 
 ```typescript
@@ -860,8 +869,8 @@ const { member: orders } = await shop.line.queryAllWithParents({ store: 'acme', 
 
 Under the hood this runs one query for a page of parents, then one query per level of the join chain. Each of those
 queries is bounded to the sort key range of the parents on the page, and the results are grouped in memory. The
-`consumedCapacity` returned is the total across all of these queries. `filter` and `projection` apply at every level, so
-make sure a projection keeps the key attributes that the grouping relies on.
+`consumedCapacity` returned is the total across all of these queries. `filter` and `select` apply at every level, and
+each level of the result is typed with the selected attributes it has.
 
 ## Things to know
 

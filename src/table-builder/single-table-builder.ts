@@ -31,6 +31,7 @@ import {
 import { TransactWriteExecutor } from '../dynamo-transact-writer.js';
 import { UpdateResult } from '../dynamo-updater.js';
 import { TableClient } from '../table-client.js';
+import { Projected } from '../projector.js';
 import { CamelCaseKeys } from '../types/camel-case.js';
 import { DynamoFilter } from '../types/filter.js';
 import { JsonPath, ValueAtJsonPath } from '../types/json-path.js';
@@ -87,7 +88,7 @@ export type PartIndexClient<
   Partition,
   Sort extends readonly string[],
 > = {
-  query<PROJECTION = null>(
+  query<const PROJECTION = null>(
     partition: Partition,
     ...rest: Sort extends readonly []
       ? [options?: QuerierInput<TableType, PROJECTION>]
@@ -97,7 +98,7 @@ export type PartIndexClient<
         ]
   ): Promise<QuerierReturn<TableType, PROJECTION>>;
   /** Like **query**, reading every page */
-  queryAll<PROJECTION = null>(
+  queryAll<const PROJECTION = null>(
     partition: Partition,
     ...rest: Sort extends readonly []
       ? [options?: Omit<QuerierInput<TableType, PROJECTION>, 'next'>]
@@ -268,7 +269,7 @@ export type PartTransactions<TableType, T extends TablePart<any>, Indexes> = {
       condition: DynamoFilter<TableType>;
     } & ConditionFailureOption,
   ): TransactWriteExecutor;
-  get<const K extends PartKey<TableType, T>[], PROJECTION = null>(
+  get<const K extends PartKey<TableType, T>[], const PROJECTION = null>(
     keys: K,
     options?: TransactGetItemOptions<TableType, PROJECTION>,
   ): TransactGetExecutor<
@@ -281,6 +282,9 @@ export type UpdateItemReturnSingleTable<
   TableType,
   RETURN extends UpdateCommandInput['ReturnValues'] | null,
 > = UpdateResult<TableType, RETURN> & { keys: BaseDefinition['type'] };
+
+// Each level of a parent chain, with the selected paths that apply to it
+type ProjectEach<Types, P> = { [I in keyof Types]: Projected<Types[I], P> };
 
 export type ParentTypes<T extends any[]> = T extends [infer A]
   ? A
@@ -532,7 +536,7 @@ export class TablePartClient<
     }));
   }
 
-  async query<PROJECTION = null>(
+  async query<const PROJECTION = null>(
     partition: PartKeyValues<TableType, T['partitions'][number]>,
     keys?: (keys: SortKeys<T['sorts']>) => any,
     options: QuerierInput<TableType, PROJECTION> = {},
@@ -631,7 +635,7 @@ export class TablePartClient<
   /**
    * Like **query**, reading every page.
    */
-  queryAll<PROJECTION = null>(
+  queryAll<const PROJECTION = null>(
     partition: PartKeyValues<TableType, T['partitions'][number]>,
     keys?: (keys: SortKeys<T['sorts']>) => any,
     options: Omit<QuerierInput<TableType, PROJECTION>, 'next'> = {},
@@ -644,7 +648,7 @@ export class TablePartClient<
   /**
    * Scans the whole table for this part's items, one page at a time. Scans read (and pay for) every item in the table.
    */
-  scan<PROJECTION = null>(
+  scan<const PROJECTION = null>(
     options: ScanOptions<TableType, PROJECTION> = {},
   ): Promise<ScanReturn<TableType, PROJECTION>> {
     const typePrefix = `#${this.prefix.toUpperCase()}${
@@ -663,7 +667,7 @@ export class TablePartClient<
   /**
    * Like **scan**, reading every page.
    */
-  scanAll<PROJECTION = null>(
+  scanAll<const PROJECTION = null>(
     options: Omit<ScanOptions<TableType, PROJECTION>, 'next'> = {},
   ): Promise<Omit<ScanReturn<TableType, PROJECTION>, 'next'>> {
     return this.allPages((next) => this.scan({ ...options, next }));
@@ -675,13 +679,31 @@ export class TablePartClient<
    * Paging applies to the top level parents: **limit** caps how many are read per page and **next** continues from
    * the previous page. Every page contains the complete set of children for the parents it returns.
    */
-  async queryWithParents<PROJECTION = null>(
+  async queryWithParents<const PROJECTION = null>(
     partition: PartKeyValues<TableType, T['partitions'][number]>,
     options: QuerierInput<CombinedTypes<Info>, PROJECTION> = {},
-  ): Promise<QuerierReturn<ParentTypes<ParentType<Info>>, PROJECTION>> {
+  ): Promise<
+    QuerierReturn<ParentTypes<ProjectEach<ParentType<Info>, PROJECTION>>>
+  > {
     const { partitionKey, sortKey } = this.tableClient.tableConfig.keyNames;
     const partitionString = this.keySegments(this.part.partitions, partition);
     const chain = this.getParentChain();
+    // Grouping needs each item's key attributes and sort key, so read them even if they weren't selected
+    const select = (options as { select?: string[] }).select;
+    const added = select
+      ? [
+          ...new Set([
+            sortKey as string,
+            ...chain.flatMap((info) => [
+              ...info.part.partitions,
+              ...info.part.sorts,
+            ]),
+          ]),
+        ].filter((it) => !select.includes(it))
+      : [];
+    const queryOptions = select
+      ? { ...options, select: [...select, ...added] }
+      : options;
     // The chain root is a from or childPart (sort key #NAME$value), the rest are joinParts (#NAME#...)
     const typePrefixes = chain.map(
       (info, index) =>
@@ -692,7 +714,7 @@ export class TablePartClient<
         [partitionKey]: partitionString,
         [sortKey]: (sk: any) => sk.beginsWith(typePrefixes[0]),
       } as any,
-      options as any,
+      queryOptions as any,
     );
     const items: any[] = [...root.member];
     const capacities = [root.consumedCapacity];
@@ -717,7 +739,7 @@ export class TablePartClient<
             [partitionKey]: partitionString,
             [sortKey]: (sk: any) => sk.between(from, to),
           } as any,
-          { ...options, limit: undefined, next: page } as any,
+          { ...queryOptions, limit: undefined, next: page } as any,
         );
         capacities.push(result.consumedCapacity);
         children.push(
@@ -737,6 +759,7 @@ export class TablePartClient<
         typePrefix: typePrefixes[index],
       })),
     );
+    items.forEach((item) => added.forEach((name) => delete item[name]));
     return {
       ...root,
       member,
@@ -749,14 +772,17 @@ export class TablePartClient<
    *
    * Reads all pages of **queryWithParents** and combines them.
    */
-  async queryAllWithParents<PROJECTION = null>(
+  async queryAllWithParents<const PROJECTION = null>(
     partition: PartKeyValues<TableType, T['partitions'][number]>,
     options: Omit<
       QuerierInput<CombinedTypes<Info>, PROJECTION>,
       'next' | 'limit'
     > = {},
   ): Promise<
-    Omit<QuerierReturn<ParentTypes<ParentType<Info>>, PROJECTION>, 'next'>
+    Omit<
+      QuerierReturn<ParentTypes<ProjectEach<ParentType<Info>, PROJECTION>>>,
+      'next'
+    >
   > {
     const member: any[] = [];
     const capacities: (ConsumedCapacity | undefined)[] = [];
@@ -928,7 +954,7 @@ export class TablePartClient<
   /**
    * Gets up to 100 items in one request. Combine with other batch gets, including for other parts, with **and()**.
    */
-  batchGet<PROJECTION = null>(
+  batchGet<const PROJECTION = null>(
     keys: PartKey<TableType, T>[],
     options: BatchGetItemOptions<TableType, PROJECTION> = {},
   ): BatchGetExecutor<TableType, PROJECTION> {
@@ -951,7 +977,7 @@ export class TablePartClient<
     );
   }
 
-  async get<PROJECTION = null>(
+  async get<const PROJECTION = null>(
     item: PartKey<TableType, T>,
     options: GetItemOptions<TableType, PROJECTION> = {},
   ): Promise<GetItemReturnSingleTable<Definition, TableType, PROJECTION>> {

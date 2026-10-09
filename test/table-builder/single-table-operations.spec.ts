@@ -55,7 +55,7 @@ describe('Single table operations', () => {
         shop.employee.batchGet(
           [{ org: 'walmart', store: 's1', employee: 'e1' }],
           {
-            projection: (projector) => projector.project('role'),
+            select: ['role'],
           },
         ),
       )
